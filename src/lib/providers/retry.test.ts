@@ -1,0 +1,126 @@
+import { describe, expect, it } from 'vitest';
+import { parseMetadataResponse } from '../prompt';
+import { BATCH_DELAY_MS, ProviderError, parseRetryAfter, withRetry } from './retry';
+import type { WaitInfo } from './retry';
+
+function fakeSleep() {
+  const calls: number[] = [];
+  return { calls, sleep: async (ms: number) => { calls.push(ms); } };
+}
+
+describe('withRetry', () => {
+  it('sukses di percobaan ke-3 (503 → tunggu 5 detik + jitter)', async () => {
+    const { calls, sleep } = fakeSleep();
+    let n = 0;
+    const out = await withRetry(async () => {
+      n++;
+      if (n < 3) throw new ProviderError('API 503', { status: 503 });
+      return 'ok';
+    }, { sleep });
+    expect(out).toBe('ok');
+    expect(n).toBe(3);
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toBeGreaterThanOrEqual(5000);
+    expect(calls[0]).toBeLessThan(6000);
+    expect(calls[1]).toBeGreaterThanOrEqual(5000);
+  });
+
+  it('429 memakai retryAfterMs dari header + onWait dipanggil sebelum tunggu', async () => {
+    const retryAfterMs = parseRetryAfter(new Headers({ 'retry-after': '7' }));
+    expect(retryAfterMs).toBe(7000);
+    const { calls, sleep } = fakeSleep();
+    const waits: WaitInfo[] = [];
+    let n = 0;
+    await withRetry(async () => {
+      n++;
+      if (n < 2) throw new ProviderError('Batas kuota tercapai (429) — coba lagi nanti.', { status: 429, retryAfterMs });
+      return 'ok';
+    }, { sleep, onWait: (i) => waits.push(i) });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toBeGreaterThanOrEqual(7000);
+    expect(calls[0]).toBeLessThan(8000);
+    expect(waits).toHaveLength(1);
+    expect(waits[0]).toMatchObject({ attempt: 1, maxAttempts: 5, reason: 'HTTP 429', waitMs: calls[0] });
+  });
+
+  it('retry-after > 120 detik → gagal cepat, tanpa menunggu', async () => {
+    const { calls, sleep } = fakeSleep();
+    const err = await withRetry(async () => {
+      throw new ProviderError('Batas kuota tercapai (429) — coba lagi nanti.', { status: 429, retryAfterMs: 180000 });
+    }, { sleep }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ProviderError);
+    expect((err as Error).message).toBe('Kuota harian/limit panjang tercapai, coba lagi nanti (~3 menit)');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('400 tidak di-retry', async () => {
+    const { calls, sleep } = fakeSleep();
+    let n = 0;
+    await expect(withRetry(async () => {
+      n++;
+      throw new ProviderError('Key salah — API key ditolak Gemini.', { status: 400 });
+    }, { sleep })).rejects.toThrow('Key salah — API key ditolak Gemini.');
+    expect(n).toBe(1);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('JSON tidak valid → maksimal 2 retry (3 panggilan)', async () => {
+    const { calls, sleep } = fakeSleep();
+    let n = 0;
+    await expect(withRetry(async () => {
+      n++;
+      parseMetadataResponse('bukan json', 'adobe');
+      return 'tidak sampai';
+    }, { sleep })).rejects.toThrow('JSON tidak valid');
+    expect(n).toBe(3);
+    expect(calls).toHaveLength(2);
+  });
+
+  it('error retryable berhenti di maxAttempts (5 panggilan, 4 tunggu)', async () => {
+    const { calls, sleep } = fakeSleep();
+    let n = 0;
+    await expect(withRetry(async () => {
+      n++;
+      throw new ProviderError('API 503', { status: 503 });
+    }, { sleep })).rejects.toThrow('API 503');
+    expect(n).toBe(5);
+    expect(calls).toHaveLength(4);
+  });
+
+  it('BATCH_DELAY_MS = 3000 (dipakai jeda antar gambar di M8)', () => {
+    expect(BATCH_DELAY_MS).toBe(3000);
+  });
+});
+
+describe('parseRetryAfter', () => {
+  it('header detik', () => {
+    expect(parseRetryAfter(new Headers({ 'retry-after': '7' }))).toBe(7000);
+  });
+
+  it('header HTTP-date', () => {
+    const when = new Date(Date.now() + 10000).toUTCString();
+    const ms = parseRetryAfter(new Headers({ 'retry-after': when }));
+    expect(ms).toBeGreaterThanOrEqual(8000);
+    expect(ms).toBeLessThanOrEqual(10000);
+  });
+
+  it('gaya Groq: "try again in 7.5s"', () => {
+    const body = JSON.stringify({ error: { message: 'Rate limit reached, please try again in 7.5s' } });
+    expect(parseRetryAfter(new Headers(), body)).toBe(7500);
+  });
+
+  it('gaya Groq: "retry in 1m30s" dan "in 2m"', () => {
+    expect(parseRetryAfter(new Headers(), 'slow down, retry in 1m30s')).toBe(90000);
+    expect(parseRetryAfter(new Headers(), 'please retry in 2m')).toBe(120000);
+  });
+
+  it('retryDelay gaya Google RetryInfo', () => {
+    const body = '{"error":{"details":[{"@type":"type.googleapis.com/google.rpc.RetryInfo","retryDelay":"34s"}]}}';
+    expect(parseRetryAfter(new Headers(), body)).toBe(34000);
+  });
+
+  it('tanpa info waktu → undefined', () => {
+    expect(parseRetryAfter(new Headers())).toBeUndefined();
+    expect(parseRetryAfter(new Headers(), 'ada error tapi tanpa waktu')).toBeUndefined();
+  });
+});

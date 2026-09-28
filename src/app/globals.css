@@ -1,26 +1,168 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Token "Darkroom" — satu skema warna untuk seluruh halaman, dua mode.
+   Semua komponen memakai token ini lewat utilitas Tailwind (bg-surface, text-ink, …)
+   sehingga pergantian data-theme mengganti seluruh halaman sekaligus. */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f1116;
+  --surface: #171a21;
+  --raised: #1c202a;
+  --well: #12151b;
+  --line: rgba(255, 255, 255, 0.14);
+  --line-soft: rgba(255, 255, 255, 0.08);
+  --wash: rgba(255, 255, 255, 0.08);
+  --ink: #e9ebf0;
+  --ink-2: #9aa2b1;
+  --ink-3: #838b9b;
+  --accent: #d93a22;
+  --accent-hover: #c1321c;
+  --accent-text: #ff6a4f;
+  --accent-wash: rgba(217, 58, 34, 0.16);
+  --success: #5cd79a;
+  --success-wash: rgba(67, 198, 127, 0.14);
+  --fail: #ff6a4f;
+  --wait: #9aa2b1;
+  --focus: #ff6a4f;
+  --plate: #ffffff;
+  --plate-ink: #16181c;
+  --panel-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 24px 46px -30px rgba(0, 0, 0, 0.9);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f1f0ec;
+  --surface: #fcfcfa;
+  --raised: #f4f3ef;
+  --well: #ffffff;
+  --line: rgba(0, 0, 0, 0.17);
+  --line-soft: rgba(0, 0, 0, 0.1);
+  --wash: rgba(0, 0, 0, 0.05);
+  --ink: #16181c;
+  --ink-2: #5c6169;
+  --ink-3: #676b73;
+  --accent: #c1321c;
+  --accent-hover: #a82115;
+  --accent-text: #c0281a;
+  --accent-wash: rgba(193, 50, 28, 0.1);
+  --success: #12724a;
+  --success-wash: rgba(18, 114, 74, 0.12);
+  --fail: #c0281a;
+  --wait: #5c6169;
+  --focus: #c0281a;
+  --plate: #16181c;
+  --plate-ink: #fcfcfa;
+  --panel-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 18px 36px -28px rgba(0, 0, 0, 0.3);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-well: var(--well);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-wash: var(--wash);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-text: var(--accent-text);
+  --color-accent-wash: var(--accent-wash);
+  --color-success: var(--success);
+  --color-success-wash: var(--success-wash);
+  --color-fail: var(--fail);
+  --color-wait: var(--wait);
+  --color-focus: var(--focus);
+  --color-plate: var(--plate);
+  --color-plate-ink: var(--plate-ink);
+  --shadow-panel: var(--panel-shadow);
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-courier), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  body {
+    background-color: var(--bg);
+    color: var(--ink);
+  }
+
+  /* Seleksi & kursor mengikuti aksen (safelight) */
+  ::selection {
+    background-color: var(--accent);
+    color: #ffffff;
+  }
+
+  /* Focus ring terlihat di semua kontrol keyboard, di kedua mode */
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Ikon tema: kedua ikon selalu ada di DOM — CSS memilih yang tampil dari data-theme,
+   sehingga tidak ada hydration mismatch pada SVG. */
+.theme-icon-sun {
+  display: none;
+}
+[data-theme="light"] .theme-icon-sun {
+  display: inline-flex;
+}
+[data-theme="light"] .theme-icon-moon {
+  display: none;
+}
+
+/* Indikator loading tombol "Tes koneksi" */
+@keyframes spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent-text);
+  border-radius: 50%;
+  animation: spinner-rotate 0.7s linear infinite;
+}
+
+/* Spinner di atas tombol aksen merah: putih solid — kontras di mode siang & malam
+   (--line/--accent-text nyaris tak terlihat di atas --accent) */
+.spinner-on-accent {
+  border-color: rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+}
+
+/* Hormati prefers-reduced-motion: semua animasi dimatikan (spinner statis tapi tetap
+   terbaca); transisi warna/lebar TIDAK dihapus — itu umpan balik state, bukan dekorasi. */
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* Target sentuh layar kecil (tanpa mouse): semua kontrol isian & tombol minimal 40px.
+   Tombol ikon ringkas (hapus chip / hapus frame) memakai .btn-compact + area klik
+   pseudo-element, supaya tidak membesar secara visual. */
+@media (max-width: 1023px) {
+  input:not([type="file"]),
+  select,
+  textarea,
+  button:not(.btn-compact) {
+    min-height: 40px;
+  }
 }

@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Legacy HTML/JS — referensi perilaku, bukan bagian dari build.
+    "legacy/**",
   ]),
 ]);
 

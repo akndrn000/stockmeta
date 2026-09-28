@@ -10,6 +10,9 @@
 !.yarn/releases
 !.yarn/versions
 
+# legacy prototype — referensi baca-saja, tidak ikut ke repo (lihat docs/MIGRATION.md)
+/legacy/
+
 # testing
 /coverage
 
@@ -29,6 +32,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
 
 # env files (can opt-in for committing if needed)
 .env*
@@ -39,3 +43,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+opencode.json
+.impeccable/
+
+docs/AUDIT.md
