@@ -1,6 +1,7 @@
 'use client';
-// Kata kunci sebagai chip (enter/koma/tempel pecah semua), dedupe + batas dari lib/keywords,
-// plus cerminan readonly "siap tempel" — port perilaku legacy/js caption sheet.
+// Kata kunci sebagai chip (enter/koma/tempel pecah semua), dedupe + batas dari lib/keywords.
+// Salin daftar (format dipisah koma) lewat satu tombol di samping label — M12: kotak
+// "Kata kunci (siap tempel)" dihapus, tidak ada textarea mirror lagi.
 import { useState } from 'react';
 import { addKeywords, keywordsToPlain, parseKeywordInput, removeKeyword } from '../lib/keywords';
 import { MAX_KEYWORDS } from '../lib/limits';
@@ -113,21 +114,6 @@ export function KeywordEditor({ keywords, min, onChange }: {
       <p role="status" aria-live="polite" className="min-h-4 text-[12px] font-medium text-ink-2">
         {skip}
       </p>
-
-      <div className="flex items-center justify-between gap-2">
-        <label htmlFor="kw-plain" className="text-[11px] font-semibold leading-none tracking-[0.01em] text-ink-3">
-          Kata kunci (siap tempel)
-        </label>
-        <CopyButton text={plain} label="kata kunci siap tempel" />
-      </div>
-      <textarea
-        id="kw-plain"
-        readOnly
-        value={plain}
-        rows={2}
-        onFocus={(e) => e.currentTarget.select()}
-        className="w-full resize-none rounded-lg border border-dashed border-line bg-well px-3 py-2 font-mono text-[13px] leading-relaxed text-ink-2"
-      />
     </div>
   );
 }

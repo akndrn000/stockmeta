@@ -16,9 +16,9 @@ export default function Home() {
   const batch = useBatch(session, provider);
 
   return (
-    // M11: tanpa tinggi tetap & tanpa overflow tersembunyi — halaman menggulir sebagai satu
-    // dokumen; kedua panel tingginya mengikuti isi (lihat Panel.tsx).
-    <div className="flex min-h-dvh flex-col">
+    // M11/M12: tanpa tinggi yang dipaksa ke viewport (min-h-dvh ikut dibuang) & tanpa overflow
+    // tersembunyi — halaman menggulir sebagai satu dokumen; tinggi tiap elemen = isinya.
+    <div>
       <Header
         provider={provider.provider}
         status={provider.status}

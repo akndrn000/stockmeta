@@ -125,7 +125,8 @@ export function CaptionSheet({ session, provider, batch }: {
       title="Lembar caption"
       meta={frame ? `Frame ${pad2(index + 1)} / ${pad2(frames.length)}` : `Frame -- / ${pad2(frames.length)}`}
       footer={
-        <div className="flex items-center justify-between gap-3">
+        // M12: flex-wrap — di layar sempit / zoom tinggi baris footer turun, tidak meluber
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => downloadCsv(frames, platform)}
@@ -134,7 +135,7 @@ export function CaptionSheet({ session, provider, batch }: {
           >
             Export CSV
           </button>
-          <span className="flex items-center gap-3">
+          <span className="flex flex-wrap items-center gap-3">
             {rowsWithNotes > 0 && (
               <span className="text-[11px] font-medium text-ink-3">
                 {rowsWithNotes} baris punya saran perbaikan

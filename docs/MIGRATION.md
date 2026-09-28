@@ -129,6 +129,65 @@ Perbaikan:
   **maksimal sekitar 200 karakter*** (memakai `MAX_DESCRIPTION`) — instruksi ke model saja,
   **tanpa memotong paksa di kode** (saran validasi >200 tetap non-pemblokir).
 
+## Perbaikan pasca-M11 (M12) — bukan tahap migrasi baru
+
+Verifikasi: `npm run test` (173 tes), `npx tsc --noEmit`, `npm run lint`, `npm run build` — lolos.
+Tanpa e2e, tanpa menjalankan server (lihat butir 3 untuk cakupan uji zoom).
+
+### 1. Kotak "Kata kunci (siap tempel)" dihapus
+
+- `src/components/KeywordEditor.tsx`: dibuang **label `Kata kunci (siap tempel)`, CopyButton di
+  sampingnya, dan textarea readonly** (`#kw-plain`) yang menampilkan `keywordsToPlain`.
+- **Dipertahankan**: chip kata kunci + input, dan **satu** `CopyButton` di samping label
+  `Kata kunci` (line 41) — tetap menyalin format dipisah koma lewat `keywordsToPlain`;
+  `src/lib/keywords.ts` + tesnya tidak diubah.
+- Tes: tidak ada tes lama yang menyinggung elemen ini (diverifikasi); ditambah regresi di
+  `CaptionSheet.test.ts` (M12: `#kw-plain` null, teks "siap tempel" hilang, tombol salin tetap ada).
+- `docs/DESIGN.md`: baris `Panel`/`KeywordEditor`/`Worksheet` ikut disesuaikan (ikut M11/M12).
+
+### 2. Audit tinggi terkunci ke viewport & scroll non-body
+
+Hasil scan seluruh `src/` (`vh|dvh|svh|h-screen|min-h-screen|calc(...)|max-height|overflow-y|…`):
+
+| Lokasi | Temuan | Keputusan |
+| --- | --- | --- |
+| `src/app/page.tsx:21` | `min-h-dvh` pada wrapper | **Dihapus** — wrapper jadi `<div>` polos, tinggi = isi. |
+| `src/app/layout.tsx:35` | `h-full` pada `<html>` | **Dihapus** — html tinggi = isi (background body tetap merambat ke canvas, tidak ada strip kosong). |
+| `src/app/layout.tsx:40` | `min-h-full` pada `<body>` | **Dihapus**. |
+
+Sisa temuan yang **tidak** diubah (bukan tinggi viewport, alasan spesifik):
+
+| Lokasi | Alasan dipertahankan |
+| --- | --- |
+| `src/components/Panel.tsx:27` `overflow-hidden` | Hanya *clipping* sudut membulat (strip full-bleed CaptionSheet pakai margin negatif) — bukan scroll. |
+| `src/components/Worksheet.tsx:143` `overflow-hidden` | Track progress `h-1.5` (ketinggian kontrol, bukan viewport). |
+| `src/components/Worksheet.tsx:190` `overflow-hidden` | Tile frame: memotong thumbnail ke sudut membulat. |
+| `src/components/Worksheet.tsx:146,203,205` `h-full` | `100%` **parent** (isian progress & thumbnail dalam `aspect-square`), bukan viewport. |
+| `src/app/globals.css:125` `height:12px` (`.spinner`) / `:166` `min-height:40px` | Ukuran kontrol & target sentuh layar kecil. |
+| `src/components/CaptionSheet.tsx` textarea `rows={2}`/`rows={3}` | Kontrol isian native — menampilkan teks berbaris dan menggulir isinya sendiri saat panjang (bukan layout scroll). |
+| `<select>` (provider/platform/kategori/jeda) | Dropdown native — menggulir daftarnya sendiri, sengaja. |
+| `src/components/CopyButton.tsx:6` textarea `position:fixed` | Alat salin cadangan `execCommand`, langsung dibuang dari DOM. |
+
+**`overflow-y-auto` / `overflow-y-scroll` di seluruh `src/`: NOL** — tidak ada elemen non-body
+yang punya scrollbar sendiri. Satu-satunya pengguliran adalah dokumen (body) dan kontrol native.
+
+Perubahan kecil terkait rapat-di-layar: `src/components/CaptionSheet.tsx` footer Export CSV
+diberi `flex-wrap` (baris turun di layar sempit, tidak meluber).
+
+### 3. Uji zoom 50–150%
+
+- Karena pass ini dilarang menjalankan server/e2e, **verifikasi piksel di browser belum
+  dilakukan** — yang dipastikan dari kode: **tidak ada lagi tinggi yang dikunci ke viewport**
+  (tabel di butir 2), jadi zoom hanya mengubah lebar/kolom, tidak pernah membuat kotak kosong
+  buatan; grid frame `auto-fill minmax(150px,1fr)` menambah/mengurangi kolom mengikuti lebar;
+  breakpoint `lg` (≥1024px CSS) menumpuk jadi 1 kolom pada zoom tinggi/layar sempit; teks/tombol
+  memakai wrap (`flex-wrap` header, konfirmasi, footer) dan `truncate` pada nama file/chip.
+- Ruang kosong di bawah konten saat zoom 50% (viewport CSS jadi lebih luas) = normal, tidak
+  dikompensasi dengan tinggi apa pun.
+- **Tindak lanjut yang perlu Anda lakukan manual**: buka halaman di browser, cek zoom 50 / 67 /
+  80 / 100 / 125 / 150% dengan 1–2 frame dan 10 frame, plus lebar mobile — pastikan tidak ada
+  elemen terpotong/tumpang tindih.
+
 ## Kontrak perilaku (WAJIB sama dengan legacy)
 
 Sumber: `legacy/docs/PROGRESS.md` + `legacy/js/*.js`. Tanda **[BARU]** = perilaku baru yang
@@ -233,8 +292,8 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
 ### CaptionSheet
 
 - Field editable (ikut platform), **tombol salin per field** (feedback `Disalin`, reset 1.4s).
-- Keyword sebagai **chip** + **kotak teks `KEYWORDS (SIAP TEMPEL)`** dipisah koma (cerminan,
-  tidak diedit langsung).
+- Keyword sebagai **chip** + input; salin daftar (dipisah koma) lewat **satu tombol salin di
+  samping label `Kata kunci`** **[M12: kotak teks `KEYWORDS (SIAP TEMPEL)`/cerminan dihapus]**.
 - **`Buat ulang frame ini` aktif** **[BARU]**: satu frame lewat jalur batch yang sama
   (`useBatch.regenerateFrame`); slot platform sudah berisi → konfirmasi inline **`Timpa hasil
   yang ada?`**; nonaktif + alasan jelas bila file asli hilang / provider belum Aktif / batch
@@ -315,3 +374,10 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
 - Kategori generate (M11): parser **tidak pernah** mengembalikan kategori kosong — fallback
   kategori pertama + bendera `categoryAuto` + saran periksa (perubahan kontrak dari
   "kategori tanpa padanan tidak ditulis sama sekali"; tesnya ikut diperbarui).
+- Tinggi viewport (M12): `min-h-dvh` (wrapper halaman), `h-full` (`<html>`) dan `min-h-full`
+  (`<body>`) dibuang — **tidak ada satupun** tinggi yang dikunci ke ukuran layar; semua elemen
+  tingginya murni isi. Ruang kosong di bawah konten (mis. zoom 50%) berasal dari background
+  halaman, bukan dari kotak kosong buatan.
+- Kata kunci (M12): legacy & versi awal punya cerminan readonly **`KEYWORDS (SIAP TEMPEL)`**
+  → kini hanya chip + **satu tombol salin** di label `Kata kunci` (`keywordsToPlain` tetap
+  dipakai untuk proses salin).

@@ -32,12 +32,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="id"
       data-theme="dark"
       suppressHydrationWarning
-      className={`${archivo.variable} ${courier.variable} h-full antialiased`}
+      className={`${archivo.variable} ${courier.variable} antialiased`}
     >
       <head>
         <InlineScript html={THEME_SCRIPT} />
       </head>
-      <body className="min-h-full">{children}</body>
+      <body>{children}</body>
     </html>
   );
 }

@@ -142,6 +142,19 @@ describe('CaptionSheet — saran perbaikan', () => {
   });
 });
 
+describe('CaptionSheet — kotak "siap tempel" dihapus (M12)', () => {
+  it('tanpa textarea mirror; salin daftar kata kunci tetap ada di label "Kata kunci"', () => {
+    const [id] = addFrames(1);
+    act(() => {
+      api().s.select(id);
+      api().s.updateMetadata(id, 'adobe', { title: 'Judul', keywords: ['kopi', 'teh'], category: 'Animals' });
+    });
+    expect(host.querySelector('#kw-plain')).toBeNull();
+    expect(text()).not.toContain('siap tempel');
+    expect(host.querySelector('[aria-label="Salin daftar kata kunci"]')).not.toBeNull();
+  });
+});
+
 describe('CaptionSheet — footer jumlah baris ekspor (F2)', () => {
   it('menampilkan jumlah slot berisi, bukan jumlah frame', () => {
     const ids = addFrames(2);
