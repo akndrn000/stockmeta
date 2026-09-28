@@ -1,51 +1,28 @@
 // @vitest-environment jsdom
 // Tes CaptionSheet (perbaikan M8): meta header memakai posisi terpilih / jumlah frame sesi,
 // "Saran perbaikan" hanya muncul kalau slot platform aktif berisi — tanpa testing-library.
-// Audit A2/F2: tombol "Buat ulang frame ini" juga tampil untuk frame siap (dengan konfirmasi
-// Timpa), dan footer menghitung baris yang benar-benar diekspor.
+// M13: lembar ini tidak lagi punya aksi "buat ulang" (pindah ke tile Worksheet): kotak error
+// frame gagal tetap, tombol/konfirmasi "Timpa hasil yang ada?" tidak ada di sini.
+// Audit F2: footer menghitung baris yang benar-benar diekspor.
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useBatch } from '../hooks/useBatch';
-import { useProvider } from '../hooks/useProvider';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { useSession } from '../hooks/useSession';
-import { fileStore } from '../lib/fileStore';
-import { registry } from '../lib/providers';
-import { gemini } from '../lib/providers/gemini';
-import { groq } from '../lib/providers/groq';
-import type { ProviderAdapter } from '../lib/providers/types';
 import type { Frame } from '../lib/types';
 import { CaptionSheet } from './CaptionSheet';
 
-// prepareImage asli butuh canvas/FileReader — jalur "Buat ulang" di tes memakai stub.
-vi.mock('../lib/image', () => ({
-  prepareImage: async (file: File) => ({ base64: 'stub', mimeType: file.type || 'image/jpeg' }),
-  makeThumbnail: async () => ''
-}));
-
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-
-// adapter palsu untuk tes koneksi (tanpa jaringan) — cukup testConnection untuk jalur konfirmasi
-const fakeAdapter: ProviderAdapter = {
-  id: 'gemini',
-  testConnection: async () => ({ ok: true, model: 'fake-model' }),
-  generateForImage: async () => ({ title: 'hasil baru' })
-};
 
 const holderRef: {
   current?: {
     s: ReturnType<typeof useSession>;
-    p: ReturnType<typeof useProvider>;
-    b: ReturnType<typeof useBatch>;
   };
 } = {};
 function Harness() {
   const s = useSession();
-  const p = useProvider();
-  const b = useBatch(s, p, { delayMs: 0 });
   // eslint-disable-next-line react-hooks/immutability -- harness pengujian: simpan hasil hook terbaru
-  holderRef.current = { s, p, b };
-  return createElement(CaptionSheet, { session: s, provider: p, batch: b });
+  holderRef.current = { s };
+  return createElement(CaptionSheet, { session: s });
 }
 const api = () => holderRef.current as NonNullable<typeof holderRef.current>;
 
@@ -67,9 +44,6 @@ const findBtn = (label: string) =>
 
 beforeEach(() => {
   localStorage.clear();
-  fileStore.clear();
-  registry.gemini = fakeAdapter;
-  registry.groq = fakeAdapter;                    // default provider kini Groq (M11)
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
@@ -77,17 +51,9 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  registry.gemini = gemini;
-  registry.groq = groq;
   await act(async () => root.unmount());
   host.remove();
 });
-
-async function ready() {
-  act(() => api().p.setKey('kunci-rahasia'));
-  await act(async () => { await api().p.test(); });
-  expect(api().p.status).toBe('ok');
-}
 
 function addFrames(n: number): number[] {
   const ids: number[] = [];
@@ -112,6 +78,19 @@ describe('CaptionSheet — meta header', () => {
   });
 });
 
+describe('CaptionSheet — keadaan kosong (M13)', () => {
+  it('judul terpisah dari penjelasan + ikon garis (bukan emoji)', () => {
+    addFrames(1);
+    act(() => api().s.select(null));
+    expect(text()).toContain('Belum ada frame dipilih');
+    expect(text()).toContain('Pilih frame di lembar kerja untuk mengedit caption-nya.');
+    const svg = host.querySelector('#caption-body svg');
+    expect(svg).not.toBeNull();
+    expect(svg!.querySelector('path')).not.toBeNull();
+    expect(text()).not.toContain('Belum ada frame dipilih —');   // teks lama digabung
+  });
+});
+
 describe('CaptionSheet — saran perbaikan', () => {
   it('slot kosong (menunggu) → tanpa saran', () => {
     const [id] = addFrames(1);
@@ -130,15 +109,39 @@ describe('CaptionSheet — saran perbaikan', () => {
     expect(text()).toContain('1 baris punya saran perbaikan');
   });
 
-  it('frame gagal tanpa isi → kotak error tampil, saran tetap disembunyikan', () => {
+  it('frame gagal tanpa isi → kotak error lengkap tampil, saran disembunyikan', () => {
     const [id] = addFrames(1);
     act(() => {
       api().s.select(id);
       api().s.failFrame(id, 'adobe', 'HTTP 500 — server error');
     });
     expect(text()).toContain('HTTP 500 — server error');
-    expect(text()).toContain('Buat ulang frame ini');
     expect(text()).not.toContain('Saran perbaikan');
+  });
+});
+
+describe('CaptionSheet — aksi "buat ulang" pindah ke tile (M13)', () => {
+  it('frame gagal: pesan error tetap, tanpa tombol & tanpa konfirmasi Timpa', () => {
+    const [id] = addFrames(1);
+    act(() => {
+      api().s.select(id);
+      api().s.failFrame(id, 'adobe', 'HTTP 500 — server error');
+    });
+    expect(text()).toContain('HTTP 500 — server error');
+    expect(findBtn('Buat ulang frame ini')).toBeNull();
+    expect(text()).not.toContain('Timpa hasil yang ada?');
+    expect(host.querySelector('[aria-label^="Buat ulang metadata"]')).toBeNull();
+  });
+
+  it('frame siap: tidak ada strip aksi di lembar caption', () => {
+    const [id] = addFrames(1);
+    act(() => {
+      api().s.select(id);
+      api().s.applyGenerated(id, 'adobe', { title: 'isi lama' });
+    });
+    expect(text()).not.toContain('Timpa hasil yang ada?');
+    expect(findBtn('Buat ulang frame ini')).toBeNull();
+    expect(host.querySelector('[aria-label^="Buat ulang metadata"]')).toBeNull();
   });
 });
 
@@ -172,40 +175,17 @@ describe('CaptionSheet — footer jumlah baris ekspor (F2)', () => {
   });
 });
 
-describe('CaptionSheet — Buat ulang frame siap (A2)', () => {
-  it('frame siap → strip aksi dengan tombol; klik pertama minta konfirmasi Timpa', async () => {
+describe('CaptionSheet — keterangan bantu menempel di dalam kotak (M13)', () => {
+  it('penghitung judul & deskripsi berada di dalam textarea, bukan baris terpisah', () => {
     const [id] = addFrames(1);
     act(() => {
       api().s.select(id);
-      api().s.applyGenerated(id, 'adobe', { title: 'isi lama' });
-      fileStore.set(id, new File(['x'], 'f0.jpg', { type: 'image/jpeg' }));
+      api().s.updateMetadata(id, 'adobe', { title: 'Judul pendek' });
     });
-    await ready();
-
-    expect(text()).not.toContain('HTTP');           // bukan kotak error
-    const btn = findBtn('Buat ulang frame ini');
-    expect(btn).not.toBeNull();
-
-    act(() => { btn!.click(); });
-    expect(text()).toContain('Timpa hasil yang ada?');
-    expect(findBtn('Ya, timpa')).not.toBeNull();
-
-    act(() => { findBtn('Ya, timpa')!.click(); });  // konfirmasi → jalankan
-    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
-    expect(api().s.frames[0].metadata.adobe?.title).toBe('hasil baru');
-    expect(api().s.frames[0].status.adobe).toBe('siap');
-    expect(text()).not.toContain('Timpa hasil yang ada?');   // konfirmasi selesai
-  });
-
-  it('frame siap tanpa file asli → tombol nonaktif + alasan upload ulang', () => {
-    const [id] = addFrames(1);
-    act(() => {
-      api().s.select(id);
-      api().s.applyGenerated(id, 'adobe', { title: 'isi lama' });
-    });                                             // file sengaja tidak diset
-    const btn = findBtn('Buat ulang frame ini');
-    expect(btn).not.toBeNull();
-    expect((btn as HTMLButtonElement).disabled).toBe(true);
-    expect(text()).toContain('File asli hilang setelah sesi di-restore');
+    const note = host.querySelector('#caption-title + span');
+    expect(note).not.toBeNull();
+    expect(note!.textContent).toContain('/70');
+    expect(note!.className).toContain('pointer-events-none');   // tidak menutup klik textarea
+    expect(text()).not.toContain('maks 70 karakter');           // baris hint lama hilang
   });
 });

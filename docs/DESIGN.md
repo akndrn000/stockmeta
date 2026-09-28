@@ -61,9 +61,9 @@ aksen — hanya sinyal status. Badge status memakai warna wash + border, bukan b
 | `Panel` | Wadah standar: judul + meta mono + aksi; tinggi mengikuti isi (halaman yang menggulir); footer opsional. Dipakai Worksheet & CaptionSheet. |
 | `Header` | Brand (h1), segmen platform (`aria-pressed`), ThemeToggle, readout status mono. |
 | `ProviderPanel` | Pilih provider, API key (lihat/sembunyikan), Tes koneksi + badge `role="status"`, catatan limit. |
-| `Worksheet` | Dropzone, grid frame, tema batch, jeda antar foto, Generate/Batalkan + Buat ulang semua, ProgressBar (`aria-live`), Coba lagi. |
-| `CaptionSheet` | Field edit per platform, KeywordEditor (chip), saran validasi, footer Export CSV. |
-| `KeywordEditor` | Chip kata kunci + input (Enter/koma/tempel) + satu tombol salin daftar (M12: cerminan “siap tempel” dihapus). |
+| `Worksheet` | Dropzone, grid frame (tile: pilih, hapus, **ikon buat ulang per tile** — aksen untuk frame gagal), tema batch, jeda antar foto, Generate/Batalkan + Buat ulang semua, ProgressBar (`aria-live`), Coba lagi. |
+| `CaptionSheet` | Field edit per platform (penghitung menempel di dalam kotak), KeywordEditor (chip), saran validasi, keadaan kosong berikon, footer Export CSV — **tanpa tombol buat ulang** (pindah ke tile). |
+| `KeywordEditor` | Chip kata kunci + input (Enter/koma/tempel) + satu tombol salin daftar; daftar chip dibatasi 200px + scroll (**satu-satunya scroll internal**); penghitung `0/50` menempel di kotak input. |
 | `CopyButton`, `ThemeToggle` | Kontrol kecil berlabel ARIA. |
 
 ## Aksesibilitas (lantai mutu)

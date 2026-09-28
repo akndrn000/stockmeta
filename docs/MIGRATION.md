@@ -188,6 +188,96 @@ diberi `flex-wrap` (baris turun di layar sempit, tidak meluber).
   80 / 100 / 125 / 150% dengan 1–2 frame dan 10 frame, plus lebar mobile — pastikan tidak ada
   elemen terpotong/tumpang tindih.
 
+## Perbaikan pasca-M12 (M13) — bukan tahap migrasi baru
+
+Verifikasi: `npm run test` (180 tes), `npx tsc --noEmit`, `npm run lint`, `npm run build` — lolos.
+Tanpa e2e, tanpa menjalankan server. Detektor desain (`impeccable detect --json`) dijalankan atas
+5 file UI yang berubah: **nol temuan**.
+
+### 1. "Buat ulang frame" pindah dari CaptionSheet ke ikon di tile Worksheet
+
+- `src/components/CaptionSheet.tsx`: **dihapus** blok tombol `Buat ulang frame ini` + konfirmasi
+  `Timpa hasil yang ada?` — baik di kotak error (frame `gagal`) maupun di strip aksi (frame `siap`).
+  **Dipertahankan**: kotak error `role="alert"` berisi pesan error lengkap.
+- Props `provider` & `batch` **dibuang** dari CaptionSheet (tidak ada lagi pemakainya) —
+  `src/app/page.tsx` cukup `<CaptionSheet session={session} />`.
+- `src/components/Worksheet.tsx` (`FrameTile`): **ikon SVG panah-putar 28×28** di pojok kanan atas,
+  14px di kiri tombol hapus (X); `aria-label="Buat ulang metadata untuk <nama file>"`.
+  - Ada di **setiap** tile (menunggu/siap/gagal). Frame `gagal` → aksen
+    (`border-accent-text/70 text-accent-text` + hover wash); lainnya netral (`border-line text-ink-2`).
+  - **`aria-disabled` + `title`, bukan `disabled` native**: alasan nonaktif tetap muncul sebagai
+    tooltip di semua browser (native `disabled` menahan event mouse di sebagian peramban) —
+    `File asli hilang setelah sesi di-restore …` / `Batch sedang berjalan — tunggu selesai.` /
+    `SOON_NOTE` / `Tes koneksi provider dulu.`; klik saat nonaktif di-guard di handler (tes:
+    tidak ada batch yang dijalankan). Alasan juga terbaca AT lewat `title`.
+  - Konfirmasi **`Timpa hasil yang ada?` tetap** (jalur `useBatch.regenerateFrame`, konfirmasi 2
+    langkah persis seperti sebelumnya) tapi kini **popover yang menempel pada tile**
+    (`absolute left-1.5 right-1.5 top-[42px]`, `border-fail` + `shadow-panel`) tepat di bawah
+    ikon — tidak di lembar caption. Slot kosong → langsung jalan tanpa konfirmasi.
+  - Jarak 14px ke tombol X disengaja: area klik keduanya (`before:-inset-1.5`, 40px target sentuh)
+    jadi tidak tumpang tindih; `z-10` eksplisit pada ketiga kontrol tile (regen, popover, hapus)
+    supaya berada di atas tombol pilih yang menutupi seluruh tile.
+- Tes: 2 tes regresi CaptionSheet diganti (kotak error tetap; tombol + konfirmasi hilang) dan
+  **5 tes baru** di `Worksheet.test.ts` (label, aksen frame gagal, `aria-disabled` + 3 alasan +
+  guard, konfirmasi dua langkah, frame menunggu langsung generate).
+
+### 2. Tinggi daftar chip kata kunci — pengecualian scroll yang disengaja
+
+- `src/components/KeywordEditor.tsx`: pembungkus chip →
+  `max-h-[200px] overflow-y-auto overscroll-contain` (dalam rentang 180–220px).
+- **Ini pengecualian terdokumentasi terhadap aturan M12 "tanpa scroll internal"**: hanya daftar
+  chip (bisa 50 item) yang dibatasi. Input kata kunci baru, panel CaptionSheet, dan seluruh
+  elemen lain tetap tingginya = isi.
+- `src/app/globals.css`: utilitas baru **`.scroll-slim`** — scrollbar 6px yang diwarnai dari token
+  (`--line`, hover `--ink-3`) di kedua mode, termasuk pseudo-element WebKit, supaya bagian
+  peramban yang tidak kita gambar ikut membawa desain.
+
+### 3. Keterangan bantu & penghitung masuk ke DALAM kotak isian
+
+- `src/components/CaptionSheet.tsx` — komponen baru `InFieldNote`
+  (`absolute bottom-1.5 right-3`, mono 10px uppercase `--ink-3`, `pointer-events-none`):
+  - **Judul (Adobe)**: hint `maks 70 karakter, tanpa koma` + penghitung yang tadinya baris
+    terpisah → jadi satu baris menempel `0/70 · tanpa koma`; textarea `pb-6 pt-2` (24px ruang
+    kosong di bawah) supaya teks yang diketik tidak tertimpa. **Baris hint lama dihapus.**
+  - **Deskripsi (Shutterstock)**: penghitung **baru** `n/200` (`MAX_DESCRIPTION`) di pojok yang
+    sama; petunjuk instruksional `Tulis kalimat deskriptif utuh …` **tetap di bawah** kotak
+    (sengaja: memindahkannya membuat kotak terlalu penuh).
+- `src/components/KeywordEditor.tsx`: `0/50`, badge `min N`, dan `penuh` pindah dari baris
+  terpisah ke pojok kanan bawah kotak input; input diberi **`pr-24`** (ruang tetap 96px supaya
+  teks yang diketik tidak lewat di bawahnya, dan layout tidak melompat saat badge muncul).
+
+### 4. Rapat spasi diseragamkan ke skala
+
+| Lokasi | Sebelum | Sesudah | Alasan |
+| --- | --- | --- | --- |
+| `src/app/page.tsx` `main` | `lg:gap-3.5` (14px) | `lg:gap-4` (16px) | jarak antar panel = padding panel (`p-4`) |
+| `Worksheet` tombol frame + pesan limit | `-mt-1` (margin negatif di luar skala) | satu grup `flex-col gap-1.5` | sama persis dengan hint di bawah `Buat metadata` |
+| `Worksheet` konfirmasi `Ganti semua…` | `px-3 py-2.5` | `p-3` | kotak isian lain (saran, error) `p-3` |
+| `KeywordEditor` root | `gap-2` | `gap-1.5` | = semua grup label→kontrol (`Field`, tema, jeda) |
+| CaptionSheet blok utama | `gap-4` | `gap-4` (tetap) | ritme antar-blok 16px bertahan setelah 2 blok regen dihapus |
+| Grid thumbnail | `gap-2.5` (10px) | tetap | sengaja lebih rapat daripada ritme blok 16px |
+
+### 5. Keadaan kosong CaptionSheet
+
+- Ikon SVG inline **garis tipis** (frame gambar + dua baris caption, stroke 1.25,
+  `text-ink-3`) — bukan emoji, tanpa ilustrasi gambar.
+- Kolom terpusat: ikon → judul `Belum ada frame dipilih` (13.5px semibold) → penjelasan yang sudah
+  ada (12px, `max-w-[42ch]`); `gap-3` ikon↔teks, `gap-1` judul↔penjelasan.
+- `min-h-32` dibuang → tinggi mengikuti isi (`py-9`), proporsional terhadap konten sendiri.
+
+### 6. Tinjauan umum (temuan → perbaikan)
+
+1. Dua ikon di tile bersaing area klik → jarak 14px, `before:-inset-1.5` tidak lagi tumpang tindih; glyph berbeda (silang vs panah putar); aksen merah hanya untuk frame gagal.
+2. Popover konfirmasi `top-[42px]` — mulai di bawah baris ikon, tidak menutupi badge nomor (y≈6–22) maupun badge `SIAP`/`GAGAL` (pojok bawah thumbnail), dan tetap di dalam batas `overflow-hidden` tile.
+3. Tombol pilih membalut seluruh tile → ketiga kontrol (ikon regen `z-10`, popover `z-10`, hapus `z-10`) diangkat di atasnya; tombol pilih tetap statis sehingga tidak ada yang tertutup.
+4. `pointer-events-none` pada semua teks yang menempel di dalam kotak → klik mengenai textarea/input, bukan teksnya.
+5. Kontras: counter/hint baru memakai `--ink-3` (≥4.5:1 di semua permukaan), ikon regen `--ink-2` di atas `bg-surface/85`, aksen `--accent-text` — tidak ada warna hard-coded baru.
+6. Radius & garis ikut sistem yang ada: popover `rounded-lg` + 1px (sama seperti kotak error/saran), tombol ikon `rounded-md`, keadaan kosong `rounded-xl` dashed (sama seperti dropzone).
+7. Font baru semua dari skala yang ada: body 13.5px, hint 12px, readout mikro mono 10px bold uppercase `0.08em` (sama seperti badge `SIAP`/`min 5`).
+8. Ikon keadaan kosong diperiksa geometrinya: dua garis caption disusun panjang-dulu-pendek-di-bawah (dibetulkan saat review).
+9. `.scroll-slim` menyetel scrollbar dari token — permukaan peramban ikut membawa palet (gelap & terang).
+10. Nol temuan dari `impeccable detect` setelah seluruh perubahan; `npm run lint` bersih.
+
 ## Kontrak perilaku (WAJIB sama dengan legacy)
 
 Sumber: `legacy/docs/PROGRESS.md` + `legacy/js/*.js`. Tanda **[BARU]** = perilaku baru yang
@@ -294,17 +384,26 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
 - Field editable (ikut platform), **tombol salin per field** (feedback `Disalin`, reset 1.4s).
 - Keyword sebagai **chip** + input; salin daftar (dipisah koma) lewat **satu tombol salin di
   samping label `Kata kunci`** **[M12: kotak teks `KEYWORDS (SIAP TEMPEL)`/cerminan dihapus]**.
-- **`Buat ulang frame ini` aktif** **[BARU]**: satu frame lewat jalur batch yang sama
-  (`useBatch.regenerateFrame`); slot platform sudah berisi → konfirmasi inline **`Timpa hasil
-  yang ada?`**; nonaktif + alasan jelas bila file asli hilang / provider belum Aktif / batch
-  berjalan. Tombol tampil untuk frame **`gagal`** (di kotak error) **maupun** frame **`siap`**
-  (strip aksi tenang di bawah baris status) **[audit A2]**.
+  **[M13]** penghitung `0/50` + badge `min N`/`penuh` **menempel di pojok kanan bawah kotak
+  input** (ruang cadangan `pr-24`), dan daftar chip dibatasi **`max-height` 200px + scroll**
+  — satu-satunya scroll internal di aplikasi (pengecualian terdokumentasi M13).
+- **Buat ulang satu frame** **[BARU + M13: pindah tempat]**: jalur batch yang sama
+  (`useBatch.regenerateFrame`); slot platform sudah berisi → konfirmasi **`Timpa hasil yang
+  ada?`**; nonaktif + alasan jelas bila file asli hilang / provider belum Aktif / batch berjalan.
+  Tampil untuk frame **`gagal`**, **`siap`**, maupun **`menunggu`** **[audit A2]** — tapi
+  sejak **M13** bentuknya **ikon di pojok kanan atas setiap tile Worksheet**
+  (`aria-label="Buat ulang metadata untuk <nama file>"`, aksen merah untuk frame gagal,
+  `aria-disabled` + `title` untuk alasan) dengan konfirmasi sebagai **popover menempel di
+  bawah ikon**; lembar caption hanya menyimpan **kotak error** frame gagal.
 - **Header meta `Frame nn / total`** **[BARU]**: posisi frame terpilih / jumlah frame sesi
   (bukan batas batch), mis. `Frame 01 / 03`.
 - **`Saran perbaikan` hanya bila slot platform aktif berisi** **[BARU]**: slot kosong/belum
   pernah digenerate tidak dinilai; kotak error frame `gagal` tetap tampil meski slot kosong.
 - Petunjuk judul Adobe **`maks 70 karakter, tanpa koma`** **[M9a]**; saran non-pemblokir baru:
   judul > 70 (batas CSV), judul ber-koma, nama file > 30 karakter (Adobe saja).
+  **[M13]** petunjuk batas + penghitung judul **menempel di pojok kanan bawah textarea**
+  (bukan baris terpisah); deskripsi punya penghitung `n/200` yang sama, sedangkan petunjuk
+  instruksional tetap di bawah kotak.
 - Footer **`N baris punya saran perbaikan`** **[M9a]**: jumlah frame (baris) yang punya saran
   untuk platform aktif — tampil di dekat tombol `Export CSV` bila > 0, **tidak memblokir
   ekspor**. Footer **`N baris`** = jumlah baris yang **benar-benar diekspor** (slot berisi),
@@ -381,3 +480,11 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
 - Kata kunci (M12): legacy & versi awal punya cerminan readonly **`KEYWORDS (SIAP TEMPEL)`**
   → kini hanya chip + **satu tombol salin** di label `Kata kunci` (`keywordsToPlain` tetap
   dipakai untuk proses salin).
+- Lokasi aksi (M13): legacy menaruh generate-ulang per frame di lembar caption → kini **ikon di
+  tile thumbnail** (dekat thumbnail-nya, untuk semua status), CaptionSheet hanya menyimpan pesan
+  error. Konfirmasi `Timpa hasil yang ada?` dipindah ke popover yang menempel pada tile.
+- Scroll internal (M13): aturan M12 "tanpa scroll non-body" kini punya **satu pengecualian yang
+  disengaja dan terdokumentasi** — daftar chip kata kunci (maks 50 item) dibatasi 200px.
+- Keterangan bantu (M13): hint batas & penghitung karakter **menempel di dalam kotak isian**
+  (pojok kanan bawah), bukan baris terpisah di bawah — kecuali petunjuk instruksional yang
+  sengaja tetap di luar agar kotak tidak penuh.

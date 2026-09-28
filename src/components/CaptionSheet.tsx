@@ -1,18 +1,16 @@
 'use client';
 // Lembar caption (M7): edit metadata per platform untuk frame terpilih — field + chip kata kunci
 // + kategori resmi + tema per-foto + saran validasi, ekspor CSV di footer panel.
-// M8: "Buat ulang frame ini" memakai jalur batch yang sama (useBatch.regenerateFrame)
-// dengan konfirmasi inline bila slot sudah berisi. Audit A2: tombol juga tampil untuk
-// frame 'siap' (strip aksi tenang di bawah status), bukan hanya frame 'gagal'.
+// M13: aksi "buat ulang" pindah ke ikon tile di Worksheet (frame gagal maupun siap);
+// yang tinggal di sini hanya KOTAK ERROR frame gagal (pesan error lengkap) — tanpa tombol,
+// tanpa konfirmasi. Lembar ini kini murni editor, jadi tidak lagi menerima props
+// provider/batch.
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import type { useBatch } from '../hooks/useBatch';
-import type { useProvider } from '../hooks/useProvider';
 import type { useSession } from '../hooks/useSession';
 import { ADOBE_CATEGORIES, SHUTTERSTOCK_CATEGORIES } from '../lib/categories';
 import { downloadCsv } from '../lib/csv';
-import { fileStore } from '../lib/fileStore';
-import { MAX_TITLE_CSV, MIN_KEYWORDS_ADOBE, MIN_KEYWORDS_SHUTTER } from '../lib/limits';
+import { MAX_DESCRIPTION, MAX_TITLE_CSV, MIN_KEYWORDS_ADOBE, MIN_KEYWORDS_SHUTTER } from '../lib/limits';
 import { hasContent } from '../lib/metadata';
 import type { AdobeMetadata, Frame, FrameStatus, ShutterstockMetadata } from '../lib/types';
 import { validateMetadata } from '../lib/validate';
@@ -21,10 +19,18 @@ import { KeywordEditor } from './KeywordEditor';
 import { Panel } from './Panel';
 
 type Session = ReturnType<typeof useSession>;
-type ProviderApi = ReturnType<typeof useProvider>;
-type BatchApi = ReturnType<typeof useBatch>;
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
+
+// Keterangan bantu yang menempel DI DALAM kotak isian (pojok kanan bawah, menempel, tanpa
+// baris terpisah di bawah) — M13. pointer-events-none supaya klik tetap mengenai textarea.
+function InFieldNote({ text }: { text: string }) {
+  return (
+    <span className="pointer-events-none absolute bottom-1.5 right-3 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-ink-3">
+      {text}
+    </span>
+  );
+}
 
 function Field({ id, label, copyText, hint, children }: {
   id?: string;
@@ -65,10 +71,8 @@ const STATUS_LABEL: Record<FrameStatus, string> = {
   gagal: 'Gagal'
 };
 
-export function CaptionSheet({ session, provider, batch }: {
+export function CaptionSheet({ session }: {
   session: Session;
-  provider: ProviderApi;
-  batch: BatchApi;
 }) {
   const { frames, sel, platform, tema, updateMetadata, setFrameTema } = session;
   const [open, setOpen] = useState(true);
@@ -105,19 +109,7 @@ export function CaptionSheet({ session, provider, batch }: {
 
   const st = frame ? frame.status[platform] : 'menunggu';
   const err = frame ? frame.error[platform] : '';
-  const showRegen = Boolean(frame && err && st === 'gagal');
-  const hasFile = frame ? fileStore.has(frame.id) : false;
-  const providerOk = provider.status === 'ok' && !provider.isSoon;
-  const busy = batch.busy;
-  const regenDisabled = !hasFile || !providerOk || busy;
-  const regenHint = !hasFile
-    ? 'File asli hilang setelah sesi di-restore — upload ulang gambar ini dulu.'
-    : busy
-      ? 'Batch sedang berjalan — tunggu selesai.'
-      : !providerOk
-        ? 'Tes koneksi provider dulu.'
-        : '';
-  const confirmTimpa = Boolean(frame && batch.regenConfirm === frame.id);
+  const showError = Boolean(frame && err && st === 'gagal');
 
   return (
     <Panel
@@ -168,10 +160,32 @@ export function CaptionSheet({ session, provider, batch }: {
 
       <div id="caption-body" className={`flex flex-col gap-4 ${open ? '' : 'max-lg:hidden'}`}>
         {!frame ? (
-          <div className="flex min-h-32 items-center justify-center rounded-xl border border-dashed border-line p-6">
-            <p className="text-center text-sm font-medium text-ink-3">
-              Belum ada frame dipilih — pilih frame di lembar kerja untuk mengedit caption-nya.
-            </p>
+          /* M13: keadaan kosong yang dirancang — ikon garis tipis + judul + penjelasan,
+             tinggi mengikuti isinya (tanpa min-height paksa). */
+          <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-line px-6 py-9 text-center">
+            <svg
+              width="34"
+              height="34"
+              viewBox="0 0 32 32"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.25"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+              className="text-ink-3"
+            >
+              <rect x="3.5" y="4.5" width="25" height="16" rx="2.5" />
+              <path d="M3.5 16.5l5.5-5 4.5 4.5 4-3.5 7 6" />
+              <circle cx="10.5" cy="9.5" r="1.6" />
+              <path d="M8 23h11M8 26.5h6" />
+            </svg>
+            <div className="flex flex-col gap-1">
+              <p className="text-[13.5px] font-semibold text-ink">Belum ada frame dipilih</p>
+              <p className="max-w-[42ch] text-[12px] leading-relaxed text-ink-3">
+                Pilih frame di lembar kerja untuk mengedit caption-nya.
+              </p>
+            </div>
           </div>
         ) : (
           <>
@@ -189,95 +203,29 @@ export function CaptionSheet({ session, provider, batch }: {
               </span>
             </div>
 
-            {showRegen && (
+            {/* M13: hanya pesan error — tombol & konfirmasi "Timpa hasil yang ada?" pindah
+                ke ikon buat ulang di tile Worksheet */}
+            {showError && (
               <div role="alert" className="rounded-lg border border-fail bg-accent-wash p-3">
                 <p className="text-[13px] font-semibold leading-snug text-fail">{err}</p>
-                {confirmTimpa ? (
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="text-[13px] font-semibold text-ink">Timpa hasil yang ada?</span>
-                    <button
-                      type="button"
-                      onClick={() => batch.regenerateFrame(frame.id)}
-                      disabled={busy}
-                      className="rounded-lg border border-fail px-3 py-1.5 text-[13px] font-semibold text-fail transition-colors hover:bg-fail hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
-                    >
-                      Ya, timpa
-                    </button>
-                    <button
-                      type="button"
-                      onClick={batch.dismissRegen}
-                      className="rounded-lg border border-line px-3 py-1.5 text-[13px] font-semibold text-ink-2 transition-colors hover:bg-wash hover:text-ink"
-                    >
-                      Batal
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => batch.regenerateFrame(frame.id)}
-                    disabled={regenDisabled}
-                    title={regenHint || undefined}
-                    className="mt-2 rounded-lg border border-fail px-3 py-1.5 text-[13px] font-semibold text-fail transition-colors hover:bg-fail hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
-                  >
-                    Buat ulang frame ini
-                  </button>
-                )}
-                {regenHint && <p className="mt-1.5 text-[12px] leading-relaxed text-ink-2">{regenHint}</p>}
-              </div>
-            )}
-
-            {/* A2: frame siap tetap bisa di-generate ulang — strip aksi tenang (bukan kotak error) */}
-            {frame && st === 'siap' && (
-              <div className="rounded-lg border border-line bg-well p-3">
-                {confirmTimpa ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[13px] font-semibold text-ink">Timpa hasil yang ada?</span>
-                    <button
-                      type="button"
-                      onClick={() => batch.regenerateFrame(frame.id)}
-                      disabled={busy}
-                      className="rounded-lg border border-fail px-3 py-1.5 text-[13px] font-semibold text-fail transition-colors hover:bg-fail hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
-                    >
-                      Ya, timpa
-                    </button>
-                    <button
-                      type="button"
-                      onClick={batch.dismissRegen}
-                      className="rounded-lg border border-line px-3 py-1.5 text-[13px] font-semibold text-ink-2 transition-colors hover:bg-wash hover:text-ink"
-                    >
-                      Batal
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => batch.regenerateFrame(frame.id)}
-                    disabled={regenDisabled}
-                    title={regenHint || undefined}
-                    className="rounded-lg border border-line px-3 py-1.5 text-[13px] font-semibold text-ink-2 transition-colors hover:bg-wash hover:text-ink disabled:cursor-not-allowed disabled:opacity-45"
-                  >
-                    Buat ulang frame ini
-                  </button>
-                )}
-                {regenHint && <p className="mt-1.5 text-[12px] leading-relaxed text-ink-3">{regenHint}</p>}
               </div>
             )}
 
             {platform === 'adobe' ? (
               <>
-                <Field id="caption-title" label="Judul" copyText={title} hint={`maks ${MAX_TITLE_CSV} karakter, tanpa koma`}>
-                  <div className="flex flex-col gap-1">
+                <Field id="caption-title" label="Judul" copyText={title}>
+                  {/* M13: batas + penghitung menempel di pojok kanan bawah textarea (pb-6
+                      menjaga teks yang diketik tidak tertimpa) */}
+                  <div className="relative">
                     <textarea
                       id="caption-title"
                       rows={2}
                       value={title}
                       onChange={(e) => patchAdobe({ title: e.target.value })}
                       placeholder="Judul menjual, spesifik, tanpa frasa generik"
-                      className="w-full resize-none rounded-lg border border-line bg-well px-3 py-2 text-[13.5px] leading-relaxed text-ink placeholder:text-ink-3"
+                      className="w-full resize-none rounded-lg border border-line bg-well px-3 pb-6 pt-2 text-[13.5px] leading-relaxed text-ink placeholder:text-ink-3"
                     />
-                    <span className="self-end font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3">
-                      {title.length}/{MAX_TITLE_CSV}
-                    </span>
+                    <InFieldNote text={`${title.length}/${MAX_TITLE_CSV} · tanpa koma`} />
                   </div>
                 </Field>
 
@@ -307,14 +255,18 @@ export function CaptionSheet({ session, provider, batch }: {
             ) : (
               <>
                 <Field id="caption-desc" label="Deskripsi" copyText={desc} hint="Tulis kalimat deskriptif utuh, bukan daftar kata.">
-                  <textarea
-                    id="caption-desc"
-                    rows={3}
-                    value={desc}
-                    onChange={(e) => patchShutter({ description: e.target.value })}
-                    placeholder="Satu dua kalimat yang menggambarkan subjek, gaya, dan suasana"
-                    className="w-full resize-none rounded-lg border border-line bg-well px-3 py-2 text-[13.5px] leading-relaxed text-ink placeholder:text-ink-3"
-                  />
+                  {/* Petunjuk instruksional tetap di bawah (M13); hanya penghitung yang masuk */}
+                  <div className="relative">
+                    <textarea
+                      id="caption-desc"
+                      rows={3}
+                      value={desc}
+                      onChange={(e) => patchShutter({ description: e.target.value })}
+                      placeholder="Satu dua kalimat yang menggambarkan subjek, gaya, dan suasana"
+                      className="w-full resize-none rounded-lg border border-line bg-well px-3 pb-6 pt-2 text-[13.5px] leading-relaxed text-ink placeholder:text-ink-3"
+                    />
+                    <InFieldNote text={`${desc.length}/${MAX_DESCRIPTION}`} />
+                  </div>
                 </Field>
 
                 <KeywordEditor

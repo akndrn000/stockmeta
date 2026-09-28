@@ -2,6 +2,8 @@
 // Lembar kerja (M6): dropzone + grid thumbnail + status per platform + tema batch + tombol generate.
 // Menggunakan instance useSession, useProvider & useBatch yang sama milik page.tsx (props).
 // M8: "Buat metadata" menjalankan batch penuh; saat berjalan tombol jadi "Batalkan".
+// M13: tiap tile punya ikon "buat ulang metadata" (frame gagal & siap) + konfirmasi popover
+// "Timpa hasil yang ada?" yang menempel pada tile — menggantikan tombolnya di CaptionSheet.
 import { useEffect, useRef, useState } from 'react';
 import { SOON_NOTE } from '../hooks/useProvider';
 import type { useBatch } from '../hooks/useBatch';
@@ -168,8 +170,13 @@ function FrameTile({
   needsUpload,
   processing,
   removeDisabled,
+  regenDisabled,
+  regenHint,
+  regenConfirm,
   onSelect,
-  onRemove
+  onRemove,
+  onRegen,
+  onDismissRegen
 }: {
   frame: Frame;
   index: number;
@@ -179,8 +186,13 @@ function FrameTile({
   needsUpload: boolean;
   processing: boolean;
   removeDisabled?: boolean;
+  regenDisabled?: boolean;
+  regenHint?: string;
+  regenConfirm?: boolean;
   onSelect: () => void;
   onRemove: () => void;
+  onRegen: () => void;
+  onDismissRegen: () => void;
 }) {
   const st = frame.status[platform];              // status & error SELALU platform aktif
   const err = frame.error[platform];
@@ -258,13 +270,80 @@ function FrameTile({
           )}
         </div>
       </button>
+
+      {/* M13: buat ulang per-frame dari tile (dulu tombolnya di CaptionSheet). Pojok kanan
+          atas berdampingan dengan hapus — jarak 14px supaya area klik keduanya tidak tumpang
+          tindih, glyph berbeda (silang vs panah putar), frame gagal memakai aksen merah.
+          aria-disabled (bukan disabled) supaya alasan di title tetap muncul di semua browser. */}
+      <button
+        type="button"
+        onClick={() => {
+          if (!regenDisabled) onRegen();
+        }}
+        aria-disabled={regenDisabled || undefined}
+        aria-label={`Buat ulang metadata untuk ${frame.name}`}
+        title={regenHint || 'Buat ulang metadata frame ini'}
+        className={`btn-compact absolute right-12 top-1.5 z-10 grid h-7 w-7 place-items-center rounded-md border bg-surface/85 transition-colors before:absolute before:-inset-1.5 before:content-[''] ${
+          st === 'gagal' ? 'border-accent-text/70 text-accent-text' : 'border-line text-ink-2'
+        } ${
+          regenDisabled
+            ? 'cursor-not-allowed opacity-45'
+            : st === 'gagal'
+              ? 'hover:bg-accent-wash'
+              : 'hover:border-ink-3 hover:text-ink'
+        }`}
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path
+            d="M15.3 2.7v4h-4"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M13.66 10a6 6 0 1 1-1.41-6.24l3.05 3.05"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+
+      {/* Konfirmasi "Timpa hasil yang ada?" untuk slot yang sudah berisi — popover kecil
+          yang menempel tepat di bawah ikonnya, bukan di dalam lembar caption. */}
+      {regenConfirm && (
+        <div className="absolute left-1.5 right-1.5 top-[42px] z-10 flex flex-wrap items-center gap-2 rounded-lg border border-fail bg-surface p-2 shadow-panel">
+          <span className="text-[13px] font-semibold leading-snug text-ink">
+            Timpa hasil yang ada?
+          </span>
+          <div className="ml-auto flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={onRegen}
+              className="rounded-md border border-fail px-2.5 py-1 text-[13px] font-semibold text-fail transition-colors hover:bg-fail hover:text-white"
+            >
+              Ya, timpa
+            </button>
+            <button
+              type="button"
+              onClick={onDismissRegen}
+              className="rounded-md border border-line px-2.5 py-1 text-[13px] font-semibold text-ink-2 transition-colors hover:bg-wash hover:text-ink"
+            >
+              Batal
+            </button>
+          </div>
+        </div>
+      )}
+
       <button
         type="button"
         onClick={onRemove}
         disabled={removeDisabled}
         aria-label={`Hapus frame ${frame.name}`}
         title={removeDisabled ? 'Tunggu batch selesai' : 'Hapus frame'}
-        className="btn-compact absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-md border border-line bg-surface/85 text-ink-2 transition-colors hover:border-fail hover:text-fail disabled:cursor-not-allowed disabled:opacity-45 before:absolute before:-inset-1.5 before:content-['']"
+        className="btn-compact absolute right-1.5 top-1.5 z-10 grid h-7 w-7 place-items-center rounded-md border border-line bg-surface/85 text-ink-2 transition-colors hover:border-fail hover:text-fail disabled:cursor-not-allowed disabled:opacity-45 before:absolute before:-inset-1.5 before:content-['']"
       >
         <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
           <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
@@ -321,6 +400,7 @@ export function Worksheet({ session, provider, batch }: {
     if (noteTimer.current) clearTimeout(noteTimer.current);
   }
 
+  const providerOk = !provider.isSoon && provider.status === 'ok';
   const generateDisabled =
     frames.length === 0 || provider.isSoon || provider.status !== 'ok';
   const generateHint =
@@ -331,6 +411,18 @@ export function Worksheet({ session, provider, batch }: {
         : provider.status !== 'ok'
           ? 'Tes koneksi provider dulu.'
           : '';
+
+  // alasan ikon "buat ulang" nonaktif per tile (M13) — urutan: file hilang > batch jalan > provider
+  const regenHint = (hasFile: boolean): string =>
+    !hasFile
+      ? 'File asli hilang setelah sesi di-restore — upload ulang gambar ini dulu.'
+      : busy
+        ? 'Batch sedang berjalan — tunggu selesai.'
+        : provider.isSoon
+          ? SOON_NOTE
+          : !providerOk
+            ? 'Tes koneksi provider dulu.'
+            : '';
 
   const done = frames.filter((f) => f.status[platform] === 'siap').length;
   const failed = frames.filter((f) => f.status[platform] === 'gagal').length;
@@ -389,71 +481,83 @@ export function Worksheet({ session, provider, batch }: {
           }}
         />
 
-        {frames.length === 0 ? (
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            className={`flex min-h-44 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors ${
-              dragOver ? 'border-accent bg-accent-wash' : 'border-line hover:border-ink-3'
-            }`}
-          >
-            <span className="text-[15px] font-semibold text-ink">
-              Letakkan gambar di sini, atau klik untuk memilih
-            </span>
-            <span className="font-mono text-[11px] text-ink-3">
-              JPG / PNG / WEBP · maks {MAX_FRAMES} frame per batch
-            </span>
-          </button>
-        ) : (
-          <button
-            type="button"
-            disabled={full || busy}
-            title={busy ? 'Tunggu batch selesai' : full ? 'Batch penuh' : undefined}
-            onClick={() => inputRef.current?.click()}
-            className={`w-full rounded-lg border px-3 py-2 text-[13px] font-semibold transition-colors ${
-              full || busy
-                ? 'cursor-not-allowed border-line text-ink-3 opacity-60'
-                : dragOver
-                  ? 'border-accent bg-accent-wash text-accent-text'
-                  : 'border-line text-ink-2 hover:bg-wash hover:text-ink'
-            }`}
-          >
-            {full ? 'Batch penuh' : '+ Tambah frame'}
-          </button>
-        )}
+        {/* M13: tombol frame + pesan limit jadi SATU grup (gap-1.5), sama seperti hint di
+            bawah "Buat metadata" — tanpa margin negatif di luar skala. */}
+        <div className="flex flex-col gap-1.5">
+          {frames.length === 0 ? (
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              className={`flex min-h-44 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors ${
+                dragOver ? 'border-accent bg-accent-wash' : 'border-line hover:border-ink-3'
+              }`}
+            >
+              <span className="text-[15px] font-semibold text-ink">
+                Letakkan gambar di sini, atau klik untuk memilih
+              </span>
+              <span className="font-mono text-[11px] text-ink-3">
+                JPG / PNG / WEBP · maks {MAX_FRAMES} frame per batch
+              </span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={full || busy}
+              title={busy ? 'Tunggu batch selesai' : full ? 'Batch penuh' : undefined}
+              onClick={() => inputRef.current?.click()}
+              className={`w-full rounded-lg border px-3 py-2 text-[13px] font-semibold transition-colors ${
+                full || busy
+                  ? 'cursor-not-allowed border-line text-ink-3 opacity-60'
+                  : dragOver
+                    ? 'border-accent bg-accent-wash text-accent-text'
+                    : 'border-line text-ink-2 hover:bg-wash hover:text-ink'
+              }`}
+            >
+              {full ? 'Batch penuh' : '+ Tambah frame'}
+            </button>
+          )}
 
-        {limitMsg && (
-          <p role="status" className="-mt-1 text-[12px] font-medium text-fail">
-            {limitMsg}
-          </p>
-        )}
+          {limitMsg && (
+            <p role="status" className="text-[12px] font-medium text-fail">
+              {limitMsg}
+            </p>
+          )}
+        </div>
 
         {frames.length > 0 && (
           <ul className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2.5">
-            {frames.map((frame, i) => (
-              <li key={frame.id}>
-                <FrameTile
-                  frame={frame}
-                  index={i}
-                  platform={platform}
-                  active={sel === frame.id}
-                  note={notes[frame.id]}
-                  needsUpload={!fileStore.has(frame.id)}
-                  processing={busy && batch.currentId === frame.id}
-                  removeDisabled={busy}
-                  // Pilih frame + gulir ke lembar caption hanya di layar kecil (di ≥1024px keduanya terlihat)
-                  onSelect={() => {
-                    select(frame.id);
-                    if (!window.matchMedia('(max-width: 1023px)').matches) return;
-                    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-                    document
-                      .getElementById('lembar-caption')
-                      ?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
-                  }}
-                  onRemove={() => removeFrame(frame.id)}
-                />
-              </li>
-            ))}
+            {frames.map((frame, i) => {
+              const hasFile = fileStore.has(frame.id);
+              return (
+                <li key={frame.id}>
+                  <FrameTile
+                    frame={frame}
+                    index={i}
+                    platform={platform}
+                    active={sel === frame.id}
+                    note={notes[frame.id]}
+                    needsUpload={!hasFile}
+                    processing={busy && batch.currentId === frame.id}
+                    removeDisabled={busy}
+                    regenDisabled={!hasFile || !providerOk || busy}
+                    regenHint={regenHint(hasFile)}
+                    regenConfirm={batch.regenConfirm === frame.id}
+                    // Pilih frame + gulir ke lembar caption hanya di layar kecil (di ≥1024px keduanya terlihat)
+                    onSelect={() => {
+                      select(frame.id);
+                      if (!window.matchMedia('(max-width: 1023px)').matches) return;
+                      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                      document
+                        .getElementById('lembar-caption')
+                        ?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+                    }}
+                    onRemove={() => removeFrame(frame.id)}
+                    onRegen={() => batch.regenerateFrame(frame.id)}
+                    onDismissRegen={batch.dismissRegen}
+                  />
+                </li>
+              );
+            })}
           </ul>
         )}
 
@@ -515,7 +619,7 @@ export function Worksheet({ session, provider, batch }: {
         {frames.some((f) => f.status[platform] === 'siap' || f.status[platform] === 'gagal') && (
           <div className="flex flex-col gap-1.5">
             {batch.regenAllConfirm === platform ? (
-              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-well px-3 py-2.5">
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-well p-3">
                 <span className="text-[13px] font-semibold text-ink">Ganti semua hasil yang sudah ada?</span>
                 <button
                   type="button"

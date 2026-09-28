@@ -27,9 +27,10 @@ export default function Home() {
       />
       <ProviderPanel api={provider} busy={batch.busy} />
 
-      <main className="grid grid-cols-1 items-start gap-3 p-3 lg:grid-cols-[3fr_2fr] lg:gap-3.5 lg:p-4">
+      <main className="grid grid-cols-1 items-start gap-3 p-3 lg:grid-cols-[3fr_2fr] lg:gap-4 lg:p-4">
         <Worksheet session={session} provider={provider} batch={batch} />
-        <CaptionSheet session={session} provider={provider} batch={batch} />
+        {/* M13: CaptionSheet tidak lagi butuh provider/batch — aksi buat ulang pindah ke tile */}
+        <CaptionSheet session={session} />
       </main>
     </div>
   );

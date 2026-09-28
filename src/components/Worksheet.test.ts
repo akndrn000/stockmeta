@@ -76,8 +76,13 @@ const blank = (name: string): Omit<Frame, 'id'> => ({
 
 const RETRY = 'Coba lagi frame gagal';
 const REGEN_ALL = 'Buat ulang semua';
+const REGEN_PREFIX = 'Buat ulang metadata untuk';
 const findBtn = (label: string) =>
   Array.from(host.querySelectorAll('button')).find((b) => (b.textContent ?? '').trim() === label) ?? null;
+const regenBtn = (name: string) =>
+  Array.from(host.querySelectorAll('button')).find(
+    (b) => b.getAttribute('aria-label') === `${REGEN_PREFIX} ${name}`
+  ) ?? null;
 const delaySelect = () => host.querySelector('#jeda-antar-foto') as HTMLSelectElement;
 
 const flush = () => act(async () => { await new Promise((r) => setTimeout(r, 0)); });
@@ -240,5 +245,81 @@ describe('select "Jeda antar foto"', () => {
     act(() => api().b.cancel());
     await flush();
     expect(delaySelect().disabled).toBe(false);
+  });
+});
+
+describe('ikon "buat ulang" di tile (M13)', () => {
+  it('setiap tile punya ikon ber-aria-label, termasuk frame menunggu', () => {
+    const ids = addFrames(2);
+    expect(regenBtn('f0.jpg')).not.toBeNull();
+    expect(regenBtn('f1.jpg')).not.toBeNull();
+    expect(regenBtn('f0.jpg')!.getAttribute('aria-label')).toBe('Buat ulang metadata untuk f0.jpg');
+    expect(api().s.frames.find((f) => f.id === ids[0])!.status.adobe).toBe('menunggu');
+    expect(regenBtn('f0.jpg')!.className).not.toContain('text-accent-text');  // netral, bukan aksen
+  });
+
+  it('frame gagal → ikon memakai aksen merah (aksi yang disarankan)', () => {
+    const ids = addFrames(1);
+    act(() => api().s.failFrame(ids[0], 'adobe', 'HTTP 500'));
+    expect(regenBtn('f0.jpg')!.className).toContain('text-accent-text');
+  });
+
+  it('aria-disabled + alasan di title: provider belum siap, file hilang, batch berjalan', async () => {
+    addFrames(1);
+    expect(regenBtn('f0.jpg')!.getAttribute('aria-disabled')).toBe('true');  // status masih 'idle'
+    expect(regenBtn('f0.jpg')!.title).toBe('Tes koneksi provider dulu.');
+
+    await ready();
+    expect(regenBtn('f0.jpg')!.getAttribute('aria-disabled')).toBeNull();    // ada file + provider ok
+
+    act(() => api().s.addFrame(blank('tanpa-file.jpg')));      // file sengaja tidak diset
+    expect(regenBtn('tanpa-file.jpg')!.getAttribute('aria-disabled')).toBe('true');
+    expect(regenBtn('tanpa-file.jpg')!.title).toContain('File asli hilang');
+
+    act(() => { regenBtn('tanpa-file.jpg')!.click(); });       // guard: aria-disabled ≠ klik jalan
+    await flush();
+    expect(api().b.summary).toBeNull();                        // tidak ada batch yang dijalankan
+    expect(api().s.frames[1].status.adobe).toBe('menunggu');
+
+    script = [{ pending: true }];
+    act(() => api().b.startBatch());
+    await flush();
+    expect(regenBtn('f0.jpg')!.title).toBe('Batch sedang berjalan — tunggu selesai.');
+    act(() => api().b.cancel());
+    await flush();
+  });
+
+  it('frame siap: klik → konfirmasi "Timpa hasil yang ada?" di dekat tile, lalu jalankan', async () => {
+    const ids = addFrames(1);
+    await ready();
+    act(() => api().s.applyGenerated(ids[0], 'adobe', { title: 'isi lama' }));
+
+    act(() => { regenBtn('f0.jpg')!.click(); });
+    expect(host.textContent).toContain('Timpa hasil yang ada?');
+    expect(calls).toBe(0);                                   // klik pertama = konfirmasi saja
+
+    act(() => { findBtn('Batal')!.click(); });               // batal → popover hilang
+    expect(host.textContent).not.toContain('Timpa hasil yang ada?');
+    expect(calls).toBe(0);
+
+    script = [{ meta: { title: 'baru' } }];
+    act(() => { regenBtn('f0.jpg')!.click(); });             // buka lagi
+    act(() => { findBtn('Ya, timpa')!.click(); });
+    await flush();
+    expect(calls).toBe(1);
+    expect(api().s.frames[0].metadata.adobe?.title).toBe('baru');
+    expect(host.textContent).not.toContain('Timpa hasil yang ada?');
+  });
+
+  it('frame tanpa isi (menunggu) → langsung generate, tanpa konfirmasi', async () => {
+    addFrames(1);
+    await ready();
+    script = [{ meta: { title: 'hasil pertama' } }];
+
+    act(() => { regenBtn('f0.jpg')!.click(); });
+    await flush();
+    expect(calls).toBe(1);
+    expect(host.textContent).not.toContain('Timpa hasil yang ada?');
+    expect(api().s.frames[0].metadata.adobe?.title).toBe('hasil pertama');
   });
 });
