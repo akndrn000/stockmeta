@@ -16,6 +16,9 @@ export interface ValidationNote {
   message: string;
 }
 
+// M11: kategori diisi fallback oleh sistem (nama model tidak cocok / field kosong)
+export const AUTO_CATEGORY_MSG = 'Kategori dipilih otomatis oleh sistem, periksa kembali.';
+
 const countWords = (s: string) => s.split(/\s+/).filter(Boolean).length;
 
 // Deskripsi terlihat seperti daftar kata: banyak koma tapi sedikit kata per segmen.
@@ -44,7 +47,9 @@ export function validateMetadata(platform: Platform, metadata: Metadata | undefi
     const n = m?.keywords.length ?? 0;
     if (n < MIN_KEYWORDS_ADOBE) notes.push({ field: 'keywords', message: `Kata kunci minimal ${MIN_KEYWORDS_ADOBE} (baru ${n}).` });
     if (n > MAX_KEYWORDS) notes.push({ field: 'keywords', message: `Kata kunci ${n} — maksimal ${MAX_KEYWORDS}.` });
-    if (!m?.category) notes.push({ field: 'category', message: 'Pilih satu kategori.' });
+    // M11: kategori fallback otomatis tetap disarankan untuk diperiksa, meski slotnya terisi
+    if (m?.categoryAuto) notes.push({ field: 'category', message: AUTO_CATEGORY_MSG });
+    else if (!m?.category) notes.push({ field: 'category', message: 'Pilih satu kategori.' });
     return notes;
   }
 
@@ -62,6 +67,7 @@ export function validateMetadata(platform: Platform, metadata: Metadata | undefi
   if (n < MIN_KEYWORDS_SHUTTER) notes.push({ field: 'keywords', message: `Kata kunci minimal ${MIN_KEYWORDS_SHUTTER} (baru ${n}).` });
   if (n > MAX_KEYWORDS) notes.push({ field: 'keywords', message: `Kata kunci ${n} — maksimal ${MAX_KEYWORDS}.` });
   const cats = (m as unknown as { categories?: string[] })?.categories ?? [];
-  if (!cats[0]) notes.push({ field: 'categories', message: 'Pilih kategori utama.' });
+  if (m?.categoryAuto) notes.push({ field: 'categories', message: AUTO_CATEGORY_MSG });
+  else if (!cats[0]) notes.push({ field: 'categories', message: 'Pilih kategori utama.' });
   return notes;
 }

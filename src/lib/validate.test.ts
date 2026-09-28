@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validateMetadata } from './validate';
+import { AUTO_CATEGORY_MSG, validateMetadata } from './validate';
 import {
   MAX_DESCRIPTION,
   MAX_FILENAME,
@@ -69,6 +69,11 @@ describe('validateMetadata — Adobe', () => {
   it('lengkap dan ideal → []', () => {
     expect(validateMetadata('adobe', adobe({ title: 'Judul bagus', keywords: kws(5), category: 'Kopi' }))).toEqual([]);
   });
+
+  it('M11: kategori terisi tapi categoryAuto → saran periksa, bukan "Pilih satu kategori."', () => {
+    const notes = validateMetadata('adobe', adobe({ title: 'Judul bagus', keywords: kws(5), category: 'Animals', categoryAuto: true }));
+    expect(notes).toEqual([{ field: 'category', message: AUTO_CATEGORY_MSG }]);
+  });
 });
 
 describe('validateMetadata — Shutterstock', () => {
@@ -116,5 +121,15 @@ describe('validateMetadata — Shutterstock', () => {
     const notes = validateMetadata('shutterstock', shutter({ description: 'kalimat utuh yang cukup panjang', keywords: kws(MAX_KEYWORDS + 1) }));
     expect(fields(notes)).toEqual(['keywords', 'categories']);
     expect(notes[0].message).toBe(`Kata kunci ${MAX_KEYWORDS + 1} — maksimal ${MAX_KEYWORDS}.`);
+  });
+
+  it('M11: kategori terisi tapi categoryAuto → saran periksa, bukan "Pilih kategori utama."', () => {
+    const notes = validateMetadata('shutterstock', shutter({
+      description: 'kalimat utuh yang cukup panjang untuk lolos semua saran',
+      keywords: kws(7),
+      categories: ['Abstract'],
+      categoryAuto: true
+    }));
+    expect(notes).toEqual([{ field: 'categories', message: AUTO_CATEGORY_MSG }]);
   });
 });

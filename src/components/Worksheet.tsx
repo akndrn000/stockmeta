@@ -510,6 +510,48 @@ export function Worksheet({ session, provider, batch }: {
           onGenerate={batch.startBatch}
           onCancel={batch.cancel}
         />
+        {/* M11: timpa semua hasil platform aktif — hanya bila ada minimal satu frame siap/gagal
+            (frame 'menunggu' saja sudah tercakup tombol "Buat metadata") */}
+        {frames.some((f) => f.status[platform] === 'siap' || f.status[platform] === 'gagal') && (
+          <div className="flex flex-col gap-1.5">
+            {batch.regenAllConfirm === platform ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-well px-3 py-2.5">
+                <span className="text-[13px] font-semibold text-ink">Ganti semua hasil yang sudah ada?</span>
+                <button
+                  type="button"
+                  onClick={batch.regenerateAll}
+                  disabled={busy}
+                  className="rounded-lg border border-fail px-3 py-1.5 text-[13px] font-semibold text-fail transition-colors hover:bg-fail hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  Ya, ganti semua
+                </button>
+                <button
+                  type="button"
+                  onClick={batch.dismissRegenAll}
+                  className="rounded-lg border border-line px-3 py-1.5 text-[13px] font-semibold text-ink-2 transition-colors hover:bg-wash hover:text-ink"
+                >
+                  Batal
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={batch.regenerateAll}
+                disabled={generateDisabled || busy}
+                title={
+                  busy
+                    ? 'Tunggu batch selesai'
+                    : generateDisabled
+                      ? generateHint
+                      : 'Generate ulang SEMUA frame platform ini, menimpa hasil yang sudah ada'
+                }
+                className="w-full rounded-lg border border-line px-4 py-2.5 text-[13.5px] font-semibold text-ink-2 transition-colors hover:bg-wash hover:text-ink disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                Buat ulang semua
+              </button>
+            )}
+          </div>
+        )}
         <ProgressBar show={showBar} busy={busy} done={bar.done} total={bar.total} failed={bar.failed} label={label} />
         {!busy && failed > 0 && (
           <button

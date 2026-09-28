@@ -2,14 +2,14 @@
 // parseJsonLoose + normalisasi di providers-gemini.js/app.js (tanpa panggilan jaringan).
 import { getCategories, normCat } from './categories';
 import { cleanAdobeTitle } from './metadata';
-import { MAX_TITLE_CSV } from './limits';
+import { MAX_DESCRIPTION, MAX_TITLE_CSV } from './limits';
 import type { Platform } from './types';
 
 export function buildMetadataPrompt({ platform, theme }: { platform: Platform; theme?: string }): string {
   const cats = getCategories(platform);
   const jsonFormat = platform === 'adobe'
     ? `{"title": string maks ${MAX_TITLE_CSV} karakter dan TANPA koma (ganti koma dengan kata sambung atau spasi), "keywords": array 15-35 kata, "category": string — salah satu persis dari daftar kategori di atas}`
-    : '{"description": string kalimat deskriptif lengkap minimal 5 kata (BUKAN daftar kata), "keywords": array 15-40 kata, "category": array 1-2 string persis dari daftar kategori di atas}';
+    : `{"description": string kalimat deskriptif lengkap minimal 5 kata dan maksimal sekitar ${MAX_DESCRIPTION} karakter (BUKAN daftar kata), "keywords": array 15-40 kata, "category": array 1-2 string persis dari daftar kategori di atas}`;
 
   const lines = [
     'Analisis HANYA apa yang benar-benar terlihat di gambar ini. Jangan menebak konteks, lokasi, merek, atau emosi yang tidak jelas terlihat. Jika ragu, jangan sertakan.'
@@ -35,7 +35,7 @@ export function buildMetadataPrompt({ platform, theme }: { platform: Platform; t
     'Format JSON untuk platform ini:',
     jsonFormat,
     '',
-    'Kembalikan JSON sesuai format platform seperti sebelumnya, dengan category HARUS salah satu dari daftar di atas persis (case-sensitive).',
+    'Kembalikan JSON sesuai format platform seperti sebelumnya, dengan field `category` WAJIB terisi (jangan kosong dan jangan null) dan nilainya persis salah satu nama dari daftar kategori di atas (case-sensitive).',
     'Keluarkan HANYA JSON valid, tanpa teks tambahan, tanpa markdown code block.'
   );
   return lines.join('\n');
@@ -48,6 +48,8 @@ export interface ParsedMetadata {
   description?: string;
   keywords?: string[];
   category?: string;
+  /** M11: true bila kategori diisi fallback (nama model tidak cocok / field kosong) */
+  categoryAuto?: boolean;
 }
 
 // 'json' dipetakan UI ke pesan legacy "JSON tidak valid"
@@ -92,12 +94,21 @@ export function parseMetadataResponse(raw: string, platform: Platform): ParsedMe
   const kw = typeof kwRaw === 'string' ? kwRaw.split(/[,;]+/) : kwRaw;
   if (Array.isArray(kw)) out.keywords = cleanKeywords(kw, 50);
 
-  const catRaw = pick(obj, 'category');
+  // M11: model kadang memakai key `categories` (Shutterstock) — terima `category` dulu, lalu aliasnya.
+  const catRaw = pick(obj, 'category') ?? pick(obj, 'categories');
   const list = getCategories(platform);
   const norm = (Array.isArray(catRaw) ? catRaw : [catRaw])
     .map((x) => normCat(x, list))
     .find(Boolean);
-  if (norm) out.category = norm;
+  if (norm) {
+    out.category = norm;
+  } else {
+    // Tidak ada padanan sama sekali (nama dari model terlalu jauh / field kosong) → jangan
+    // biarkan kategori kosong: pakai kategori resmi pertama sebagai isi sementara dan tandai
+    // categoryAuto supaya validateMetadata menyarankan user memeriksa pilihannya.
+    out.category = list[0];
+    out.categoryAuto = true;
+  }
 
   const t = pick(obj, 'title');
   if (typeof t === 'string' && t.trim()) {

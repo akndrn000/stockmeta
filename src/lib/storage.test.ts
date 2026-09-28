@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BATCH_DELAY_DEFAULT_SEC } from './limits';
-import { loadSession, readBatchDelay, readKey, readTheme, removeSession, saveSession, writeBatchDelay, writeKey, writeTheme } from './storage';
+import { loadSession, readBatchDelay, readKey, readProvider, readTheme, removeSession, saveSession, writeBatchDelay, writeKey, writeProvider, writeTheme } from './storage';
 import type { StoredSession } from './storage';
 import type { Frame } from './types';
 
@@ -52,6 +52,23 @@ describe('API key', () => {
     writeKey('groq', 'def');
     expect(readKey('gemini')).toBe('abc');
     expect(readKey('groq')).toBe('def');
+  });
+});
+
+describe('pilihan provider (M11)', () => {
+  it('belum pernah memilih → null (pemanggil memakai default Groq)', () => {
+    expect(readProvider()).toBeNull();
+  });
+
+  it('roundtrip nilai valid; nilai tak sah → null', () => {
+    writeProvider('gemini');
+    expect(readProvider()).toBe('gemini');
+    writeProvider('groq');
+    expect(readProvider()).toBe('groq');
+    writeProvider('coming-soon');
+    expect(readProvider()).toBe('coming-soon');
+    store.setItem('stockmeta_provider', 'nvidia');
+    expect(readProvider()).toBeNull();
   });
 });
 
@@ -143,6 +160,17 @@ describe('loadSession — format baru (slot per platform)', () => {
       imgs: [{ name: 'x.jpg', metadata: { keywords: [] } }]
     }));
     expect(loadSession()?.imgs[0].id).toBe(8);
+  });
+
+  it('M11: bendera categoryAuto ikut tersimpan dan terbaca lagi setelah reload', () => {
+    store.setItem('stockmeta_session', JSON.stringify({
+      v: 1, platform: 'adobe', sel: null, seq: 1, tema: '',
+      imgs: [{
+        id: 1, name: 'a.jpg', thumb: '',
+        metadata: { adobe: { title: 'T', keywords: ['a'], category: 'Animals', categoryAuto: true } }
+      }]
+    }));
+    expect(loadSession()?.imgs[0].metadata.adobe?.categoryAuto).toBe(true);
   });
 
   it('slot ada tapi kosong isinya + status siap → dinormalkan ke menunggu (audit A1)', () => {

@@ -12,12 +12,16 @@ export interface AdobeMetadata {
   title: string;
   keywords: string[];
   category: string;
+  /** M11: true kalau kategori diisi otomatis oleh sistem (bukan pilihan user) → tampil saran periksa */
+  categoryAuto?: boolean;
 }
 
 export interface ShutterstockMetadata {
   description: string;
   keywords: string[];
   categories: string[];
+  /** sama dengan AdobeMetadata.categoryAuto */
+  categoryAuto?: boolean;
 }
 
 export interface MetadataByPlatform {

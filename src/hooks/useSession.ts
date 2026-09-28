@@ -124,7 +124,9 @@ export function useSession() {
       if (f.id !== id) return f;
       hit = true;
       const base = (f.metadata[platform] ?? defaultMetadata(platform)) as MetadataFor<P>;
-      const next = { ...base, ...patch };
+      const next = { ...base, ...patch } as MetadataFor<P> & { categoryAuto?: boolean };
+      // M11: user mengubah kategori sendiri → label "dipilih otomatis oleh sistem" tidak berlaku lagi
+      if ('category' in patch || 'categories' in patch) delete next.categoryAuto;
       const content = hasContent(platform, next);
       // kontrak: ada isi → siap; slot dikosongkan → kembali menunggu (status 'gagal' &
       // 'memproses' dipertahankan — pesan error / proses batch tidak terganggu)

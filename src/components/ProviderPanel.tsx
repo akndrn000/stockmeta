@@ -1,14 +1,15 @@
 'use client';
 import { useState } from 'react';
 import type { ProviderId } from '../lib/types';
-import { PROVIDER_LABELS, STATUS_LABELS } from '../hooks/useProvider';
+import { PROVIDER_LABELS, PROVIDER_ORDER, STATUS_LABELS } from '../hooks/useProvider';
 import type { useProvider } from '../hooks/useProvider';
 
 type ProviderApi = ReturnType<typeof useProvider>;
 
-const PROVIDER_IDS: readonly ProviderId[] = ['gemini', 'groq', 'coming-soon'];
 const GROQ_NOTE =
   'Limit gratis Groq ketat (8.000 token/menit); batch besar bisa lebih lambat karena menunggu limit reset.';
+const GEMINI_NOTE =
+  'Kadang lebih sering terkena limit/sibuk dibanding Groq — coba Groq dulu kalau sering gagal.';
 
 export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean }) {
   const [showKey, setShowKey] = useState(false);
@@ -39,7 +40,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
               disabled={testing || busy}
               className="w-full appearance-none rounded-lg border border-line bg-well px-3 py-2 pr-8 text-[13.5px] font-semibold text-ink transition-colors hover:border-ink-3 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {PROVIDER_IDS.map((p) => (
+              {PROVIDER_ORDER.map((p) => (
                 <option key={p} value={p}>
                   {PROVIDER_LABELS[p]}
                 </option>
@@ -175,6 +176,11 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
           {api.provider === 'groq' && (
             <p className="font-mono text-[12px] leading-relaxed text-ink-3">
               {GROQ_NOTE}
+            </p>
+          )}
+          {api.provider === 'gemini' && (
+            <p className="font-mono text-[12px] leading-relaxed text-ink-3">
+              {GEMINI_NOTE}
             </p>
           )}
         </div>

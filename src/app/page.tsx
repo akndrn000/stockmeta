@@ -16,7 +16,9 @@ export default function Home() {
   const batch = useBatch(session, provider);
 
   return (
-    <div className="flex min-h-dvh flex-col lg:h-dvh lg:overflow-hidden">
+    // M11: tanpa tinggi tetap & tanpa overflow tersembunyi — halaman menggulir sebagai satu
+    // dokumen; kedua panel tingginya mengikuti isi (lihat Panel.tsx).
+    <div className="flex min-h-dvh flex-col">
       <Header
         provider={provider.provider}
         status={provider.status}
@@ -25,7 +27,7 @@ export default function Home() {
       />
       <ProviderPanel api={provider} busy={batch.busy} />
 
-      <main className="grid min-h-0 flex-1 grid-cols-1 gap-3 p-3 lg:grid-cols-[3fr_2fr] lg:grid-rows-[minmax(0,1fr)] lg:gap-3.5 lg:p-4">
+      <main className="grid grid-cols-1 items-start gap-3 p-3 lg:grid-cols-[3fr_2fr] lg:gap-3.5 lg:p-4">
         <Worksheet session={session} provider={provider} batch={batch} />
         <CaptionSheet session={session} provider={provider} batch={batch} />
       </main>

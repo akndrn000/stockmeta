@@ -45,6 +45,90 @@ mengimpor React; provider tidak mengimpor komponen.
   `*.log`), hapus artefak scaffold (`public/*.svg`, `.gitkeep`), scan key/URL log bersih.
 - [ ] **M10 — Deploy Vercel**: `vercel deploy`, verifikasi produksi.
 
+## Perbaikan pasca-M10 (M11) — bukan tahap migrasi baru
+
+Semua di bawah adalah perbaikan lanjutan; tanpa e2e, tanpa menjalankan server. Verifikasi:
+`npm run test` (172 tes), `npx tsc --noEmit`, `npm run lint`, `npm run build` — lolos semua.
+
+### 1. Groq jadi provider default, Gemini cadangan
+
+- `src/hooks/useProvider.ts`: default state `'gemini'` → **`DEFAULT_PROVIDER = 'groq'`**;
+  boot membaca pilihan tersimpan dulu (`readProvider()`), hanya fallback ke Groq kalau belum
+  pernah memilih; `setProvider` menulis `stockmeta_provider` (**baru** — sebelumnya tidak ada
+  kunci pilihan provider sama sekali).
+- `src/lib/storage.ts`: `PROVIDER_KEY` + `readProvider`/`writeProvider` (nilai asing → `null`).
+- `src/components/ProviderPanel.tsx`: urutan dropdown dari `PROVIDER_ORDER`
+  (**Groq → Gemini → Coming Soon**), catatan Gemini baru: *Kadang lebih sering terkena limit/sibuk
+  dibanding Groq — coba Groq dulu kalau sering gagal.*; catatan Groq dipertahankan.
+- `README.md`: baris **Groq (default)** di atas Gemini di tabel provider + catatan Gemini lebih
+  sering kena limit; urutan penyebutan di intro & langkah pakai ikut dibalik.
+- Efek samping yang perlu diketahui: tiga tes harness (`useBatch`, `Worksheet`, `CaptionSheet`)
+  kini mendaftarkan adapter palsu juga ke `registry.groq` karena default sudah Groq.
+
+### 2. Satu dokumen, satu scroll (Worksheet & CaptionSheet tanpa scroll internal)
+
+- `src/app/page.tsx`: buang `lg:h-dvh lg:overflow-hidden` dan
+  `lg:grid-rows-[minmax(0,1fr)]`/`min-h-0 flex-1` — akar cukup `min-h-dvh flex flex-col`,
+  `main` jadi grid biasa `items-start` (2 kolom ≥1024px tetap: Worksheet kiri, CaptionSheet kanan).
+- `src/components/Panel.tsx`: body panel buang `min-h-0 flex-1 overflow-y-auto` → tinggi mengikuti
+  isi; `overflow-hidden` **dipertahankan** hanya untuk merapikan sudut membulat (strip full-bleed
+  CaptionSheet pakai margin negatif). Panel juga buang `min-h-0` — tingginya kini mengikuti isi,
+  jadi kedua kolom boleh berbeda tinggi.
+- **Header tetap non-sticky** (keputusan): paling rapi untuk dokumen yang menggulir dan tidak
+  pernah menutupi konten; scroll ke `#lembar-caption` di layar kecil tetap aman.
+
+### 3. Ganti provider tanpa upload ulang + tombol "Buat ulang semua"
+
+- **Verifikasi**: mengganti provider **tidak** menghapus frame/file/metadata — `setProvider`
+  hanya mereset state koneksi. Tidak ada perilaku yang perlu diperbaiki di sini.
+- `src/hooks/useBatch.ts`: `regenerateAll()` (konfirmasi 2 langkah per platform via
+  `regenAllConfirm: Platform | null`), `dismissRegenAll()`; `run()` kini membersihkan kedua
+  konfirmasi begitu batch jalan (mencegah konfirmasi basi terpakai tanpa sengaja).
+- `src/components/Worksheet.tsx`: tombol **`Buat ulang semua`** + konfirmasi inline
+  **`Ganti semua hasil yang sudah ada?`** (`Ya, ganti semua` / `Batal`), hanya dirender bila ada
+  frame `siap`/`gagal` di platform aktif.
+- Provider & key di-snapshot saat batch mulai → setelah ganti provider + tes ulang, generate
+  memakai provider yang baru.
+
+### 4. "Coba lagi frame gagal" selalu tersedia selama ada yang gagal
+
+- Kondisi ternyata **sudah benar** (`!busy && failed > 0`, `failed` dihitung dari status sesi
+  platform aktif → melekat lama setelah batch selesai). Tidak ada kode yang diubah; ditambah
+  **tes regresi** di `Worksheet.test.ts` (setelah pindah-pindah frame & ganti platform lalu
+  kembali).
+
+### 5. Bug: kategori tidak terisi otomatis setelah generate
+
+Penyebab yang ditemukan (bukan satu-satunya ambang Levenshtein):
+
+1. **Key `categories` tidak dikenali** — parser hanya mencari `category` persis (case-insensitive);
+   respons Shutterstock yang memakai `categories` (nama kolom CSV-nya) dibuang → kategori kosong.
+2. **`normCat` mengembalikan `null`** untuk nama yang tidak mirip cukup (mis. padanan lintas
+   platform seperti `Nature` di daftar Adobe), dan field yang kosong/`null` juga berujung `null`
+   → `out.category` tidak pernah ditulis.
+3. Instruksi prompt sudah ada tapi tidak melarang nilai kosong.
+
+Perbaikan:
+
+- `src/lib/prompt.ts` (`parseMetadataResponse`): terima alias `categories`; kalau tetap tidak ada
+  padanan (nama terlalu jauh / field kosong) → **fallback kategori resmi pertama** + bendera
+  `categoryAuto: true`. Prompt ditegak: field `category` **wajib terisi, jangan kosong/jangan null**.
+- `src/lib/types.ts` + `src/lib/metadata.ts`: field opsional `categoryAuto` di kedua metadata dan
+  aturan merge — **fallback tidak pernah menimpa kategori lama yang sudah terisi**, bendera ikut
+  berpindah/dibersihkan mengikuti nilai.
+- `src/lib/validate.ts`: `categoryAuto` → saran **`Kategori dipilih otomatis oleh sistem, periksa
+  kembali.`** (menggantikan `Pilih satu kategori.` saat slot terisi); idem untuk Shutterstock.
+- `src/hooks/useSession.ts`: user mengubah kategori manual → `categoryAuto` dihapus (saran tidak
+  basi). `src/lib/storage.ts`: bendera ikut persisten saat reload.
+- Tes baru: `prompt.test.ts` (tidak cocok / kosong / alias `categories`), `validate.test.ts`
+  (saran auto), **baru** `metadata.test.ts` (merge tidak menimpa kategori lama).
+
+### 6. Bonus: instruksi deskripsi Shutterstock ±200 karakter
+
+- `buildMetadataPrompt` (Shutterstock saja): format JSON kini minta deskripsi *minimal 5 kata dan
+  **maksimal sekitar 200 karakter*** (memakai `MAX_DESCRIPTION`) — instruksi ke model saja,
+  **tanpa memotong paksa di kode** (saran validasi >200 tetap non-pemblokir).
+
 ## Kontrak perilaku (WAJIB sama dengan legacy)
 
 Sumber: `legacy/docs/PROGRESS.md` + `legacy/js/*.js`. Tanda **[BARU]** = perilaku baru yang
@@ -73,8 +157,12 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
 
 ### Provider
 
-- Dropdown: **Gemini**, **Groq**, **Coming Soon** (nonaktif: field key + tombol Test disabled,
-  Generate tetap mati, catatan `Provider tambahan akan segera hadir`).
+- Dropdown: **Groq**, **Gemini**, **Coming Soon** (nonaktif: field key + tombol Test disabled,
+  Generate tetap mati, catatan `Provider tambahan akan segera hadir`) **[M11: urutan & default]** —
+  **Groq provider default** saat belum ada pilihan tersimpan; pilihan user disimpan di localStorage
+  (`stockmeta_provider`) dan **dihormati** di kunjungan berikutnya.
+- Catatan per provider di bawah hasil tes **[M11]**: Groq tetap soal limit 8.000 token/menit;
+  Gemini: *Kadang lebih sering terkena limit/sibuk dibanding Groq — coba Groq dulu kalau sering gagal.*
 - **Tes koneksi wajib lulus sebelum API key disimpan** ke `localStorage` (kunci
   `stockmeta_gemini_key` / `stockmeta_groq_key`); key di-restore saat pindah provider tapi status
   sengaja reset ke `Belum dites` (harus tes ulang).
@@ -84,6 +172,11 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
   ke UI.
 - API key **hanya di browser** (localStorage), **tidak pernah dikirim ke server** — semua panggilan
   dari `fetch` di client.
+- **Ganti provider bersifat non-destruktif** **[M11: diverifikasi]**: `useProvider.setProvider`
+  hanya mengubah state koneksi (provider/key/status/model) + menulis `stockmeta_provider` —
+  **frame, fileStore, dan metadata tidak disentuh sama sekali**. Generate berikutnya selalu
+  memakai adapter/key/model hasil snapshot saat batch dimulai, sehingga setelah ganti provider
+  (wajib tes ulang dulu) prompt & panggilan API memakai provider yang baru dipilih.
 
 ### Generate
 
@@ -98,7 +191,10 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
 - **Prompt anti-generic** (larangan frasa generik, fokus subjek/aksi/gaya/mood), **tema per-batch**
   + **override per-foto** (tema frame menimpa tema batch), **daftar kategori resmi**
   (Adobe **21**, Shutterstock **26**) + **fuzzy match** (eksak → contains → berbagi kata →
-  Levenshtein 45%).
+  Levenshtein 45%). Bila tetap tidak ada padanan (atau field kategori kosong) → **fallback
+  kategori resmi pertama + saran `Kategori dipilih otomatis oleh sistem, periksa kembali.`**
+  **[M11]** — kategori tidak pernah kosong hasil generate, dan fallback tidak menimpa kategori
+  lama yang sudah terisi.
 - **Frame gagal** ditandai dengan **pesan error asli** (bukan pesan retry), **batch lanjut** ke
   frame berikutnya; **spinner per frame yang sedang diproses** **[BARU]**; **highlight frame yang
   dipilih** (termasuk saat gagal); **status/gagal tersimpan per platform** **[BARU]** (frame gagal
@@ -123,7 +219,16 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
   **[BARU]**; semua frame sudah siap → catatan `Semua frame sudah selesai.` tanpa panggilan API.
 - **Tombol `Coba lagi frame gagal`** **[BARU]**: muncul dekat progress bar selama ada frame
   `gagal` di platform aktif dan batch tidak berjalan; klik → jalankan batch (hanya memproses
-  `menunggu`/`gagal`); otomatis hilang begitu tak ada frame gagal.
+  `menunggu`/`gagal`); otomatis hilang begitu tak ada frame gagal. Syaratnya hanya itu —
+  **tetap tampil** lama setelah batch selesai, setelah pindah frame, dan setelah ganti platform
+  lalu kembali **[M11: diverifikasi + tes regresi]**.
+- **Tombol `Buat ulang semua`** **[M11]**: tepat di bawah `Buat metadata`, tampil hanya bila ada
+  minimal satu frame berstatus `siap`/`gagal` untuk platform aktif (frame `menunggu` saja sudah
+  tercakup `Buat metadata`). Klik pertama → konfirmasi inline **`Ganti semua hasil yang sudah
+  ada?`**; konfirmasi → generate ulang **SEMUA** frame platform aktif (menimpa hasil yang sudah
+  ada) memakai file tersimpan di fileStore — **tanpa upload ulang**; frame yang file aslinya sudah
+  hilang dilewati dengan pesan `File asli tidak tersedia — upload ulang frame ini` + lencana
+  *upload ulang*, sisanya tetap diproses.
 
 ### CaptionSheet
 
@@ -204,3 +309,9 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
   Adobe) menggantikan batas legacy 200 — **tes prompt yang dibandingkan persis dengan legacy
   sengaja diperbarui**; parser merapikan koma → spasi lalu memotong di 70, ekspor CSV hanya
   merapikan koma tanpa memotong (kelebihan dikasih tahu lewat saran validasi).
+- Layout (M11): dari kerangka "aplikasi setinggi layar + scroll di dalam tiap panel" (M5–M7)
+  menjadi **satu dokumen yang menggulir**; Worksheet & CaptionSheet tingginya mengikuti isi
+  (grid 2 kolom ≥1024px tetap), tanpa scrollbar internal, Header non-sticky.
+- Kategori generate (M11): parser **tidak pernah** mengembalikan kategori kosong — fallback
+  kategori pertama + bendera `categoryAuto` + saran periksa (perubahan kontrak dari
+  "kategori tanpa padanan tidak ditulis sama sekali"; tesnya ikut diperbarui).

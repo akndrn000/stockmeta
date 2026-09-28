@@ -13,6 +13,7 @@ const KEY_LS: Partial<Record<ProviderId, string>> = {
 export const SESS_KEY = 'stockmeta_session';
 export const THEME_KEY = 'stockmeta_theme';
 export const BATCH_DELAY_KEY = 'stockmeta_batch_delay';
+export const PROVIDER_KEY = 'stockmeta_provider';
 
 function ls(): Storage | null {
   try { return typeof localStorage === 'undefined' ? null : localStorage; }
@@ -33,6 +34,19 @@ export function writeKey(provider: ProviderId, key: string): void {
   const s = ls();
   if (!k || !s) return;
   try { s.setItem(k, key); } catch { /* diabaikan, sama seperti legacy */ }
+}
+
+/* ---------------- pilihan provider (M11: default Groq, pilihan user dihormati) ---------------- */
+
+export function readProvider(): ProviderId | null {
+  try {
+    const v = ls()?.getItem(PROVIDER_KEY);
+    return v === 'gemini' || v === 'groq' || v === 'coming-soon' ? v : null;
+  } catch { return null; }
+}
+
+export function writeProvider(provider: ProviderId): void {
+  try { ls()?.setItem(PROVIDER_KEY, provider); } catch { /* diabaikan */ }
 }
 
 /* ---------------- riwayat sesi ---------------- */
@@ -62,7 +76,9 @@ function coerceAdobe(o: Record<string, unknown>): AdobeMetadata {
   return {
     title: typeof o.title === 'string' ? o.title : '',
     keywords: keywordsOf(o),
-    category: typeof o.category === 'string' ? o.category : ''
+    category: typeof o.category === 'string' ? o.category : '',
+    // M11: tanda "kategori dipilih otomatis" ikut tersimpan supaya sarannya tetap ada setelah reload
+    ...(o.categoryAuto === true ? { categoryAuto: true } : {})
   };
 }
 
@@ -74,7 +90,8 @@ function coerceShutter(o: Record<string, unknown>): ShutterstockMetadata {
     description: typeof o.description === 'string' ? o.description
       : typeof o.desc === 'string' ? o.desc : '',
     keywords: keywordsOf(o),
-    categories: cats
+    categories: cats,
+    ...(o.categoryAuto === true ? { categoryAuto: true } : {})
   };
 }
 

@@ -1,6 +1,6 @@
 # StockMeta
 
-**Metadata AI untuk Adobe Stock & Shutterstock.** Upload foto, biarkan Gemini atau Groq
+**Metadata AI untuk Adobe Stock & Shutterstock.** Upload foto, biarkan Groq atau Gemini
 menulis judul/deskripsi, kata kunci, dan kategori secara batch — lalu sunting, salin, atau
 ekspor CSV sesuai format portal. Berjalan sepenuhnya di browser Anda: API key tidak pernah
 menyentuh server aplikasi ini.
@@ -22,7 +22,7 @@ menyentuh server aplikasi ini.
 
 1. **Upload** foto ke Lembar kerja (drag-drop atau klik area upload).
 2. **Pilih platform** (Adobe Stock / Shutterstock) di header.
-3. **Pilih provider** (Gemini atau Groq) lalu **tempel API key** Anda.
+3. **Pilih provider** (Groq — default, atau Gemini) lalu **tempel API key** Anda.
 4. Klik **Tes koneksi** — key hanya disimpan kalau tes lulus.
 5. Isi **tema batch** (opsional), misalnya `Halloween`.
 6. Klik **Buat metadata** — progress tampil per frame; bisa **Batalkan** kapan saja.
@@ -33,8 +33,8 @@ menyentuh server aplikasi ini.
 
 | Provider | Model | Catatan limit gratis |
 | --- | --- | --- |
-| **Gemini** | Model flash terbaru (deteksi otomatis) | Limit gratis ketat per menit dan per hari — batch besar bisa kena `429`. |
-| **Groq** | `qwen/qwen3.8-27b` | Limit gratis ketat (**±8.000 token/menit**) — batch besar bisa lambat karena menunggu limit reset. |
+| **Groq** (default) | `qwen/qwen3.8-27b` | Limit gratis ketat (**±8.000 token/menit**) — batch besar bisa lambat karena menunggu limit reset. |
+| **Gemini** | Model flash terbaru (deteksi otomatis) | Kadang lebih sering terkena limit/sibuk dibanding Groq (`429` per menit dan per hari) — coba Groq dulu kalau sering gagal. |
 
 Saran: kalau sering muncul pemberitahuan **“Menunggu limit reset”**, naikkan **Jeda antar
 foto** (misalnya 12 atau 20 detik) di Lembar kerja. Retry berjalan otomatis (maksimal 5

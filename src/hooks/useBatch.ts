@@ -30,6 +30,8 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
   const [summary, setSummary] = useState<BatchSummary | null>(null);
   const [notice, setNotice] = useState('');
   const [regenConfirm, setRegenConfirm] = useState<number | null>(null);
+  // konfirmasi "Ganti semua hasil yang sudah ada?" untuk Buat ulang semua — per platform
+  const [regenAllConfirm, setRegenAllConfirm] = useState<Platform | null>(null);
   // jeda antar foto (detik); direstore dari localStorage setelah mount (hindari mismatch SSR)
   const [delaySec, setDelaySec] = useState(BATCH_DELAY_DEFAULT_SEC);
   const busyRef = useRef(false);
@@ -57,6 +59,8 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
     setBusy(true);
     setSummary(null);
     setNotice('');
+    setRegenConfirm(null);            // konfirmasi basi dibersihkan begitu batch jalan
+    setRegenAllConfirm(null);
     setCurrentId(null);
     setProgress({ done: 0, failed: 0, total: ids.length });
 
@@ -173,6 +177,34 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
     abortRef.current?.abort();
   }
 
+  // M11: "Buat ulang semua" — jalankan generate untuk SEMUA frame platform aktif (menimpa
+  // hasil yang sudah ada) memakai file yang tersimpan di fileStore; frame tanpa file asli
+  // dilewati runBatch dengan pesan upload ulang seperti biasa. Sekali klik = minta konfirmasi.
+  function regenerateAll() {
+    if (busyRef.current) return;
+    setNotice('');
+    const platform = session.platform;
+    if (!providerReady()) {
+      setNotice(NEED_TEST_MSG);
+      return;
+    }
+    const ids = session.snapshot().frames.map((f) => f.id);
+    if (!ids.length) {
+      setNotice(ALL_DONE_MSG);
+      return;
+    }
+    if (regenAllConfirm !== platform) {
+      setRegenAllConfirm(platform);   // "Ganti semua hasil yang sudah ada?"
+      return;
+    }
+    setRegenAllConfirm(null);
+    void run(ids, platform);
+  }
+
+  function dismissRegenAll() {
+    setRegenAllConfirm(null);
+  }
+
   function dismissRegen() {
     setRegenConfirm(null);
   }
@@ -200,10 +232,13 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
     summary,
     notice,
     regenConfirm,
+    regenAllConfirm,
     startBatch,
     regenerateFrame,
+    regenerateAll,
     cancel,
     dismissRegen,
+    dismissRegenAll,
     delaySec,
     setDelay
   };

@@ -9,6 +9,7 @@ import { fileStore } from '../lib/fileStore';
 import { BATCH_DELAY_DEFAULT_SEC, BATCH_DELAY_OPTIONS_SEC } from '../lib/limits';
 import { registry } from '../lib/providers';
 import { gemini } from '../lib/providers/gemini';
+import { groq } from '../lib/providers/groq';
 import type { ProviderAdapter } from '../lib/providers/types';
 import type { ParsedMetadata } from '../lib/prompt';
 import { readBatchDelay } from '../lib/storage';
@@ -74,6 +75,7 @@ const blank = (name: string): Omit<Frame, 'id'> => ({
 });
 
 const RETRY = 'Coba lagi frame gagal';
+const REGEN_ALL = 'Buat ulang semua';
 const findBtn = (label: string) =>
   Array.from(host.querySelectorAll('button')).find((b) => (b.textContent ?? '').trim() === label) ?? null;
 const delaySelect = () => host.querySelector('#jeda-antar-foto') as HTMLSelectElement;
@@ -86,6 +88,7 @@ beforeEach(() => {
   script = [];
   calls = 0;
   registry.gemini = fakeAdapter;
+  registry.groq = fakeAdapter;                    // default provider kini Groq (M11)
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
@@ -94,6 +97,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   registry.gemini = gemini;
+  registry.groq = groq;
   await act(async () => root.unmount());
   host.remove();
 });
@@ -147,6 +151,64 @@ describe('tombol "Coba lagi frame gagal"', () => {
 
     act(() => api().b.cancel());
     await flush();
+  });
+
+  it('M11: tetap tampil setelah pindah-pindah frame & ganti platform lalu kembali', async () => {
+    const ids = addFrames(2);
+    await ready();
+    act(() => {
+      api().s.failFrame(ids[1], 'adobe', 'HTTP 500');
+      api().s.select(ids[0]);
+      api().s.select(ids[1]);
+      api().s.select(ids[0]);
+    });
+    expect(findBtn(RETRY)).not.toBeNull();
+
+    act(() => api().s.setPlatform('shutterstock'));   // platform tanpa gagal → hilang
+    expect(findBtn(RETRY)).toBeNull();
+
+    act(() => api().s.setPlatform('adobe'));          // kembali → tampil lagi
+    expect(findBtn(RETRY)).not.toBeNull();
+  });
+});
+
+describe('tombol "Buat ulang semua" (M11)', () => {
+  it('tampil hanya bila ada frame siap/gagal; konfirmasi inline sebelum menimpa', async () => {
+    const ids = addFrames(2);
+    await ready();
+    expect(findBtn(REGEN_ALL)).toBeNull();            // semua menunggu → tercakup "Buat metadata"
+
+    act(() => api().s.applyGenerated(ids[0], 'adobe', { title: 'isi lama' }));
+    expect(findBtn(REGEN_ALL)).not.toBeNull();
+
+    script = [{ meta: { title: 'baru 1' } }, { meta: { title: 'baru 2' } }];
+    act(() => { findBtn(REGEN_ALL)!.click(); });
+    await flush();
+    expect(calls).toBe(0);                            // klik pertama = konfirmasi saja
+    expect(host.textContent).toContain('Ganti semua hasil yang sudah ada?');
+    expect(api().s.frames[0].metadata.adobe?.title).toBe('isi lama');
+
+    act(() => { findBtn('Ya, ganti semua')!.click(); });
+    await flush();
+    expect(calls).toBe(2);                            // SEMUA frame, termasuk yang sudah siap
+    expect(api().s.frames[0].metadata.adobe?.title).toBe('baru 1');
+    expect(api().s.frames[1].metadata.adobe?.title).toBe('baru 2');
+    expect(host.textContent).not.toContain('Ganti semua hasil yang sudah ada?');
+  });
+
+  it('batal dari konfirmasi → tidak ada panggilan API', async () => {
+    const ids = addFrames(1);
+    await ready();
+    act(() => api().s.applyGenerated(ids[0], 'adobe', { title: 'isi lama' }));
+
+    act(() => { findBtn(REGEN_ALL)!.click(); });
+    await flush();
+    act(() => { findBtn('Batal')!.click(); });
+    await flush();
+
+    expect(calls).toBe(0);
+    expect(host.textContent).not.toContain('Ganti semua hasil yang sudah ada?');
+    expect(findBtn(REGEN_ALL)).not.toBeNull();
   });
 });
 

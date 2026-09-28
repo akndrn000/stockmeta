@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ADOBE_CATEGORIES, SHUTTERSTOCK_CATEGORIES } from './categories';
-import { MAX_TITLE_CSV } from './limits';
+import { MAX_DESCRIPTION, MAX_TITLE_CSV } from './limits';
 import { buildMetadataPrompt, parseMetadataResponse } from './prompt';
 
 describe('buildMetadataPrompt', () => {
@@ -22,6 +22,9 @@ describe('buildMetadataPrompt', () => {
     expect(p).toContain(SHUTTERSTOCK_CATEGORIES.join(', '));
     expect(p).not.toContain(ADOBE_CATEGORIES.join(', '));
     expect(p).toContain('kalimat deskriptif lengkap minimal 5 kata');
+    // M11 (temuan layar): dorong deskripsi tetap dekat batas 200 karakter — instruksi saja,
+    // tanpa memotong paksa di kode
+    expect(p).toContain(`maksimal sekitar ${MAX_DESCRIPTION} karakter`);
   });
 
   it('tema kosong: blok tema tidak dikirim sama sekali', () => {
@@ -54,7 +57,9 @@ describe('parseMetadataResponse', () => {
     const p = parseMetadataResponse(raw, 'shutterstock');
     expect(p.keywords).toEqual(['kucing', 'meja']);
     expect(p.description).toBe('Seekor kucing di meja');
-    expect(p.category).toBeUndefined();
+    // M11: kategori kosong dari model tidak dibiarkan kosong — fallback + tanda periksa ulang
+    expect(p.category).toBe(SHUTTERSTOCK_CATEGORIES[0]);
+    expect(p.categoryAuto).toBe(true);
   });
 
   it('JSON rusak / tanpa objek → Error "JSON tidak valid"', () => {
@@ -71,9 +76,32 @@ describe('parseMetadataResponse', () => {
     expect(s.category).toBe('Food and Drink');
   });
 
-  it('kategori tanpa padanan tidak ditulis sama sekali', () => {
+  it('kategori dari model tidak mirip → fallback kategori resmi pertama + tanda categoryAuto', () => {
     const p = parseMetadataResponse(JSON.stringify({ category: 'zzzz qqqq' }), 'adobe');
-    expect(p.category).toBeUndefined();
+    expect(p.category).toBe(ADOBE_CATEGORIES[0]);
+    expect(p.categoryAuto).toBe(true);
+  });
+
+  it('kategori cocok → tanpa tanda categoryAuto', () => {
+    const p = parseMetadataResponse(JSON.stringify({ category: 'Animals' }), 'adobe');
+    expect(p.category).toBe('Animals');
+    expect(p.categoryAuto).toBeUndefined();
+  });
+
+  it('M11: key `categories` (Shutterstock) diterima sebagai alias `category`', () => {
+    const p = parseMetadataResponse(JSON.stringify({ categories: ['Nature', 'Objects'] }), 'shutterstock');
+    expect(p.category).toBe('Nature');
+    expect(p.categoryAuto).toBeUndefined();
+  });
+
+  it('M11: kategori kosong/null dari model → fallback bertanda', () => {
+    const empty = parseMetadataResponse(JSON.stringify({ category: '' }), 'adobe');
+    expect(empty.category).toBe(ADOBE_CATEGORIES[0]);
+    expect(empty.categoryAuto).toBe(true);
+
+    const nulled = parseMetadataResponse(JSON.stringify({ category: null }), 'shutterstock');
+    expect(nulled.category).toBe(SHUTTERSTOCK_CATEGORIES[0]);
+    expect(nulled.categoryAuto).toBe(true);
   });
 
   it('adobe: koma di judul diganti spasi', () => {

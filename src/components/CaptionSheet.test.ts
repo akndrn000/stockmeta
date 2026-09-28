@@ -12,6 +12,7 @@ import { useSession } from '../hooks/useSession';
 import { fileStore } from '../lib/fileStore';
 import { registry } from '../lib/providers';
 import { gemini } from '../lib/providers/gemini';
+import { groq } from '../lib/providers/groq';
 import type { ProviderAdapter } from '../lib/providers/types';
 import type { Frame } from '../lib/types';
 import { CaptionSheet } from './CaptionSheet';
@@ -68,6 +69,7 @@ beforeEach(() => {
   localStorage.clear();
   fileStore.clear();
   registry.gemini = fakeAdapter;
+  registry.groq = fakeAdapter;                    // default provider kini Groq (M11)
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
@@ -76,6 +78,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   registry.gemini = gemini;
+  registry.groq = groq;
   await act(async () => root.unmount());
   host.remove();
 });

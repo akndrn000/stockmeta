@@ -8,6 +8,7 @@ import { MISSING_FILE_MSG } from '../lib/batch';
 import { fileStore } from '../lib/fileStore';
 import { registry } from '../lib/providers';
 import { gemini } from '../lib/providers/gemini';
+import { groq } from '../lib/providers/groq';
 import type { ProviderAdapter } from '../lib/providers/types';
 import type { ParsedMetadata } from '../lib/prompt';
 import type { WaitInfo } from '../lib/providers/retry';
@@ -82,6 +83,7 @@ beforeEach(() => {
   script = [];
   calls = 0;
   registry.gemini = fakeAdapter;
+  registry.groq = fakeAdapter;                    // default provider kini Groq (M11)
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
@@ -90,6 +92,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   registry.gemini = gemini;
+  registry.groq = groq;
   await act(async () => root.unmount());
   host.remove();
 });
@@ -314,5 +317,66 @@ describe('useBatch — generate ulang satu frame', () => {
     expect(calls).toBe(1);
     expect(api().s.frames[1].metadata.adobe?.title).toBe('hanya ini');
     expect(api().s.frames[0].status.adobe).toBe('menunggu');
+  });
+});
+
+describe('useBatch — buat ulang semua (M11)', () => {
+  it('konfirmasi dulu; sesudahnya SEMUA frame platform aktif diproses ulang (menimpa)', async () => {
+    addFrames(2);
+    await ready();
+    act(() => {
+      api().s.applyGenerated(0, 'adobe', { title: 'isi lama' });
+      api().s.applyGenerated(1, 'adobe', { title: 'isi lama 2' });
+    });
+    script = [{ meta: { title: 'baru 1' } }, { meta: { title: 'baru 2' } }];
+
+    act(() => api().b.regenerateAll());
+    await flush();
+    expect(api().b.regenAllConfirm).toBe('adobe');   // "Ganti semua hasil yang sudah ada?"
+    expect(calls).toBe(0);
+    expect(api().s.frames[0].metadata.adobe?.title).toBe('isi lama');
+
+    act(() => api().b.regenerateAll());              // ya, ganti semua
+    await flush();
+    expect(api().b.regenAllConfirm).toBeNull();
+    expect(calls).toBe(2);                            // frame 'siap' pun ikut diproses
+    expect(api().s.frames[0].metadata.adobe?.title).toBe('baru 1');
+    expect(api().s.frames[1].metadata.adobe?.title).toBe('baru 2');
+  });
+
+  it('konfirmasi bisa dibatalkan lewat dismissRegenAll', async () => {
+    addFrames(1);
+    await ready();
+    act(() => api().b.regenerateAll());
+    expect(api().b.regenAllConfirm).toBe('adobe');
+    act(() => api().b.dismissRegenAll());
+    expect(api().b.regenAllConfirm).toBeNull();
+    expect(calls).toBe(0);
+  });
+
+  it('file asli hilang → frame itu gagal + pesan upload ulang, sisanya tetap diproses', async () => {
+    addFrames(2);
+    await ready();
+    fileStore.delete(1);
+    script = [{ meta: { title: 'tetap jalan' } }];
+
+    act(() => api().b.regenerateAll());
+    await flush();
+    act(() => api().b.regenerateAll());
+    await flush();
+
+    expect(calls).toBe(1);
+    expect(api().s.frames[0].status.adobe).toBe('siap');
+    expect(api().s.frames[1].status.adobe).toBe('gagal');
+    expect(api().s.frames[1].error.adobe).toBe(MISSING_FILE_MSG);
+  });
+
+  it('provider belum dites → tolak, konfirmasi tidak tersimpan', async () => {
+    addFrames(1);
+    act(() => api().b.regenerateAll());
+    await flush();
+    expect(api().b.notice).toBe(NEED_TEST_MSG);
+    expect(api().b.regenAllConfirm).toBeNull();
+    expect(calls).toBe(0);
   });
 });
