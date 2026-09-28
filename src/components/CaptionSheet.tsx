@@ -5,6 +5,9 @@
 // yang tinggal di sini hanya KOTAK ERROR frame gagal (pesan error lengkap) — tanpa tombol,
 // tanpa konfirmasi. Lembar ini kini murni editor, jadi tidak lagi menerima props
 // provider/batch.
+// M14: TIDAK ADA lagi kotak kosong "Belum ada frame dipilih" — struktur field selalu dirender
+// (Judul/Deskripsi, Kata kunci, Kategori, Tema, Saran bila relevan, footer Export CSV) dan
+// hanya dinonaktifkan sampai ada frame terpilih, supaya lembar tidak pernah terlihat kosong.
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import type { useSession } from '../hooks/useSession';
@@ -32,11 +35,13 @@ function InFieldNote({ text }: { text: string }) {
   );
 }
 
-function Field({ id, label, copyText, hint, children }: {
+function Field({ id, label, copyText, hint, disabled, children }: {
   id?: string;
   label: string;
   copyText?: string;
   hint?: string;
+  /** M14: nonaktifkan tombol salin saat belum ada frame terpilih */
+  disabled?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -45,7 +50,7 @@ function Field({ id, label, copyText, hint, children }: {
         <label htmlFor={id} className="text-[11px] font-semibold leading-none tracking-[0.01em] text-ink-3">
           {label}
         </label>
-        {copyText !== undefined && <CopyButton text={copyText} label={label} />}
+        {copyText !== undefined && <CopyButton text={copyText} label={label} disabled={disabled} />}
       </div>
       {children}
       {hint && <p className="text-[12px] leading-relaxed text-ink-3">{hint}</p>}
@@ -54,7 +59,7 @@ function Field({ id, label, copyText, hint, children }: {
 }
 
 const selectCls =
-  'w-full appearance-none rounded-lg border border-line bg-well px-3 py-2 pr-8 text-[13.5px] font-semibold text-ink transition-colors hover:border-ink-3';
+  'w-full appearance-none rounded-lg border border-line bg-well px-3 py-2 pr-8 text-[13.5px] font-semibold text-ink transition-colors hover:border-ink-3 disabled:cursor-not-allowed disabled:opacity-50';
 
 function SelectArrow() {
   return (
@@ -115,15 +120,37 @@ export function CaptionSheet({ session }: {
     <Panel
       id="lembar-caption"
       title="Lembar caption"
-      meta={frame ? `Frame ${pad2(index + 1)} / ${pad2(frames.length)}` : `Frame -- / ${pad2(frames.length)}`}
+      // M14: placeholder header tetap terbaca walau belum ada frame — 0 frame → "Frame -- / --",
+      // ada frame tapi belum terpilih → "Frame -- / total sesi" (bukan angka 0 yang membingungkan)
+      meta={
+        frame
+          ? `Frame ${pad2(index + 1)} / ${pad2(frames.length)}`
+          : frames.length > 0
+            ? `Frame -- / ${pad2(frames.length)}`
+            : 'Frame -- / --'
+      }
       footer={
         // M12: flex-wrap — di layar sempit / zoom tinggi baris footer turun, tidak meluber
         <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* M14: aria-disabled + title (pola M13) — alasan "kenapa mati" tetap muncul sebagai
+              tooltip di semua peramban dan tetap bisa dibaca pembaca layar, walau tombol
+              tidak bisa diklik. onClick tetap di-guard. */}
           <button
             type="button"
-            onClick={() => downloadCsv(frames, platform)}
-            disabled={!canExport}
-            className="rounded-lg border border-line px-3 py-1.5 text-[13px] font-semibold text-ink transition-colors hover:bg-wash disabled:cursor-not-allowed disabled:opacity-45"
+            onClick={() => {
+              if (canExport) downloadCsv(frames, platform);
+            }}
+            aria-disabled={canExport ? undefined : true}
+            title={
+              canExport
+                ? 'Ekspor metadata yang sudah terisi ke CSV'
+                : frames.length === 0
+                  ? 'Belum ada frame — upload gambar dulu di lembar kerja.'
+                  : 'Belum ada metadata — jalankan Buat metadata dulu.'
+            }
+            className={`rounded-lg border border-line px-3 py-1.5 text-[13px] font-semibold text-ink transition-colors hover:bg-wash ${
+              canExport ? '' : 'cursor-not-allowed opacity-45'
+            }`}
           >
             Export CSV
           </button>
@@ -159,194 +186,180 @@ export function CaptionSheet({ session }: {
       </button>
 
       <div id="caption-body" className={`flex flex-col gap-4 ${open ? '' : 'max-lg:hidden'}`}>
-        {!frame ? (
-          /* M13: keadaan kosong yang dirancang — ikon garis tipis + judul + penjelasan,
-             tinggi mengikuti isinya (tanpa min-height paksa). */
-          <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-line px-6 py-9 text-center">
-            <svg
-              width="34"
-              height="34"
-              viewBox="0 0 32 32"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.25"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-              className="text-ink-3"
+        {/* M14: strip nama file + status hanya bila ada frame terpilih — kotak kosong M13
+            ("Belum ada frame dipilih") dihapus; struktur field di bawah yang menandai
+            lembar ini masih kosong (semuanya nonaktif sampai ada frame). */}
+        {frame && (
+          <div className="-mx-4 -mt-4 flex items-center justify-between gap-3 border-b border-line bg-well px-4 py-2">
+            <span className="truncate text-[12px] font-medium text-ink" title={frame.name}>
+              {frame.name}
+            </span>
+            <span
+              className={`shrink-0 font-mono text-[11px] font-bold uppercase tracking-[0.08em] ${
+                st === 'siap' ? 'text-success' : st === 'gagal' ? 'text-fail' : 'text-ink-2'
+              }`}
             >
-              <rect x="3.5" y="4.5" width="25" height="16" rx="2.5" />
-              <path d="M3.5 16.5l5.5-5 4.5 4.5 4-3.5 7 6" />
-              <circle cx="10.5" cy="9.5" r="1.6" />
-              <path d="M8 23h11M8 26.5h6" />
-            </svg>
-            <div className="flex flex-col gap-1">
-              <p className="text-[13.5px] font-semibold text-ink">Belum ada frame dipilih</p>
-              <p className="max-w-[42ch] text-[12px] leading-relaxed text-ink-3">
-                Pilih frame di lembar kerja untuk mengedit caption-nya.
-              </p>
-            </div>
+              {STATUS_LABEL[st]}
+            </span>
           </div>
-        ) : (
+        )}
+
+        {/* M13: hanya pesan error — tombol & konfirmasi "Timpa hasil yang ada?" pindah
+            ke ikon buat ulang di tile Worksheet (showError = ada frame + status gagal) */}
+        {showError && (
+          <div role="alert" className="rounded-lg border border-fail bg-accent-wash p-3">
+            <p className="text-[13px] font-semibold leading-snug text-fail">{err}</p>
+          </div>
+        )}
+
+        {/* M14: field SELALU dirender — struktur sama seperti kondisi terisi, hanya
+            dinonaktifkan (input/select/salin) selama belum ada frame terpilih. */}
+        {platform === 'adobe' ? (
           <>
-            {/* Sub-strip full-bleed: nama file + status teks platform aktif */}
-            <div className="-mx-4 -mt-4 flex items-center justify-between gap-3 border-b border-line bg-well px-4 py-2">
-              <span className="truncate text-[12px] font-medium text-ink" title={frame.name}>
-                {frame.name}
-              </span>
-              <span
-                className={`shrink-0 font-mono text-[11px] font-bold uppercase tracking-[0.08em] ${
-                  st === 'siap' ? 'text-success' : st === 'gagal' ? 'text-fail' : 'text-ink-2'
-                }`}
-              >
-                {STATUS_LABEL[st]}
-              </span>
-            </div>
-
-            {/* M13: hanya pesan error — tombol & konfirmasi "Timpa hasil yang ada?" pindah
-                ke ikon buat ulang di tile Worksheet */}
-            {showError && (
-              <div role="alert" className="rounded-lg border border-fail bg-accent-wash p-3">
-                <p className="text-[13px] font-semibold leading-snug text-fail">{err}</p>
+            <Field id="caption-title" label="Judul" copyText={title} disabled={!frame}>
+              {/* M13: batas + penghitung menempel di pojok kanan bawah textarea (pb-6
+                  menjaga teks yang diketik tidak tertimpa) */}
+              <div className="relative">
+                <textarea
+                  id="caption-title"
+                  rows={2}
+                  value={title}
+                  onChange={(e) => patchAdobe({ title: e.target.value })}
+                  placeholder="Judul menjual, spesifik, tanpa frasa generik"
+                  disabled={!frame}
+                  className="w-full resize-none rounded-lg border border-line bg-well px-3 pb-6 pt-2 text-[13.5px] leading-relaxed text-ink placeholder:text-ink-3 disabled:cursor-not-allowed disabled:opacity-50"
+                />
+                <InFieldNote text={`${title.length}/${MAX_TITLE_CSV} · tanpa koma`} />
               </div>
-            )}
-
-            {platform === 'adobe' ? (
-              <>
-                <Field id="caption-title" label="Judul" copyText={title}>
-                  {/* M13: batas + penghitung menempel di pojok kanan bawah textarea (pb-6
-                      menjaga teks yang diketik tidak tertimpa) */}
-                  <div className="relative">
-                    <textarea
-                      id="caption-title"
-                      rows={2}
-                      value={title}
-                      onChange={(e) => patchAdobe({ title: e.target.value })}
-                      placeholder="Judul menjual, spesifik, tanpa frasa generik"
-                      className="w-full resize-none rounded-lg border border-line bg-well px-3 pb-6 pt-2 text-[13.5px] leading-relaxed text-ink placeholder:text-ink-3"
-                    />
-                    <InFieldNote text={`${title.length}/${MAX_TITLE_CSV} · tanpa koma`} />
-                  </div>
-                </Field>
-
-                <KeywordEditor
-                  keywords={adobe?.keywords ?? []}
-                  min={MIN_KEYWORDS_ADOBE}
-                  onChange={(list) => patchAdobe({ keywords: list })}
-                />
-
-                <Field id="caption-category" label="Kategori" copyText={adobe?.category ?? ''}>
-                  <div className="relative">
-                    <select
-                      id="caption-category"
-                      value={adobe?.category ?? ''}
-                      onChange={(e) => patchAdobe({ category: e.target.value })}
-                      className={selectCls}
-                    >
-                      <option value="">— pilih kategori —</option>
-                      {ADOBE_CATEGORIES.map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                    <SelectArrow />
-                  </div>
-                </Field>
-              </>
-            ) : (
-              <>
-                <Field id="caption-desc" label="Deskripsi" copyText={desc} hint="Tulis kalimat deskriptif utuh, bukan daftar kata.">
-                  {/* Petunjuk instruksional tetap di bawah (M13); hanya penghitung yang masuk */}
-                  <div className="relative">
-                    <textarea
-                      id="caption-desc"
-                      rows={3}
-                      value={desc}
-                      onChange={(e) => patchShutter({ description: e.target.value })}
-                      placeholder="Satu dua kalimat yang menggambarkan subjek, gaya, dan suasana"
-                      className="w-full resize-none rounded-lg border border-line bg-well px-3 pb-6 pt-2 text-[13.5px] leading-relaxed text-ink placeholder:text-ink-3"
-                    />
-                    <InFieldNote text={`${desc.length}/${MAX_DESCRIPTION}`} />
-                  </div>
-                </Field>
-
-                <KeywordEditor
-                  keywords={shutter?.keywords ?? []}
-                  min={MIN_KEYWORDS_SHUTTER}
-                  onChange={(list) => patchShutter({ keywords: list })}
-                />
-
-                <Field id="caption-cat1" label="Kategori utama" copyText={cats[0] ?? ''}>
-                  <div className="relative">
-                    <select
-                      id="caption-cat1"
-                      value={cats[0] ?? ''}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        patchShutter({ categories: v ? (cats[1] && cats[1] !== v ? [v, cats[1]] : [v]) : [] });
-                      }}
-                      className={selectCls}
-                    >
-                      <option value="">— pilih kategori —</option>
-                      {SHUTTERSTOCK_CATEGORIES.map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                    <SelectArrow />
-                  </div>
-                </Field>
-
-                <Field id="caption-cat2" label="Kategori tambahan (opsional)" copyText={cats[1] ?? ''}>
-                  <div className="relative">
-                    <select
-                      id="caption-cat2"
-                      value={cats[1] ?? ''}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        patchShutter({ categories: v ? [cats[0], v].filter(Boolean) : cats[0] ? [cats[0]] : [] });
-                      }}
-                      className={selectCls}
-                    >
-                      <option value="">— pilih kategori —</option>
-                      {SHUTTERSTOCK_CATEGORIES.filter((c) => c !== cats[0]).map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                    <SelectArrow />
-                  </div>
-                </Field>
-              </>
-            )}
-
-            <Field id="caption-tema" label="Tema untuk frame ini (opsional)" hint="Kosongkan untuk memakai tema batch.">
-              <input
-                id="caption-tema"
-                type="text"
-                value={frame.tema}
-                onChange={(e) => setFrameTema(frame.id, e.target.value)}
-                placeholder={tema || 'ikuti tema batch'}
-                className="w-full rounded-lg border border-line bg-well px-3 py-2 text-[13.5px] text-ink placeholder:text-ink-3"
-              />
             </Field>
 
-            {notes.length > 0 && (
-              <div className="rounded-lg border border-line bg-well p-3">
-                <p className="mb-1.5 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3">
-                  Saran perbaikan
-                </p>
-                <ul className="flex flex-col gap-1.5">
-                  {notes.map((note, i) => (
-                    <li key={`${note.field}-${i}`} className="flex items-start gap-2 text-[12px] leading-relaxed text-ink-2">
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" className="mt-0.5 shrink-0 text-accent-text">
-                        <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.3" />
-                        <path d="M6 3.4v.1M6 5.4v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                      </svg>
-                      <span>{note.message}</span>
-                    </li>
+            <KeywordEditor
+              keywords={adobe?.keywords ?? []}
+              min={MIN_KEYWORDS_ADOBE}
+              onChange={(list) => patchAdobe({ keywords: list })}
+              disabled={!frame}
+            />
+
+            <Field id="caption-category" label="Kategori" copyText={adobe?.category ?? ''} disabled={!frame}>
+              <div className="relative">
+                <select
+                  id="caption-category"
+                  value={adobe?.category ?? ''}
+                  onChange={(e) => patchAdobe({ category: e.target.value })}
+                  disabled={!frame}
+                  className={selectCls}
+                >
+                  <option value="">— pilih kategori —</option>
+                  {ADOBE_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
                   ))}
-                </ul>
+                </select>
+                <SelectArrow />
               </div>
-            )}
+            </Field>
           </>
+        ) : (
+          <>
+            <Field id="caption-desc" label="Deskripsi" copyText={desc} hint="Tulis kalimat deskriptif utuh, bukan daftar kata." disabled={!frame}>
+              {/* Petunjuk instruksional tetap di bawah (M13); hanya penghitung yang masuk */}
+              <div className="relative">
+                <textarea
+                  id="caption-desc"
+                  rows={3}
+                  value={desc}
+                  onChange={(e) => patchShutter({ description: e.target.value })}
+                  placeholder="Satu dua kalimat yang menggambarkan subjek, gaya, dan suasana"
+                  disabled={!frame}
+                  className="w-full resize-none rounded-lg border border-line bg-well px-3 pb-6 pt-2 text-[13.5px] leading-relaxed text-ink placeholder:text-ink-3 disabled:cursor-not-allowed disabled:opacity-50"
+                />
+                <InFieldNote text={`${desc.length}/${MAX_DESCRIPTION}`} />
+              </div>
+            </Field>
+
+            <KeywordEditor
+              keywords={shutter?.keywords ?? []}
+              min={MIN_KEYWORDS_SHUTTER}
+              onChange={(list) => patchShutter({ keywords: list })}
+              disabled={!frame}
+            />
+
+            <Field id="caption-cat1" label="Kategori utama" copyText={cats[0] ?? ''} disabled={!frame}>
+              <div className="relative">
+                <select
+                  id="caption-cat1"
+                  value={cats[0] ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    patchShutter({ categories: v ? (cats[1] && cats[1] !== v ? [v, cats[1]] : [v]) : [] });
+                  }}
+                  disabled={!frame}
+                  className={selectCls}
+                >
+                  <option value="">— pilih kategori —</option>
+                  {SHUTTERSTOCK_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                <SelectArrow />
+              </div>
+            </Field>
+
+            <Field id="caption-cat2" label="Kategori tambahan (opsional)" copyText={cats[1] ?? ''} disabled={!frame}>
+              <div className="relative">
+                <select
+                  id="caption-cat2"
+                  value={cats[1] ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    patchShutter({ categories: v ? [cats[0], v].filter(Boolean) : cats[0] ? [cats[0]] : [] });
+                  }}
+                  disabled={!frame}
+                  className={selectCls}
+                >
+                  <option value="">— pilih kategori —</option>
+                  {SHUTTERSTOCK_CATEGORIES.filter((c) => c !== cats[0]).map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                <SelectArrow />
+              </div>
+            </Field>
+          </>
+        )}
+
+        {/* M14: hint "Kosongkan untuk memakai tema batch." dihapus — labelnya sudah menjelaskan */}
+        <Field id="caption-tema" label="Tema untuk frame ini (opsional)" disabled={!frame}>
+          <input
+            id="caption-tema"
+            type="text"
+            value={frame?.tema ?? ''}
+            onChange={(e) => {
+              if (frame) setFrameTema(frame.id, e.target.value);
+            }}
+            placeholder={tema || 'ikuti tema batch'}
+            disabled={!frame}
+            className="w-full rounded-lg border border-line bg-well px-3 py-2 text-[13.5px] text-ink placeholder:text-ink-3 disabled:cursor-not-allowed disabled:opacity-50"
+          />
+        </Field>
+
+        {/* Saran hanya relevan saat ada frame + slot berisi — selain itu tidak dirender */}
+        {notes.length > 0 && (
+          <div className="rounded-lg border border-line bg-well p-3">
+            <p className="mb-1.5 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3">
+              Saran perbaikan
+            </p>
+            <ul className="flex flex-col gap-1.5">
+              {notes.map((note, i) => (
+                <li key={`${note.field}-${i}`} className="flex items-start gap-2 text-[12px] leading-relaxed text-ink-2">
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" className="mt-0.5 shrink-0 text-accent-text">
+                    <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.3" />
+                    <path d="M6 3.4v.1M6 5.4v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                  <span>{note.message}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </div>
     </Panel>

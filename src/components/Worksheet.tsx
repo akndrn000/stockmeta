@@ -312,9 +312,11 @@ function FrameTile({
       </button>
 
       {/* Konfirmasi "Timpa hasil yang ada?" untuk slot yang sudah berisi — popover kecil
-          yang menempel tepat di bawah ikonnya, bukan di dalam lembar caption. */}
+          yang menempel tepat di bawah ikonnya, bukan di dalam lembar caption.
+          M14: 42px → 2.625rem = top-1.5 (0.375rem) + h-7 (1.75rem) + jarak 0.5rem — persis
+          mengikuti ikonnya, jadi tetap nempel di semua ukuran font root/zoom. */}
       {regenConfirm && (
-        <div className="absolute left-1.5 right-1.5 top-[42px] z-10 flex flex-wrap items-center gap-2 rounded-lg border border-fail bg-surface p-2 shadow-panel">
+        <div className="absolute left-1.5 right-1.5 top-[2.625rem] z-10 flex flex-wrap items-center gap-2 rounded-lg border border-fail bg-surface p-2 shadow-panel">
           <span className="text-[13px] font-semibold leading-snug text-ink">
             Timpa hasil yang ada?
           </span>
@@ -524,8 +526,10 @@ export function Worksheet({ session, provider, batch }: {
           )}
         </div>
 
+        {/* M14: min-150px → 9.375rem (sama persis di root 16px) supaya kolom ikut membesar
+            saat ukuran font root naik, bukan dikunci piksel tetap. */}
         {frames.length > 0 && (
-          <ul className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2.5">
+          <ul className="grid grid-cols-[repeat(auto-fill,minmax(9.375rem,1fr))] gap-2.5">
             {frames.map((frame, i) => {
               const hasFile = fileStore.has(frame.id);
               return (
@@ -576,9 +580,6 @@ export function Worksheet({ session, provider, batch }: {
             placeholder="Halloween / Christmas / New Year / St. Patrick's Day"
             className="w-full rounded-lg border border-line bg-well px-3 py-2 text-[13.5px] text-ink placeholder:text-ink-3"
           />
-          <p className="text-[12px] leading-relaxed text-ink-3">
-            Berlaku untuk seluruh batch — tiap frame bisa di-override di lembar caption.
-          </p>
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -600,9 +601,6 @@ export function Worksheet({ session, provider, batch }: {
               <option key={s} value={s}>{s} detik</option>
             ))}
           </select>
-          <p className="text-[12px] leading-relaxed text-ink-3">
-            Naikkan jika sering muncul &lsquo;Menunggu limit reset&rsquo;.
-          </p>
         </div>
 
         <GenerateButton

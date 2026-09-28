@@ -3,10 +3,11 @@
 // "Saran perbaikan" hanya muncul kalau slot platform aktif berisi — tanpa testing-library.
 // M13: lembar ini tidak lagi punya aksi "buat ulang" (pindah ke tile Worksheet): kotak error
 // frame gagal tetap, tombol/konfirmasi "Timpa hasil yang ada?" tidak ada di sini.
+// M14: tidak ada kotak kosong — struktur field selalu dirender dan nonaktif sampai ada frame.
 // Audit F2: footer menghitung baris yang benar-benar diekspor.
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSession } from '../hooks/useSession';
 import type { Frame } from '../lib/types';
 import { CaptionSheet } from './CaptionSheet';
@@ -78,16 +79,90 @@ describe('CaptionSheet — meta header', () => {
   });
 });
 
-describe('CaptionSheet — keadaan kosong (M13)', () => {
-  it('judul terpisah dari penjelasan + ikon garis (bukan emoji)', () => {
+describe('CaptionSheet — struktur field tetap ada walau belum ada frame (M14)', () => {
+  it('tanpa frame: seluruh field dirender, kosong, nonaktif, placeholder tetap', () => {
+    // default platform Adobe → Judul, Kata kunci, Kategori, Tema (semua tanpa frame)
+    expect(text()).not.toContain('Belum ada frame dipilih');      // kotak kosong M13 dihapus
+    expect(text()).toContain('Judul');
+    expect(text()).toContain('Kata kunci');
+    expect(text()).toContain('Kategori');
+    expect(text()).toContain('Tema untuk frame ini (opsional)');
+
+    const ta = host.querySelector('#caption-title') as HTMLTextAreaElement;
+    expect(ta).not.toBeNull();
+    expect(ta.disabled).toBe(true);
+    expect(ta.value).toBe('');
+    expect(ta.placeholder).toBe('Judul menjual, spesifik, tanpa frasa generik');
+
+    const kw = host.querySelector('#kw-input') as HTMLInputElement;
+    expect(kw.disabled).toBe(true);
+
+    const cat = host.querySelector('#caption-category') as HTMLSelectElement;
+    expect(cat.disabled).toBe(true);
+    expect(cat.value).toBe('');
+    expect(cat.querySelector('option[value=""]')!.textContent).toBe('— pilih kategori —');
+
+    const tema = host.querySelector('#caption-tema') as HTMLInputElement;
+    expect(tema.disabled).toBe(true);
+    expect(tema.value).toBe('');
+
+    // tombol salin tiap field ikut nonaktif
+    expect(host.querySelector('[aria-label="Salin Judul"]')!.hasAttribute('disabled')).toBe(true);
+    expect(host.querySelector('[aria-label="Salin Kategori"]')!.hasAttribute('disabled')).toBe(true);
+    expect(host.querySelector('[aria-label="Salin daftar kata kunci"]')!.hasAttribute('disabled')).toBe(true);
+    expect(text()).not.toContain('Saran perbaikan');              // relevan = slot berisi saja
+  });
+
+  it('header placeholder wajar + Export CSV nonaktif dengan alasan yang bisa diklik-balik', () => {
+    expect(text()).toContain('Frame -- / --');                    // 0 frame → bukan "00"
+
+    const createObjectURL = vi.fn(() => 'blob:mock');
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true, writable: true, value: createObjectURL
+    });
+
+    let csv = findBtn('Export CSV')!;
+    expect(csv.getAttribute('aria-disabled')).toBe('true');
+    expect(csv.title).toContain('Belum ada frame');
+    act(() => { csv.click(); });
+    expect(createObjectURL).not.toHaveBeenCalled();               // di-guard
+
+    addFrames(1);                                                 // auto terpilih, slot masih kosong
+    csv = findBtn('Export CSV')!;
+    expect(csv.getAttribute('aria-disabled')).toBe('true');
+    expect(csv.title).toContain('Belum ada metadata');
+    act(() => { csv.click(); });
+    expect(createObjectURL).not.toHaveBeenCalled();               // tanpa guard ini akan mengunduh
+  });
+
+  it('begitu ada frame terpilih (otomatis setelah upload), field aktif berisi datanya', () => {
+    const [id] = addFrames(1);
+    act(() => {
+      api().s.updateMetadata(id, 'adobe', { title: 'Judul terisi', category: 'Animals' });
+    });
+    expect(text()).toContain(`Frame 01 / 01`);
+
+    const ta = host.querySelector('#caption-title') as HTMLTextAreaElement;
+    expect(ta.disabled).toBe(false);
+    expect(ta.value).toBe('Judul terisi');
+
+    const cat = host.querySelector('#caption-category') as HTMLSelectElement;
+    expect(cat.disabled).toBe(false);
+    expect(cat.value).toBe('Animals');
+
+    expect(host.querySelector('[aria-label="Salin Judul"]')!.hasAttribute('disabled')).toBe(false);
+
+    const csv = findBtn('Export CSV')!;
+    expect(csv.getAttribute('aria-disabled')).toBeNull();         // slot berisi → ekspor aktif
+    expect(csv.title).toContain('Ekspor metadata');
+  });
+
+  it('frame terpilih tapi belum digenerate → field aktif, Export CSV tetap nonaktif', () => {
     addFrames(1);
-    act(() => api().s.select(null));
-    expect(text()).toContain('Belum ada frame dipilih');
-    expect(text()).toContain('Pilih frame di lembar kerja untuk mengedit caption-nya.');
-    const svg = host.querySelector('#caption-body svg');
-    expect(svg).not.toBeNull();
-    expect(svg!.querySelector('path')).not.toBeNull();
-    expect(text()).not.toContain('Belum ada frame dipilih —');   // teks lama digabung
+    expect((host.querySelector('#caption-title') as HTMLTextAreaElement).disabled).toBe(false);
+    const csv = findBtn('Export CSV')!;
+    expect(csv.getAttribute('aria-disabled')).toBe('true');
+    expect(csv.title).toContain('Belum ada metadata');
   });
 });
 

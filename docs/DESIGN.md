@@ -58,13 +58,31 @@ aksen — hanya sinyal status. Badge status memakai warna wash + border, bukan b
 
 | Komponen | Peran |
 | --- | --- |
-| `Panel` | Wadah standar: judul + meta mono + aksi; tinggi mengikuti isi (halaman yang menggulir); footer opsional. Dipakai Worksheet & CaptionSheet. |
+| `Panel` | Wadah standar: judul + meta mono + aksi; tinggi mengikuti isi (halaman yang menggulir); body `grow` supaya panel yang lebih pendek terisi rapi saat grid menyamakan tingginya (M14); footer opsional. Dipakai Worksheet & CaptionSheet. |
 | `Header` | Brand (h1), segmen platform (`aria-pressed`), ThemeToggle, readout status mono. |
 | `ProviderPanel` | Pilih provider, API key (lihat/sembunyikan), Tes koneksi + badge `role="status"`, catatan limit. |
 | `Worksheet` | Dropzone, grid frame (tile: pilih, hapus, **ikon buat ulang per tile** — aksen untuk frame gagal), tema batch, jeda antar foto, Generate/Batalkan + Buat ulang semua, ProgressBar (`aria-live`), Coba lagi. |
-| `CaptionSheet` | Field edit per platform (penghitung menempel di dalam kotak), KeywordEditor (chip), saran validasi, keadaan kosong berikon, footer Export CSV — **tanpa tombol buat ulang** (pindah ke tile). |
-| `KeywordEditor` | Chip kata kunci + input (Enter/koma/tempel) + satu tombol salin daftar; daftar chip dibatasi 200px + scroll (**satu-satunya scroll internal**); penghitung `0/50` menempel di kotak input. |
+| `CaptionSheet` | Field edit per platform (penghitung menempel di dalam kotak), KeywordEditor (chip), saran validasi, footer Export CSV — **tanpa tombol buat ulang** (pindah ke tile). **M14: struktur field selalu dirender** (Judul/Deskripsi, Kata kunci, Kategori, Tema) dan hanya nonaktif sampai ada frame terpilih — tanpa kotak kosong; header `Frame -- / --`. |
+| `KeywordEditor` | Chip kata kunci + input (Enter/koma/tempel) + satu tombol salin daftar; daftar chip dibatasi `12.5rem` (200px di root 16px) + scroll (**satu-satunya scroll internal**); penghitung `0/50` menempel di kotak input. |
 | `CopyButton`, `ThemeToggle` | Kontrol kecil berlabel ARIA. |
+
+## Layout & responsif (M14)
+
+- **Satu dokumen, satu scroll** (M12): tidak ada tinggi dikunci ke viewport — semua elemen
+  tingginya = isi.
+- **≥1024px**: `main` = dua kolom `3fr / 2fr` dengan `items-stretch` → Worksheet & CaptionSheet
+  **selalu sama tinggi** mengikuti panel yang lebih tinggi; panel yang lebih pendek terisi rapi
+  lewat body Panel yang `grow` (konten di atas, footer menempel di bawah) — tanpa scroll
+  internal, kecuali daftar chip kata kunci (pengecualian M13).
+- **Satuan relatif**: spasi & lebar memakai rem / % / fr — skala spacing Tailwind memang rem,
+  ditambah `minmax(9.375rem,1fr)` (grid), `max-h-[12.5rem]` (chip), `top-[2.625rem]` (popover),
+  `rounded-[0.875rem]` (panel). Ukuran font tetap px sebagai **skala tipografi yang disengaja**
+  (lihat bagian Tipografi).
+- **Uji rentang (analisis statis, tanpa server)**: lebar 360px → >1920px dan zoom 50–150% —
+  grid `auto-fill` menambah/mengurangi kolom, `lg` menumpuk jadi satu kolom pada zoom tinggi/
+  layar sempit, footer & konfirmasi memakai `flex-wrap`, nama file/chip `truncate`, dan
+  elemen absolut (keterangan dalam kotak, ikon tile, popover) menempel pada anchor-nya karena
+  memakai rem.
 
 ## Aksesibilitas (lantai mutu)
 

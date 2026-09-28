@@ -32,7 +32,7 @@ export function Header({
         <div className="flex items-center gap-2.5">
           <span
             aria-hidden="true"
-            className="h-3.5 w-3.5 rounded-[3px] bg-accent ring-2 ring-accent-wash"
+            className="h-3.5 w-3.5 rounded-[0.1875rem] bg-accent ring-2 ring-accent-wash"
           />
           <h1 className="text-lg font-extrabold tracking-[-0.03em] text-accent-text">
             StockMeta

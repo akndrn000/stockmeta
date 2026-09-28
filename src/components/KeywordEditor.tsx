@@ -15,10 +15,12 @@ function skipMessage(dup: number, over: number): string {
   return parts.length ? `${parts.join(' dan ')} dilewati.` : '';
 }
 
-export function KeywordEditor({ keywords, min, onChange }: {
+export function KeywordEditor({ keywords, min, onChange, disabled }: {
   keywords: string[];
   min: number;
   onChange: (list: string[]) => void;
+  /** M14: nonaktifkan salin + input saat belum ada frame terpilih (CaptionSheet) */
+  disabled?: boolean;
 }) {
   const [draft, setDraft] = useState('');
   const [skip, setSkip] = useState('');
@@ -40,13 +42,14 @@ export function KeywordEditor({ keywords, min, onChange }: {
         <label htmlFor="kw-input" className="text-[11px] font-semibold leading-none tracking-[0.01em] text-ink-3">
           Kata kunci
         </label>
-        <CopyButton text={plain} label="daftar kata kunci" />
+        <CopyButton text={plain} label="daftar kata kunci" disabled={disabled} />
       </div>
 
       {/* M13: SATU-satunya pengecualian "tanpa scroll internal" (M12) — daftar bisa 50 chip,
-          jadi dibatasi 200px; hanya daftar chip ini, input & panel lain tetap mengalir. */}
+          jadi dibatasi 12.5rem (200px di root 16px, ikut membesar bila font root naik — M14);
+          hanya daftar chip ini, input & panel lain tetap mengalir. */}
       {n > 0 && (
-        <ul className="scroll-slim flex max-h-[200px] flex-wrap gap-1.5 overflow-y-auto overscroll-contain">
+        <ul className="scroll-slim flex max-h-[12.5rem] flex-wrap gap-1.5 overflow-y-auto overscroll-contain">
           {keywords.map((k, i) => (
             <li
               key={`${k.toLowerCase()}-${i}`}
@@ -76,7 +79,7 @@ export function KeywordEditor({ keywords, min, onChange }: {
           id="kw-input"
           type="text"
           value={draft}
-          disabled={full && draft === ''}
+          disabled={disabled || (full && draft === '')}
           onChange={(e) => {
             const v = e.target.value;
             if (/[,;\n]/.test(v)) commit(v);

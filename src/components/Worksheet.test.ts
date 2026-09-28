@@ -248,6 +248,22 @@ describe('select "Jeda antar foto"', () => {
   });
 });
 
+describe('keterangan bantu dihapus (M14)', () => {
+  it('Tema utama & Jeda antar foto tidak lagi punya baris penjelasan di bawahnya', () => {
+    expect(host.textContent).toContain('Tema utama (opsional)');
+    expect(host.textContent).toContain('Jeda antar foto');
+    expect(host.textContent).not.toContain('Berlaku untuk seluruh batch');
+    expect(host.textContent).not.toContain('Naikkan jika sering muncul');
+  });
+
+  it('grid thumbnail tetap auto-fill minmax (unit relatif, M14)', () => {
+    addFrames(2);
+    const grid = host.querySelector('ul.grid');
+    expect(grid).not.toBeNull();
+    expect(grid!.className).toContain('minmax(9.375rem,1fr)');   // 150px piksel-tetap diganti rem
+  });
+});
+
 describe('ikon "buat ulang" di tile (M13)', () => {
   it('setiap tile punya ikon ber-aria-label, termasuk frame menunggu', () => {
     const ids = addFrames(2);

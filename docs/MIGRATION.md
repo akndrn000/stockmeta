@@ -257,7 +257,7 @@ Tanpa e2e, tanpa menjalankan server. Detektor desain (`impeccable detect --json`
 | CaptionSheet blok utama | `gap-4` | `gap-4` (tetap) | ritme antar-blok 16px bertahan setelah 2 blok regen dihapus |
 | Grid thumbnail | `gap-2.5` (10px) | tetap | sengaja lebih rapat daripada ritme blok 16px |
 
-### 5. Keadaan kosong CaptionSheet
+### 5. Keadaan kosong CaptionSheet *(dihapus oleh M14 — lihat "Perbaikan pasca-M13")*
 
 - Ikon SVG inline **garis tipis** (frame gambar + dua baris caption, stroke 1.25,
   `text-ink-3`) — bukan emoji, tanpa ilustrasi gambar.
@@ -277,6 +277,108 @@ Tanpa e2e, tanpa menjalankan server. Detektor desain (`impeccable detect --json`
 8. Ikon keadaan kosong diperiksa geometrinya: dua garis caption disusun panjang-dulu-pendek-di-bawah (dibetulkan saat review).
 9. `.scroll-slim` menyetel scrollbar dari token — permukaan peramban ikut membawa palet (gelap & terang).
 10. Nol temuan dari `impeccable detect` setelah seluruh perubahan; `npm run lint` bersih.
+
+## Perbaikan pasca-M13 (M14) — bukan tahap migrasi baru
+
+Verifikasi: `npm run test` (185 tes), `npx tsc --noEmit`, `npm run lint`, `npm run build` — lolos.
+Tanpa e2e, tanpa menjalankan server (uji piksel/zoom = analisis statis + catatan tindak lanjut
+manual). Audit poin 2 & 4 memakai skill **frontend-design**.
+
+### 1. Tiga baris keterangan dihapus sepenuhnya
+
+| File (posisi sebelum dihapus) | Teks yang dibuang |
+| --- | --- |
+| `Worksheet.tsx` — di bawah `Tema utama (opsional)` | *Berlaku untuk seluruh batch — tiap frame bisa di-override di lembar caption.* |
+| `Worksheet.tsx` — di bawah `Jeda antar foto` | *Naikkan jika sering muncul 'Menunggu limit reset'.* |
+| `CaptionSheet.tsx` — `Field` `Tema untuk frame ini (opsional)` | `hint="Kosongkan untuk memakai tema batch."` |
+
+Label sudah menjelaskan fungsi masing-masing; **hint instruksional Deskripsi (Shutterstock)
+tetap** (satu-satunya yang tersisa). Regresi: `Worksheet.test.ts` → describe
+`keterangan bantu dihapus (M14)`.
+
+### 2. Lembar kerja & lembar caption sama tinggi (semua lebar & zoom)
+
+- `src/app/page.tsx:30` — `items-start` → **`items-start lg:items-stretch`**: di ≥1024px
+  (kedua panel bersebelahan) tinggi baris grid = panel **tertinggi**, keduanya ikut meregang;
+  di <1024px panel menumpuk sehingga tinggi masing-masing tetap = isi (aturan M12).
+- `src/components/Panel.tsx:42` — body panel diberi **`grow`**: panel yang lebih pendek
+  mengisi ruang tambahan dengan wajar (konten tetap di atas, footer menempel di bawah).
+  Panel yang lebih tinggi **tidak** memicu scroll internal — body tetap `overflow: visible`
+  (`overflow-hidden` di section hanya untuk clipping sudut membulat). Pengecualian scroll
+  tetap hanya daftar chip kata kunci (M13).
+
+### 3. Lembar caption tidak pernah kosong (state kosong M13 diganti)
+
+- **Dihapus**: kotak kosong M13 poin 5 (ikon SVG + `Belum ada frame dipilih` + *Pilih frame di
+  lembar kerja untuk mengedit caption-nya.*) beserta `max-w-[42ch]`-nya.
+- **Diganti**: struktur field **sama persis seperti kondisi terisi** selalu dirender —
+  `Judul`/`Deskripsi`, `Kata kunci`, `Kategori`, `Tema untuk frame ini`, blok
+  `Saran perbaikan` (tetap hanya kalau relevan), footer `Export CSV` — dalam keadaan
+  **kosong + nonaktif** selama belum ada frame terpilih:
+  - textarea/input/`<select>` `disabled` dengan **placeholder tetap tampil**
+    (`Judul menjual…`, `— pilih kategori —`, `ikuti tema batch`);
+  - `KeywordEditor` menerima prop baru **`disabled`** → input & `CopyButton` nonaktif;
+  - `Field` menerima prop **`disabled`** → tombol `Salin` tiap field nonaktif;
+  - strip nama file + status dan kotak error tetap **hanya** saat ada frame.
+- **Header meta**: ada frame → `Frame nn / total`; ada frame tapi tak terpilih →
+  `Frame -- / total sesi`; **0 frame → `Frame -- / --`** (pengganti `Frame -- / 00`).
+- **Footer `Export CSV` tetap ada**, nonaktif dengan alasan jelas memakai pola M13 —
+  **`aria-disabled` + `title` + guard `onClick`** (bukan `disabled` native, yang menahan
+  tooltip di sebagian peramban): `Belum ada frame — upload gambar dulu di lembar kerja.` /
+  `Belum ada metadata — jalankan Buat metadata dulu.`
+- Frame terpilih **otomatis setelah upload pertama** (`useSession.addFrame`:
+  `sel: cur.sel ?? id`) — begitu ada frame, field langsung aktif berisi data frame itu.
+- Tes: describe lama `keadaan kosong (M13)` **diganti 4 tes M14** (field nonaktif + placeholder
+  & tombol salin, header + Export CSV ter-guard, aktif setelah upload, frame ada tapi slot
+  masih kosong).
+
+### 4. Piksel-tetap → unit relatif (responsivitas zoom/font root)
+
+Spasi & lebar struktural seluruhnya kini **rem / % / fr**. Skala spacing Tailwind memang sudah
+rem, jadi yang perlu diganti hanya nilai arbitrer berbasis piksel:
+
+| file:baris | Sebelum | Sesudah | Alasan |
+| --- | --- | --- | --- |
+| `src/components/Worksheet.tsx:532` | `minmax(150px,1fr)` | `minmax(9.375rem,1fr)` | lebar minimum tile ikut membesar bila font root naik |
+| `src/components/Worksheet.tsx:319` | `top-[42px]` (popover konfirmasi) | `top-[2.625rem]` | = `top-1.5` + `h-7` + gap `0.5rem` → popover selalu nempel persis di bawah ikonnya |
+| `src/components/KeywordEditor.tsx:52` | `max-h-[200px]` | `max-h-[12.5rem]` | batas daftar chip ikut skala root |
+| `src/components/Panel.tsx:29` | `rounded-[14px]` | `rounded-[0.875rem]` | radius container panel ikut skala root |
+| `src/components/Header.tsx:35` | `rounded-[3px]` | `rounded-[0.1875rem]` | idem untuk dot brand |
+
+**Sengaja tidak diubah:**
+
+- Ukuran font `text-[…px]` (10/11/12/13/13.5/15/18px) — **skala tipografi yang disengaja**
+  (lihat `docs/DESIGN.md` → Tipografi), bukan spasi/lebar elemen struktural.
+- `src/app/globals.css`: `min-height:40px` (target sentuh), `.spinner 12px` (ukuran kontrol),
+  scrollbar `6px` — ukuran kontrol/krom peramban; sudah tercatat di tabel audit M12.
+
+Hasil audit komponen (poin 4, rentang uji 360px → >1920px dan zoom 50–150%, analisis statis):
+
+- `Header`: `flex-wrap` + `gap-y-2.5` → brand/segmen/readout menumpuk rapi di 360px; readout
+  mono membungkus sendiri.
+- `ProviderPanel`: `flex-col` → `lg:flex-row lg:items-end`; provider `lg:w-44`, API key
+  `flex-1 min-w-0`, blok catatan `min-w-0` → teks panjang (catatan limit) membungkus, tidak
+  terpotong di lebar berapa pun.
+- `Worksheet`: grid `auto-fill minmax(9.375rem,1fr)` tetap dari M6 (hanya unitnya diganti);
+  dropzone `min-h-44`; tombol + pesan limit `flex-wrap`.
+- `CaptionSheet`: semua field `w-full`; footer `flex-wrap`; `InFieldNote` tetap menempel di
+  dalam textarea (`pb-6` menyisakan ruang, `right-3` mengikuti padding kotak).
+- Elemen absolut: ikon tile (`right-12`/`right-1.5`, `top-1.5`), popover
+  (`left-1.5 right-1.5 top-[2.625rem]`), dan `InFieldNote` — semuanya rem, jadi menempel pada
+  anchor-nya di semua ukuran; popover tetap di dalam thumbnail (≥ `9.375rem`, tile
+  `overflow-hidden`).
+- `lg:grid-cols-[3fr_2fr]` memakai `fr` — kolom menyesuaikan tanpa lebar absolut.
+- **Tindak lanjut manual (belum bisa dilakukan tanpa server):** buka halaman, uji lebar
+  360 / 768 / 1024 / 1440 / 1920px dan zoom 50/67/80/100/125/150% — pastikan kedua panel sama
+  tinggi di ≥1024px dan tidak ada elemen terpotong.
+
+### 5. Spasi antar field diseragamkan
+
+- Skala tidak berubah: root `gap-4`, grup label→kontrol `gap-1.5`, jarak antar-blok `gap-4`.
+- Karena struktur field kini **identik** antara kondisi kosong dan terisi (poin 3), jaraknya
+  juga identik — tidak ada lagi blok khusus (kotak kosong) yang jaraknya berbeda; berlaku di
+  semua ukuran layar. Dua baris hint Worksheet yang dihapus (poin 1) tidak mengubah ritme:
+  blok `Tema utama` & `Jeda antar foto` tetap `flex-col gap-1.5` seperti grup lainnya.
 
 ## Kontrak perilaku (WAJIB sama dengan legacy)
 
@@ -381,6 +483,12 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
 
 ### CaptionSheet
 
+- **[M14] Lembar tidak pernah kosong**: struktur field (Judul/Deskripsi, Kata kunci, Kategori,
+  Tema untuk frame ini, Saran bila relevan, footer Export CSV) **selalu dirender**; belum ada
+  frame terpilih → semua `disabled` + placeholder tetap tampil, tombol salin per field mati,
+  header `Frame -- / --`. Kotak kosong "Belum ada frame dipilih" (M13) **tidak ada lagi**;
+  frame terpilih otomatis setelah upload pertama. Export CSV memakai `aria-disabled` + `title`
+  (alasan: belum ada frame / belum ada metadata) + guard klik.
 - Field editable (ikut platform), **tombol salin per field** (feedback `Disalin`, reset 1.4s).
 - Keyword sebagai **chip** + input; salin daftar (dipisah koma) lewat **satu tombol salin di
   samping label `Kata kunci`** **[M12: kotak teks `KEYWORDS (SIAP TEMPEL)`/cerminan dihapus]**.
@@ -488,3 +596,14 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
 - Keterangan bantu (M13): hint batas & penghitung karakter **menempel di dalam kotak isian**
   (pojok kanan bawah), bukan baris terpisah di bawah — kecuali petunjuk instruksional yang
   sengaja tetap di luar agar kotak tidak penuh.
+- Keterangan baris (M14): tiga hint di bawah field (`Tema utama`, `Jeda antar foto`,
+  `Tema untuk frame ini`) dihapus — labelnya sudah menjelaskan; hanya petunjuk instruksional
+  Deskripsi Shutterstock yang tersisa.
+- Layout tinggi (M14): M11–M13 membiarkan kedua kolom beda tinggi → kini **≥1024px kedua panel
+  disamakan tingginya** (`lg:items-stretch` + body Panel `grow`); tetap satu dokumen yang
+  menggulir, tanpa scroll internal.
+- Keadaan awal (M14): lembar caption **tidak pernah menampilkan kotak kosong** — field lengkap
+  nonaktif menunggu frame terpilih (legacy menampilkan panel caption kosong/default).
+- Satuan (M14): lima nilai piksel tetap pada elemen struktural diganti rem (grid `9.375rem`,
+  popover `2.625rem`, batas chip `12.5rem`, radius panel `0.875rem`, radius dot `0.1875rem`);
+  ukuran font tetap px sebagai skala tipografi yang disengaja.
