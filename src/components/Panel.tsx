@@ -32,10 +32,10 @@ export function Panel({
     >
       <div className="flex items-center gap-3 border-b border-line px-4 py-3">
         <div className="flex min-w-0 items-baseline gap-3">
-          <h2 className="truncate text-[15px] font-bold tracking-[-0.015em] text-ink">
+          <h2 className="truncate text-title font-bold tracking-[-0.015em] text-ink">
             {title}
           </h2>
-          <span className="shrink-0 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3">
+          <span className="shrink-0 font-mono text-meta font-bold uppercase tracking-[0.08em] text-ink-3">
             {meta}
           </span>
         </div>

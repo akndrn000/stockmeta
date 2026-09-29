@@ -71,7 +71,7 @@ export function CopyButton({ text, label, disabled = false }: {
             <path d="M9.5 4.5v-1A1.5 1.5 0 0 0 8 2H3A1.5 1.5 0 0 0 1.5 3.5V8A1.5 1.5 0 0 0 3 9.5h1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
           </svg>
         )}
-        <span className="text-[11px] font-semibold">{copied ? 'Disalin' : 'Salin'}</span>
+        <span className="text-body font-semibold">{copied ? 'Disalin' : 'Salin'}</span>
       </button>
       <span role="status" aria-live="polite" className="sr-only">{copied ? 'Disalin' : ''}</span>
     </span>

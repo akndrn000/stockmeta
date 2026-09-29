@@ -39,7 +39,7 @@ export function KeywordEditor({ keywords, min, onChange, disabled }: {
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between gap-2">
-        <label htmlFor="kw-input" className="text-[11px] font-semibold leading-none tracking-[0.01em] text-ink-3">
+        <label htmlFor="kw-input" className="text-meta font-semibold leading-none tracking-[0.01em] text-ink-3">
           Kata kunci
         </label>
         <CopyButton text={plain} label="daftar kata kunci" disabled={disabled} />
@@ -57,7 +57,7 @@ export function KeywordEditor({ keywords, min, onChange, disabled }: {
           {keywords.map((k, i) => (
             <li
               key={`${k.toLowerCase()}-${i}`}
-              className="inline-flex max-w-full items-center gap-1 rounded border border-line bg-well pl-2 pr-1 py-0.5 text-[12px] text-ink"
+              className="inline-flex max-w-full items-center gap-1 rounded border border-line bg-well pl-2 pr-1 py-0.5 text-small text-ink"
             >
               <span className="min-w-0 truncate" title={k}>{k}</span>
               <button
@@ -105,26 +105,28 @@ export function KeywordEditor({ keywords, min, onChange, disabled }: {
           placeholder={full ? 'Penuh — hapus salah satu dulu' : 'Ketik kata kunci, pisahkan koma atau Enter'}
           spellCheck={false}
           autoCapitalize="none"
-          className="w-full rounded border border-line bg-well px-3 py-2 pr-24 text-[13.5px] text-ink placeholder:text-ink-3 disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full rounded border border-line bg-well px-3 py-2 pr-24 text-body text-ink placeholder:text-ink-3 disabled:cursor-not-allowed disabled:opacity-50"
         />
-        <span className="pointer-events-none absolute bottom-1 right-2.5 flex items-center gap-1.5">
-          <span className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-ink-3">
+        {/* M16: badge meta kecil (penghitung, min, penuh) = teks polos tanpa kotak —
+            hanya badge STATUS (berwarna aktif) yang memakai garis 2px. */}
+        <span className="pointer-events-none absolute bottom-1 right-3 flex items-center gap-1.5">
+          <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-ink-3">
             {n}/{MAX_KEYWORDS}
           </span>
           {n < min && (
-            <span className="rounded border border-dashed border-accent-faint px-1.5 py-px font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-ink-3">
+            <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-ink-3">
               min {min}
             </span>
           )}
           {full && (
-            <span className="rounded border border-accent bg-accent-wash px-1.5 py-px font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-accent-text">
+            <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-accent-text">
               penuh
             </span>
           )}
         </span>
       </div>
 
-      <p role="status" aria-live="polite" className="min-h-4 text-[12px] font-medium text-ink-2">
+      <p role="status" aria-live="polite" className="min-h-4 text-small font-medium text-ink-2">
         {skip}
       </p>
     </div>

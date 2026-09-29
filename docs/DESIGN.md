@@ -5,6 +5,8 @@ Dokumen ini catatan; kalau code dan dokumen beda, code menang.
 
 Tema M15: **terminal / CRT hijau-hitam dua mode** — kanvas nyaris hitam, satu aksen hijau
 fosfor, mono di seluruh halaman, badge bergaya bracket `[ … ]`, glow tipis pada elemen aktif.
+M16 menetapkan **tiga skala** (border, ukuran font, spasi) yang mengikat seluruh komponen —
+lihat bagian "Skala M16".
 
 ## Token warna — "Phosphor"
 
@@ -60,8 +62,9 @@ di luar layer sehingga menang atas utilitas `shadow-*` yang tidak dipakai bersam
 
 Sinyal status memakai warnanya sendiri, **di luar** aksen: `--success` **amber** (SIAP, badge
 Aktif), `--fail` **merah** (GAGAL, pesan error). Tidak ada aksen kedua (biru/ungu); amber &
-merah hanya membaca status, bukan dekorasi. Badge status memakai wash + border (atau teks saja
-di strip CaptionSheet), bukan blok penuh — kecuali tombol utama.
+merah hanya membaca status, bukan dekorasi. Badge status memakai wash + kotak `border-2`
+(tiga tempat: ProviderPanel, tile, strip CaptionSheet — lihat "Badge bracket"); badge meta
+kecil memakai teks polos tanpa kotak.
 
 ## Radius
 
@@ -71,7 +74,7 @@ Skala dua tingkat, tanpa nilai aneh:
 - **Kontainer** (panel, tile frame, popover, dropzone, kotak konfirmasi, kotak error,
   segmen platform): `rounded-md` = 6px.
 - Hindari `rounded-sm` (2px, di bawah ambang 3px) dan `rounded-full`; pengecualian titik kecil
-  non-teks (dot brand `rounded-[0.1875rem]`).
+  non-teks (dot brand `rounded-[0.1875rem]`, thumb scrollbar 3px).
 
 ## Tipografi
 
@@ -79,20 +82,84 @@ Skala dua tingkat, tanpa nilai aneh:
   body maupun heading — hierarki dibentuk dari ukuran, bobot, dan warna, bukan dari font
   kedua (Archivo & Courier Prime dibuang di M15). `--font-sans` dan `--font-mono` menunjuk
   font yang sama.
-- Skala: wordmark `18px extrabold` (tracking `-0.03em`), judul panel `15px bold`
-  (tracking `-0.015em`), teks tombol `13–13.5px semibold`, body `13.5px`, label
-  `11px semibold`, readout/badge mono `10–11px bold uppercase tracking 0.08em`.
-- Aksen tracking: wordmark `-0.03em`; tidak ada tracking di bawah `-0.04em`.
+- Skala ukuran font: **lima tingkat** `meta 11 / small 13 / body 14 / title 16 / brand 20` —
+  daftar peran lengkap di "Skala M16 → 2. Ukuran font".
+- Aksen tracking: wordmark `-0.03em`, judul panel `-0.015em`, label `0.01em`, badge/readout
+  mono uppercase `0.08em`; tidak ada tracking di bawah `-0.04em`.
 - Angka/readout memakai `font-mono` eksplisit agar niat "data = mono" tetap terbaca walau
   seluruh halaman sudah mono.
 
+## Skala M16
+
+Tiga skala berikut **mengikat semua komponen** — komponen baru wajib memakai nilai di daftar,
+bukan nilai baru.
+
+### 1. Border — hanya DUA ketebalan
+
+| Nilai | Dipakai untuk |
+| --- | --- |
+| **1px** (`border`, `border-b`) | Semua elemen biasa: panel, tile idle, isian, tombol sekunder, chip, hairline. |
+| **2px** (`border-2`) | Elemen **menyala / ditekankan**: tile terpilih, tombol utama `Buat metadata`, badge status (ProviderPanel, tile Worksheet, strip CaptionSheet), kotak error `role="alert"`, dropzone kosong (`border-2 border-dashed`), **isian saat fokus**. |
+
+- **Isian fokus** = `border-color: --accent` + `box-shadow: inset 0 0 0 1px var(--accent)` —
+  1px border + 1px ring inset menghasilkan garis 2px **tanpa mengubah `border-width`**,
+  sehingga input ber-height auto tidak bertambah tinggi (tidak ada layout shift pindah field).
+  Mode terang menyetel `--glow-input` ke `0 0 0 0 transparent` (bukan `none`) supaya tetap
+  sah digabung dalam satu deklarasi `box-shadow`.
+- State sementara (hover, drag-over, tombol armed `Yakin? Klik lagi`) = **perubahan warna saja**,
+  tidak pernah mengubah ketebalan garis.
+- Garis berwarna status (`--success`, `--fail`) hanya pada elemen status/aktif; sisanya
+  `border-line`.
+
+### 2. Ukuran font — lima tingkat
+
+Token di `@theme` (`globals.css`), peran bukan angka:
+
+| Token | Ukuran | Peran contoh |
+| --- | --- | --- |
+| `text-meta` | 11px | Label field, counter (`0/50`, `45/70`), badge mono, readout header, nama model, label progress |
+| `text-small` | 13px | Hint di bawah field, nama file tile/strip, chip kata kunci, catatan provider, pesan notice/limit |
+| `text-body` | 14px | Nilai isian, teks semua tombol, teks dropzone, pesan error, prompt popover |
+| `text-title` | 16px | Judul panel (`Panel`) |
+| `text-brand` | 20px | Wordmark `StockMeta` |
+
+- Tidak ada lagi `text-[NNpx]` hard-coded maupun `text-xs/sm/lg` bawaan Tailwind di komponen.
+- Placeholder memakai **ukuran yang sama dengan nilai input** (`text-body`) + warna `--ink-3` —
+  ukuran beda membuat teks "melompat" saat pengguna mulai mengetik.
+
+### 3. Spasi — {4, 6, 8, 12, 16, 24}px
+
+Pemakaian (dalam satuan Tailwind `1 = 4px`):
+
+| Nilai | Peran |
+| --- | --- |
+| 4px (`gap-1`) | Pasangan mikro dalam satu butir (nama file ↔ catatan, chip ↔ tombol hapus) |
+| 6px (`gap-1.5`, `p-1.5`) | Grup rapat label → kontrol; padding chip/badge kecil |
+| 8px (`gap-2`, `py-2`, `pt/pb-2`) | Antar butir sejajar (baris tombol, grup header), ritme dalam blok |
+| 12px (`gap-3`, `p-3`, `px-3/4 py-3`) | Antar elemen dalam satu komponen; padding band (Header, ProviderPanel) |
+| 16px (`gap-4`, `p-4`) | Antar blok/bidang (antar-field CaptionSheet, isi panel, `main`) |
+| 24px (`px-6`, `pb-6`) | Ruang lega dropzone; reserve penghitung textarea |
+
+- **Tidak ada** nilai 10px (`gap-2.5`, `py-2.5`, `pb-2.5`) — semuanya digeser ke 8px atau 12px.
+  Pengganti `py-2.5` pada tombol besar = `py-2` (tinggi efektif ≈40px termasuk border).
+- Reserve fungsional (bukan skala): `pr-8` (panah select), `pr-10` (tombol lihat key),
+  `pr-24` (penghitung keyword) — ruang yang sengaja dikosongkan agar tidak tertimpa.
+- Offset posisi menempel pada skala yang sama (6px `1.5`, 12px `3`, 48px `12` untuk ikon tile).
+
 ## Badge bracket
 
-Badge status (`AKTIF`, `SIAP`, `GAGAL`) memakai `.badge-bracket` — bracket `[` `]` ditambahkan
-lewat `::before`/`::after`, **teks asli tetap ada di DOM**: pembaca layar dan tes tetap membaca
-`Aktif`/`SIAP`, tanpa label ganda. Berlaku untuk badge ProviderPanel, badge tile Worksheet, dan
-strip status CaptionSheet. Chip hint (`min 5`, `penuh`) sengaja **tidak** memakai bracket agar
-tidak ramai.
+Dua keluarga badge, dibedakan peran — bukan per selera:
+
+- **Badge status** (bracket + kotak): `AKTIF`, `SIAP`, `GAGAL`, `MENUNGGU/PROSES` di
+  ProviderPanel, tile Worksheet, dan strip CaptionSheet. Kotak `border-2` (status = elemen
+  ditekankan), warna `--success`/`--fail`, label netral memakai `border-dashed border-ink-2`
+  (sama dengan badge provider saat idle). Bracket `[` `]` ditambahkan `::before`/`::after`
+  lewat `.badge-bracket` — **teks asli tetap ada di DOM**, jadi pembaca layar dan tes tetap
+  membaca `Aktif`/`SIAP`, tanpa label ganda.
+- **Badge meta kecil** = teks polos **tanpa kotak**: penghitung `0/50`, `min 5`, `penuh`,
+  nomor frame `01` (boleh memakai `bg-surface/85` demi keterbacaan di atas thumbnail),
+  nama model, petunjuk `upload ulang`. Karena tanpa border, ukuran fontnya `text-meta`
+  seperti label lain — tidak ada badge kecil yang justru lebih besar dari labelnya.
 
 ## Komponen utama
 
@@ -114,10 +181,11 @@ tidak ramai.
   sama tinggi.
 - **Grid thumbnail**: `auto-fill minmax(9.375rem,1fr)` sebagai dasar, dikunci **`min-[1120px]:grid-cols-5`**
   (bukan `lg`) — 20 frame pas menjadi 4 baris × 5 kolom penuh. Ambang 1120px dihitung dari
-  geometri tile: pada V ≥1024 lebar tile = `0,12V − 20,56px`; badge nomor berakhir di 28px dari
-  kiri, bayangan klik ikon regen mulai di 82px dari kanan → baru aman saat lebar dalam ≥110px
-  (V ≈1105px). Dengan ambang 1120px tersisa ≈1,9px, sehingga di seluruh rentang **1024–1920px
-  tidak ada tumpang tindih**; di bawah 1120px tetap auto-fill (2–4 kolom).
+  geometri tile; setelah M16 gap grid memakai skala spasi (8px), lebar tile = `0,12V − 18,96px`.
+  Titik tabrakan: badge nomor di kiri atas (6px + 21,2px = 27,2px, `text-meta` tanpa kotak)
+  vs bayangan klik ikon regen di kanan (mulai 82px dari kanan) → aman bila lebar dalam ≥109,2px,
+  yaitu **V ≥1068px**. Dengan ambang 1120px tersisa ≈6,2px, sehingga di seluruh rentang
+  **1024–1920px tidak ada tumpang tindih**; di bawah 1120px tetap auto-fill (2–4 kolom).
 - **Satuan relatif**: spasi & lebar memakai rem / % / fr — `minmax(9.375rem,1fr)` (grid),
   `max-h-[12.5rem]` (chip), `top-[2.625rem]` (popover). Ukuran font tetap px sebagai **skala
   tipografi yang disengaja**.
@@ -128,7 +196,8 @@ tidak ramai.
 ## Aksesibilitas (lantai mutu)
 
 - Focus ring global `2px --focus` + offset 2px (`:focus-visible`), di kedua mode; isian saat
-  fokus juga dapat glow tipis (mode gelap saja).
+  fokus menampilkan garis 2px aksen (1px border + 1px ring inset) + glow tipis mode gelap —
+  komposisi ini tidak mengubah tinggi isian (lihat "Skala M16 → 1. Border").
 - Semua input punya `<label for>`; tombol ikon punya `aria-label` + `title`.
 - `prefers-reduced-motion`: animasi (spinner) dimatikan; glow statis sehingga tidak perlu
   dimatikan; **transisi warna/lebar tetap** — itu umpan balik state, bukan dekorasi.
@@ -147,3 +216,23 @@ tidak ramai.
   boleh dikorbankan demi keseragaman warna.
 - `docs/AUDIT.md` sengaja dibiarkan tanpa nilai warna hard-coded (dokumen audit masa lalu).
 - Verifikasi: `impeccable detect src` → **0 temuan** (exit 0).
+
+## Keputusan sadar M16
+
+- **M16 = konsistensi visual murni** — struktur HTML, perilaku, dan teks sama sekali tidak
+  disentuh; perubahan hanya kelas styling + token CSS (daftar file di `MIGRATION.md` M16).
+- **Fokus isian diberi garis 2px lewat ring inset**, bukan `border-width: 2px` — aturan lantai
+  "state sementara tidak boleh mengubah geometri": menaikkan border akan menambah tinggi
+  input ber-height auto tiap pindah field. Mode terang menyetel `--glow-input`
+  `0 0 0 0 transparent` (bukan `none`) karena nilai itu kini bagian dari deklarasi gabungan.
+- **Tombol utama `Buat metadata` memakai `border-2 border-accent`** (se-warna isian fill):
+  ambang "garis 2px" tercapai tanpa membuat tombol terlihat berbingkai, dan `py-2.5 → py-2`
+  mengimbangi tingginya (≈40px, tetap memenuhi target sentuh).
+- **Badge meta kecil dilepas kotaknya** — lima gaya kotak berbeda untuk label seukuran 10–11px
+  adalah kebisingan; tanpa border, labelnya pun bisa ikut skala `text-meta` sehingga tidak ada
+  badge yang lebih besar dari labelnya sendiri. Kotak hanya dipertahankan untuk **status**.
+- Gap grid 10px → 8px menggeser geometri tile (`0,12V − 18,96px`) — matematika ambang
+  dihitung ulang (V ≥1068px, sisa ≈6,2px di 1120px) dan ditulis di `Worksheet.tsx` + bagian
+  Layout dokumen ini.
+- Verifikasi M16: `vitest` **185/185**, `tsc --noEmit` **0**, `eslint` **0**, `next build`
+  sukses, `impeccable detect --json src` → **`[]`** (exit 0).

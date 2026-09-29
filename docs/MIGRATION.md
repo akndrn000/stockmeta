@@ -449,6 +449,59 @@ Tiga pekerjaan dalam satu batch, tanpa e2e dan tanpa menjalankan server. Verifik
 - Tes terdampak: `Worksheet.test.ts` — asersi ikon regen gagal berubah dari
   `text-accent-text` → `text-fail` (mengikuti keputusan warna di atas).
 
+## Perbaikan pasca-M15 (M16) - bukan tahap migrasi baru
+
+Konsistensi visual murni: **struktur HTML, perilaku, dan teks tidak berubah** — hanya kelas
+styling + token CSS. Tiga skala resmi ditulis ke `docs/DESIGN.md` ("Skala M16").
+
+### 1. Ketebalan border diseragamkan ke DUA nilai
+
+- **1px** untuk semua elemen biasa, **2px** untuk elemen menyala/ditekankan: tile terpilih,
+  tombol utama `Buat metadata` (`border-2 border-accent`, se-warna dengan fill), badge status
+  di tiga tempat (ProviderPanel, tile Worksheet, strip CaptionSheet), kotak error
+  `role="alert"`, dropzone kosong, dan **isian saat fokus**.
+- Fokus isian = `border-color: --accent` + `box-shadow: inset 0 0 0 1px --accent` (1px border +
+  1px ring inset). Menambah `border-width` sungguhan akan menambah tinggi input ber-height
+  auto tiap pindah field (layout shift) — aturan yang sama dipakai untuk state sementara
+  (hover, drag-over, tombol armed): warna saja, tidak pernah lebar.
+- Mode terang: `--glow-input` berubah dari `none` → `0 0 0 0 transparent` supaya tetap sah
+  digabung dengan ring inset dalam satu deklarasi `box-shadow`.
+- `border-fail/70` pada ikon regen → `border-fail` (warna status dipakai konsisten penuh).
+
+### 2. Skala ukuran font: lima tingkat token `@theme`
+
+- `--text-meta 11px` · `--text-small 13px` · `--text-body 14px` · `--text-title 16px` ·
+  `--text-brand 20px` — semua `text-[NNpx]` hard-coded di komponen dihapus (0 sisa).
+- Mapping: `10px`→11 (badge/konfig), `11px`→11 (label/counter/readout), `12px`→13 (hint,
+  nama file, catatan), `13–15px`→14 (nilai isian, teks tombol, teks dropzone, pesan error),
+  judul panel 15→16, wordmark 18→20. Placeholder ikut ukuran input (14px) — tidak ada
+  lompatan ukuran saat mulai mengetik.
+- Tidak ada tes yang meng-assert ukuran font (perubahan aman).
+
+### 3. Skala spasi: {4, 6, 8, 12, 16, 24}px
+
+- Hilangkan semua nilai 10px: `gap-2.5`/`gap-y-2.5`→8, `pb-2.5`→8, `px-2.5`→12,
+  `py-2.5`→8 (tombol besar), panah select `right-2.5`→12; `gap-0.5` (micro-stack di tile &
+  segmen) → `gap-1`; dropzone `py-8`(32)→`py-6`(24). Sisa gap: 4/6/8/12/16 saja.
+- **Gap grid thumbnail 10px → 8px** → geometri baru `W = 0,12V − 18,96px`; syarat bebas
+  tabrakan `W ≥ 82 + 27,2 = 109,2px` (badge nomor `text-meta` tanpa kotak) → aman sejak
+  V ≥1068px; ambang 1120px menyisakan ≈6,2px. Komentar matematika di `Worksheet.tsx`
+  dan `docs/DESIGN.md` ikut diperbarui.
+- Reserve fungsional dibiarkan: `pr-8` (panah select), `pr-10` (tombol lihat key),
+  `pr-24` (penghitung keyword).
+
+### 4. Badge terbagi dua keluarga
+
+- **Badge status** (bracket + kotak `border-2`, warna status; label netral =
+  `border-dashed border-ink-2`): `AKTIF`, `SIAP`, `GAGAL`, `MENUNGGU/PROSES`.
+- **Badge meta kecil jadi teks polos tanpa kotak**: `min 5`, `penuh`, `0/50`, nomor frame
+  `01` (tetap `bg-surface/85` untuk keterbacaan di atas thumbnail), nama model, `upload ulang`
+  — sebelumnya lima gaya kotak berbeda. Karena tanpa border, ukurannya ikut `text-meta`.
+- Tes tidak meng-assert kelas badge/ukuran; hanya warna (`text-fail`) yang di-assert dan tetap.
+
+Verifikasi M16: `vitest` **185/185**, `tsc --noEmit` **0**, `eslint` **0**, `next build` sukses,
+`impeccable detect --json src` → **`[]`** (exit 0).
+
 ## Kontrak perilaku (WAJIB sama dengan legacy)
 
 Sumber: `legacy/docs/PROGRESS.md` + `legacy/js/*.js`. Tanda **[BARU]** = perilaku baru yang

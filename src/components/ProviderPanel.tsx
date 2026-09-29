@@ -28,7 +28,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
         >
           <label
             htmlFor="provider"
-            className="text-[11px] font-semibold leading-none tracking-[0.01em] text-ink-3"
+            className="text-meta font-semibold leading-none tracking-[0.01em] text-ink-3"
           >
             Provider
           </label>
@@ -38,7 +38,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
               value={api.provider}
               onChange={(e) => api.setProvider(e.target.value as ProviderId)}
               disabled={testing || busy}
-              className="w-full appearance-none rounded border border-line bg-well px-3 py-2 pr-8 text-[13.5px] font-semibold text-ink transition-colors hover:border-accent-dim disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full appearance-none rounded border border-line bg-well px-3 py-2 pr-8 text-body font-semibold text-ink transition-colors hover:border-accent-dim disabled:cursor-not-allowed disabled:opacity-50"
             >
               {PROVIDER_ORDER.map((p) => (
                 <option key={p} value={p}>
@@ -52,7 +52,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
               viewBox="0 0 16 16"
               fill="none"
               aria-hidden="true"
-              className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-accent-dim"
+              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-accent-dim"
             >
               <path
                 d="M4 6l4 4 4-4"
@@ -69,7 +69,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <label
             htmlFor="apikey"
-            className="text-[11px] font-semibold leading-none tracking-[0.01em] text-ink-3"
+            className="text-meta font-semibold leading-none tracking-[0.01em] text-ink-3"
           >
             API key
           </label>
@@ -86,7 +86,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
               autoComplete="off"
               spellCheck={false}
               autoCapitalize="none"
-              className="w-full rounded border border-line bg-well px-3 py-2 pr-10 font-mono text-[13px] text-ink placeholder:text-ink-3 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full rounded border border-line bg-well px-3 py-2 pr-10 font-mono text-body text-ink placeholder:text-ink-3 disabled:cursor-not-allowed disabled:opacity-50"
             />
             <button
               type="button"
@@ -140,17 +140,19 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
             onClick={api.test}
             disabled={api.isSoon || testing || busy}
             aria-busy={testing}
-            className="inline-flex items-center gap-2 rounded border border-accent px-4 py-2 text-[13.5px] font-semibold text-accent-text transition-colors hover:bg-accent-wash disabled:cursor-not-allowed disabled:border-line disabled:opacity-45 disabled:hover:bg-transparent"
+            className="inline-flex items-center gap-2 rounded border border-accent px-4 py-2 text-body font-semibold text-accent-text transition-colors hover:bg-accent-wash disabled:cursor-not-allowed disabled:border-line disabled:opacity-45 disabled:hover:bg-transparent"
           >
             {testing && <span className="spinner" aria-hidden="true" />}
             {testing ? 'Menguji…' : 'Tes koneksi'}
           </button>
           {/* Badge status bergaya bracket terminal (M15) — teks asli tetap untuk pembaca layar;
-              amber glow hanya untuk status Aktif (elemen aktif), tanpa rotasi supaya segaris. */}
+              amber glow hanya untuk status Aktif (elemen aktif), tanpa rotasi supaya segaris.
+              M16: badge status = garis 2px (satu dari dua ketebalan yang dipakai); padding
+              horizontal 12px mengikuti skala spasi. */}
           <span
             role="status"
             aria-live="polite"
-            className={`badge-bracket inline-flex items-center rounded border px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.08em] ${
+            className={`badge-bracket inline-flex items-center rounded border-2 px-3 py-1 font-mono text-meta font-bold uppercase tracking-[0.08em] ${
               api.status === 'ok'
                 ? 'glow-ok border-success bg-success-wash text-success'
                 : api.status === 'fail'
@@ -167,21 +169,21 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
         {/* Catatan: fallback KEY_NOTES / pesan hasil tes */}
         <div className="flex min-w-0 flex-1 flex-col gap-1.5 lg:min-w-56">
           {/* pesan hasil tes (sukses/gagal) diumumkan pembaca layar saat berubah */}
-          <p aria-live="polite" className="font-mono text-[12px] leading-relaxed text-ink-2">
+          <p aria-live="polite" className="font-mono text-small leading-relaxed text-ink-2">
             {api.note}
           </p>
           {api.status === 'ok' && api.model && (
-            <span className="w-fit rounded border border-line bg-well px-2 py-1 font-mono text-[11px] text-ink-2">
+            <span className="w-fit font-mono text-meta text-ink-2">
               Model: <span className="font-bold text-ink">{api.model}</span>
             </span>
           )}
           {api.provider === 'groq' && (
-            <p className="font-mono text-[12px] leading-relaxed text-ink-3">
+            <p className="font-mono text-small leading-relaxed text-ink-3">
               {GROQ_NOTE}
             </p>
           )}
           {api.provider === 'gemini' && (
-            <p className="font-mono text-[12px] leading-relaxed text-ink-3">
+            <p className="font-mono text-small leading-relaxed text-ink-3">
               {GEMINI_NOTE}
             </p>
           )}
