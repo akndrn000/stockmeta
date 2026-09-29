@@ -65,8 +65,14 @@ function Field({ id, label, copyText, note, hint, disabled, children }: {
   return (
     <div className="flex flex-col gap-1.5">
       {/* M18: flex-wrap bila layar sempit — grup kanan turun ke baris kedua dan tetap
-          rata kanan (ml-auto), sehingga label & tombol salin tidak pernah meluber. */}
-      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+          rata kanan (ml-auto), sehingga label & tombol salin tidak pernah meluber.
+          M19: flex-1 — baris label mengisi sisa tinggi field. Saat dua field berdampingan
+          (grid Kategori ↔ Tema, M19 E.4) kedua kolom diregangkan ke tinggi baris yang
+          sama, jadi baris label keduanya selalu setara tinggi walau satu kolom punya
+          tombol "Salin" (28/44px) dan kolom lain hanya teks label — kotak dropdown &
+          input di bawahnya pun sejajar persis. Field tunggal tingginya tetap = isi
+          (container auto-height → tanpa ruang tambahan). */}
+      <div className="flex flex-1 flex-wrap items-center justify-between gap-x-2 gap-y-1">
         <label htmlFor={id} className="text-meta font-semibold uppercase tracking-[0.06em] text-text-muted">
           {label}
         </label>

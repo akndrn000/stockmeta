@@ -31,8 +31,17 @@ export function Panel({
       className={`flex min-w-0 flex-col scroll-mt-4 overflow-hidden rounded-xl border border-border bg-surface min-[1120px]:scroll-mt-40 ${className}`}
     >
       {/* flex-wrap: di lebar sangat sempit (320px) baris aksi pindah ke baris kedua —
-          judul & meta tetap utuh, tidak pernah terpotong. */}
-      <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3">
+          judul & meta tetap utuh, tidak pernah terpotong.
+          M19: tinggi minimum seragam untuk KEDUA panel (Lembar kerja & Lembar caption) —
+          garis border-b di bawah judul jadi sejajar horizontal antar kolom. Tanpa
+          min-height, baris header Worksheet lebih tinggi (tombol "Mulai sesi baru"
+          35px = py-1.5 + teks 14×1.5 + border) daripada header CaptionSheet (hanya judul
+          + meta ≈24px), jadi garisnya beda ±11px. 60px = py-3 (24) + border-b (1) + 35.
+          Di HP / layar sentuh semua tombol dinaikkan ke target 44px (globals.css) →
+          tinggi minimum ikut naik ke 69px (24 + 1 + 44) supaya tetap sejajar. Dua varian
+          di bawah memakai media YANG SAMA dengan aturan tombol 44px ((max-width:1119px)
+          ATAU (pointer:coarse)) supaya tidak ada celah 1px di antaranya. */}
+      <div className="flex min-h-15 flex-wrap items-center gap-3 border-b border-border px-4 py-3 [@media(max-width:1119px)]:min-h-[4.3125rem] pointer-coarse:min-h-[4.3125rem]">
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1.5">
           <h2 className="truncate text-title font-bold tracking-[-0.015em] text-text">
             {title}

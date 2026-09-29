@@ -2,6 +2,7 @@
 // Jalankan:
 //   GEMINI_KEY=… npx tsx scripts/live-test.ts gemini foto.jpg adobe "Halloween"
 //   GROQ_KEY=…  npx tsx scripts/live-test.ts groq foto.jpg shutterstock
+//   OPENROUTER_KEY=… npx tsx scripts/live-test.ts openrouter foto.jpg adobe
 // Key hanya dibaca dari environment variable — TIDAK PERNAH ditulis ke file atau log.
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
@@ -16,7 +17,7 @@ const MIME: Record<string, string> = {
 async function main(): Promise<void> {
   const [providerArg, imagePath, platformArg, themeArg] = process.argv.slice(2);
   if (!providerArg || !imagePath || !platformArg) {
-    console.error('Pakai: GEMINI_KEY=… npx tsx scripts/live-test.ts <gemini|groq> <gambar> <adobe|shutterstock> [tema]');
+    console.error('Pakai: GEMINI_KEY=… npx tsx scripts/live-test.ts <gemini|groq|openrouter> <gambar> <adobe|shutterstock> [tema]');
     process.exit(1);
   }
   const provider = providerArg as ProviderId;
@@ -30,9 +31,11 @@ async function main(): Promise<void> {
     console.error('Provider tidak dikenal: ' + providerArg);
     process.exit(1);
   }
-  const key = provider === 'gemini' ? process.env.GEMINI_KEY : process.env.GROQ_KEY;
+  const keyEnv = provider === 'gemini' ? 'GEMINI_KEY'
+    : provider === 'openrouter' ? 'OPENROUTER_KEY' : 'GROQ_KEY';
+  const key = process.env[keyEnv];
   if (!key) {
-    console.error('Set environment variable ' + (provider === 'gemini' ? 'GEMINI_KEY' : 'GROQ_KEY') + ' terlebih dahulu.');
+    console.error('Set environment variable ' + keyEnv + ' terlebih dahulu.');
     process.exit(1);
   }
 

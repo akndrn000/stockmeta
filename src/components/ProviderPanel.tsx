@@ -9,6 +9,8 @@ const GROQ_NOTE =
   'Limit gratis Groq ketat (8.000 token/menit); batch besar bisa lebih lambat karena menunggu limit reset.';
 const GEMINI_NOTE =
   'Kadang lebih sering terkena limit/sibuk dibanding Groq — coba Groq dulu kalau sering gagal.';
+const OPENROUTER_NOTE =
+  'Free tier OpenRouter sangat terbatas (sekitar 20 request/hari tanpa isi saldo) — cocok sebagai cadangan, bukan andalan utama. Model dipilih otomatis oleh OpenRouter dari daftar model gratis yang mendukung gambar.';
 
 // Label field: kecil, tegas, uppercase — dipakai identik di seluruh halaman.
 const LABEL =
@@ -45,10 +47,13 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
             <span id="provider-label" className={LABEL}>
               Provider
             </span>
+            {/* M19: 4 segmen (Groq, Gemini, OpenRouter, Coming Soon) — 2 kolom × 2 baris
+                di bawah 1120px supaya teks "OpenRouter" muat tanpa meluber di layar 360px
+                (4 kolom selebar layar hanya ±88px per segmen); ≥1120px jadi inline-flex. */}
             <div
               role="group"
               aria-labelledby="provider-label"
-              className="grid w-full grid-cols-3 gap-1 rounded-lg border border-border bg-surface-elevated p-1 min-[1120px]:inline-flex min-[1120px]:w-fit"
+              className="grid w-full grid-cols-2 gap-1 rounded-lg border border-border bg-surface-elevated p-1 min-[1120px]:inline-flex min-[1120px]:w-fit"
             >
               {PROVIDER_ORDER.map((p) => (
                 <button
@@ -223,6 +228,9 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
             )}
             {api.provider === 'gemini' && (
               <p className="font-mono text-small leading-relaxed text-text-muted">{GEMINI_NOTE}</p>
+            )}
+            {api.provider === 'openrouter' && (
+              <p className="font-mono text-small leading-relaxed text-text-muted">{OPENROUTER_NOTE}</p>
             )}
           </div>
         </div>

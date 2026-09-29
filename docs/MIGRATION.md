@@ -650,6 +650,116 @@ dan `0/70 · TANPA KOMA` lebih cepat ditemukan kalau berdampingan dengan labelny
   judul/deskripsi/kata kunci tetap terpasang, tombol `Salin` masih sebaris label & penghitung.
 - **188/188 tes**, `npx tsc --noEmit` 0 error, `npx eslint .` 0 temuan.
 
+## Perbaikan pasca-M18 (M19) — bukan tahap migrasi baru
+
+Satu label **M19** untuk dua gelombang: (a) **redesign responsif** yang sudah di-commit terpisah
+(`9656947 ui: redesign responsif fluid, header, panel, dan caption`) — dirangkum di sini supaya
+tak ada penanda `M19` di kode tanpa keterangan di dokumen; (b) **perbaikan tambahan** di bawah:
+dua kesejajaran piksel, provider OpenRouter, dan auto-test API key. Tanpa e2e, tanpa menjalankan
+server. Verifikasi akhir: `npm run test` **203/203 tes**, `npx tsc --noEmit` 0 error,
+`npm run lint` 0 temuan, `npm run build` sukses.
+
+### 1. Redesign responsif fluid (commit 9656947 — sudah masuk; ringkasan)
+
+- **Satu container `.shell`** (`globals.css`) dipakai header, baris status chip, panel provider,
+  dan `main`: `width:100%`, `max-width:120rem`, padding samping fluid
+  `max(clamp(.75rem,2vw,2rem), env(safe-area-inset-*))` — tepi kiri/kanan semua blok sejajar
+  dari 320px sampai ultrawide, plus aman untuk HP berponi/landscape.
+- **Header lengket hanya ≥1120px** (`Header.tsx`, `z-40` + `backdrop-blur-md`), di bawah itu
+  menggulir bersama halaman; baris chip status jadi scroll horizontal tanpa scrollbar
+  (`.scroll-none`); segment platform jadi `grid-cols-2` di bawah 1120px.
+- **Grid utama baru** (`page.tsx`): `minmax(0,1.4fr) / minmax(24rem,1fr)` mulai **1120px**
+  (satu kolom di bawahnya), `items-start` (tinggi kartu = isi) + kolom caption `sticky top-28`
+  di ≥1120px.
+- **ProviderPanel**: di bawah 1120px disusun vertikal selebar penuh (provider → API key →
+  tombol + chip status), provider berupa **segmented control** (bukan `<select>`), chip status
+  diseragamkan dengan chip header (pil + dot).
+- **Worksheet**: grid thumbnail intrinsik (auto-fill ≈7.5rem) + tombol aksi selebar penuh di HP.
+- **CaptionSheet**: pasangan dua kolom **Kategori ↔ Tema** (`@container` + `@md:grid-cols-2`,
+  penanda E.4), baris `role="status"` Kata kunci jadi `sr-only` saat kosong (E.3), keadaan
+  kosong baru, pasangan dua kolom juga untuk dua select kategori Adobe.
+- **`text-meta` naik ke lantai 12px** (`clamp(12px, 11.5px + .15vw, 12.5px)`); `body` jadi
+  `min-height:100dvh` + `overflow-x:clip`; target sentuh **44px** (dari 40) pada
+  `@media (max-width:1119px), (pointer:coarse)` + input/select/textarea 16px anti auto-zoom
+  iOS; export `viewport` Next 16 (zoom tidak diblokir, `viewportFit:cover`); scrollbar dokumen
+  ikut palet; fokus segmen pakai `outline-offset` supaya tidak menumpuk di atas isian aksen.
+
+### 2. Kesejajaran garis pembatas header panel (Lembar kerja ↔ Lembar caption)
+
+- Masalah: baris header Lembar kerja membawa tombol **Mulai sesi baru** (35px) sedangkan header
+  Lembar caption hanya judul + meta (≈24px) → `border-b` kedua panel beda ±11px di ≥1120px.
+- `src/components/Panel.tsx`: baris header kini **`min-h-15`** (60px = `py-3` 24 + `border-b` 1
+  + 35) + dua varian penambah tinggi `[@media(max-width:1119px)]:min-h-[4.3125rem]` dan
+  `pointer-coarse:min-h-[4.3125rem]` (69px = 24 + 1 + 44) — **media yang sama persis** dengan
+  aturan tombol 44px di `globals.css`, jadi tidak ada celah 1px. Hasil: tinggi baris judul
+  identik di kedua panel di semua lebar; header Lembar kerja desktop tidak berubah (memang
+  sudah 60px), hanya Lembar caption yang naik.
+
+### 3. Kesejajaran baris label Kategori ↔ Tema (dan kotak isian di bawahnya)
+
+- Masalah: di grid dua kolom (E.4) baris label **Kategori** punya tombol `Salin` (28px, 44px di
+  sentuh) sedangkan **Tema untuk frame ini** hanya teks (labelnya bisa membungkus 2 baris) →
+  tinggi baris label beda dan kotak isian sejajar hanya kebetulan.
+- `src/components/CaptionSheet.tsx`: **`flex-1`** pada baris label komponen `Field`. Grid
+  meregangkan kedua field ke tinggi baris yang sama, `flex-1` membagi sisa ruang → tinggi baris
+  label kedua kolom selalu setara dan kotak isian keduanya berhenti di titik yang sama, berapa
+  pun tinggi tombol/label. Pilihan ini di atas `min-h-7` tetap: angka tetap bocor untuk kasus
+  sentuh (44px) dan label membungkus; field tunggal (container auto-height) tidak berubah.
+
+### 4. Provider OpenRouter (cadangan keempat)
+
+- `src/lib/types.ts`: `ProviderId` + **`openrouter`**; `src/lib/storage.ts`: kunci
+  `stockmeta_openrouter_key` + `readProvider` menerima `openrouter`.
+- `src/lib/providers/openrouter.ts` (**baru**): tes koneksi = `GET /api/v1/models` (Bearer,
+  ringan, tanpa biaya token); generate = `POST /api/v1/chat/completions` dengan **model
+  `openrouter/free`** (alias — OpenRouter sendiri memilih model vision gratis yang tersedia,
+  tidak di-hardcode), `messages` identik Groq (prompt + `image_url` data URI) +
+  `response_format:{type:'json_object'}`; bila ditolak (**400/422**) **diulangi sekali tanpa
+  parameter itu** — hasil tetap dibersihkan `parseMetadataResponse`. Pesan error body
+  `{"error":{"message":"…"}}` ATAU `{"error":"…"}` dibawa utuh; 401/403 → *Key salah…*,
+  429 → kuota, 402 → kredit. Retry tetap lewat `withRetry`/`ProviderError`/`parseRetryAfter`
+  (400/404 non-retryable, 429 sabar). Key tidak pernah masuk URL/log.
+- `src/lib/providers/index.ts`: masuk registry. `src/hooks/useProvider.ts`:
+  `PROVIDER_ORDER` = **Groq → Gemini → OpenRouter → Coming Soon**, `PROVIDER_LABELS` /
+  `KEY_NOTES` / `TESTING_NOTES` ikut (`Memanggil endpoint OpenRouter…`).
+- `src/components/ProviderPanel.tsx`: catatan khusus **OpenRouter** (free tier ±20 request/hari
+  tanpa isi saldo — cadangan, bukan andalan; model vision gratis dipilih otomatis) tampil saat
+  provider aktif; segmented control `grid-cols-3` → **`grid-cols-2`** (4 segmen; 4 kolom membuat
+  "OpenRouter" meluber di layar 360px; ≥1120px tetap `inline-flex w-fit`).
+- `README.md`: baris **OpenRouter** di tabel provider. `scripts/live-test.ts`: env
+  `OPENROUTER_KEY`. `useBatch` tidak perlu diubah — `providerReady()` cukup `status === 'ok'`
+  (model Groq/OpenRouter sudah pasti; deteksi model hanya untuk Gemini).
+
+### 5. Auto-test API key tersimpan (boot & ganti provider)
+
+- `src/hooks/useProvider.ts`: `test()` dipilah jadi **`runTest(provider, key)`** — satu jalur
+  tes untuk tombol manual, boot, dan ganti provider; guard `testingRef` tetap (tak ada tes
+  beruntun) dan `Coming Soon` tidak pernah dites.
+  - **Boot**: key tersimpan langsung dites → status `Menguji…` → `Aktif`/`Gagal`
+    (bukan `Belum dites` basi dari sesi lalu); tanpa key tersimpan → tetap `Belum dites`.
+  - **`setProvider`**: provider tujuan **punya** key tersimpan → field diisi key itu
+    (yang tampil = yang dites) + tes otomatis; **tidak punya** → isi field lama dipertahankan
+    (legacy) dan status reset `Belum dites`.
+  - Key **tetap hanya disimpan setelah tes lulus** (kontrak legacy); tes manual tetap bisa
+    kapan saja dan hasilnya mengganti key tersimpan.
+- Efek samping pada tes: harness lama (`useBatch`, `Worksheet`, `CaptionSheet`) membersihkan
+  localStorage sebelum mount → auto-test tidak menyala, perilaku tes lama tidak berubah.
+
+### 6. Tes & verifikasi M19
+
+- `src/lib/providers/openrouter.test.ts` (**baru**, 7 tes): bentuk request tes/generate
+  (Bearer, `openrouter/free`, data URI, `response_format`), fallback tanpa `response_format`
+  pada 400 (dua panggilan, prompt identik), pesan error body utuh + 404 tanpa retry, respons
+  non-JSON → pesan generik.
+- `src/hooks/useProvider.test.ts` (**baru**, 9 tes): auto-test boot (`Menguji…` → `Aktif`
+  dengan key & catatan benar), key mati → `Gagal`, tanpa key → tetap `Belum dites` tanpa
+  panggilan, ganti provider (ada key → isi field + tes; tidak ada → field dipertahankan +
+  reset), tes manual sesudah auto-test (key yang diketik yang dites & disimpan), Coming Soon
+  tak pernah dites, urutan & label provider.
+- **203/203 tes** (16 baru), `npx tsc --noEmit` 0 error, `npm run lint` 0 temuan,
+  `npm run build` sukses; aturan CSS baru diverifikasi ikut ter-compile
+  (`.min-h-15`, `@media (max-width:1119px){…min-h-[4.3125rem]}`, `@media (pointer:coarse){…}`).
+
 ## Kontrak perilaku (WAJIB sama dengan legacy)
 
 Sumber: `legacy/docs/PROGRESS.md` + `legacy/js/*.js`. Tanda **[BARU]** = perilaku baru yang

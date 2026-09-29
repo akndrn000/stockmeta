@@ -1,7 +1,10 @@
 'use client';
 // State koneksi provider: pilih provider, input API key, tes koneksi.
-// Kontrak legacy: key hanya disimpan SETEHAH tes lulus; pindah provider → key di-restore
-// dari localStorage (kalau field kosong) dan status selalu reset ke 'Belum dites'.
+// Kontrak legacy: key hanya disimpan SETELAH tes lulus. M19: key tersimpan yang terbaca
+// saat boot / saat ganti provider LANGSUNG dites ulang (auto-test) — status "Aktif" selalu
+// membuktikan koneksi hidup, bukan klaim basi dari sesi sebelumnya; jika key provider tujuan
+// tersimpan, field ikut diisi key itu (yang tampil = yang dites), kalau tidak ada key tersimpan
+// isi field dipertahankan seperti legacy.
 import { useEffect, useRef, useState } from 'react';
 import { getProvider } from '../lib/providers';
 import { readKey, readProvider, writeKey, writeProvider } from '../lib/storage';
@@ -15,17 +18,20 @@ export const DEFAULT_PROVIDER: ProviderId = 'groq';
 export const KEY_NOTES: Record<ProviderId, string> = {
   gemini: 'Gemini: key disimpan di browser setelah tes berhasil (stockmeta_gemini_key).',
   groq: 'Groq: key disimpan di browser setelah tes berhasil (stockmeta_groq_key).',
+  openrouter: 'OpenRouter: key disimpan di browser setelah tes berhasil (stockmeta_openrouter_key).',
   'coming-soon': SOON_NOTE
 };
 
 export const PROVIDER_LABELS: Record<ProviderId, string> = {
   gemini: 'Gemini',
   groq: 'Groq',
+  openrouter: 'OpenRouter',
   'coming-soon': 'Coming Soon'
 };
 
-// Urutan dropdown (M11): Groq sebagai provider utama lebih dulu, lalu Gemini, lalu Coming Soon
-export const PROVIDER_ORDER: readonly ProviderId[] = ['groq', 'gemini', 'coming-soon'];
+// Urutan dropdown (M11): Groq sebagai provider utama lebih dulu, lalu Gemini;
+// M19: OpenRouter diselipkan sebagai cadangan sebelum Coming Soon.
+export const PROVIDER_ORDER: readonly ProviderId[] = ['groq', 'gemini', 'openrouter', 'coming-soon'];
 
 export const STATUS_LABELS: Record<ConnectionStatus, string> = {
   idle: 'Belum dites',
@@ -34,9 +40,11 @@ export const STATUS_LABELS: Record<ConnectionStatus, string> = {
   fail: 'Gagal'
 };
 
-const TESTING_NOTES: Record<'gemini' | 'groq', string> = {
+const TESTING_NOTES: Record<ProviderId, string> = {
   gemini: 'Memanggil endpoint Gemini…',
-  groq: 'Memanggil endpoint Groq…'
+  groq: 'Memanggil endpoint Groq…',
+  openrouter: 'Memanggil endpoint OpenRouter…',
+  'coming-soon': SOON_NOTE
 };
 
 const OK_NOTE = 'Terhubung — API key disimpan di browser.';
@@ -58,47 +66,21 @@ export function useProvider() {
   const [model, setModel] = useState<string | undefined>(undefined);
   const testingRef = useRef(false);
 
-  // boot: pulihkan pilihan provider tersimpan (M11 — kalau belum pernah memilih → Groq),
-  // lalu isi field key dari storage (legacy loadStoredKey) — status tetap 'Belum dites'.
-  // Sinkronisasi satu kali setelah mount supaya nilai awal = '' saat hydration (localStorage
-  // tidak ada di server); efek ini tidak pernah berulang sehingga tidak ada cascading render.
-  useEffect(() => {
-    const saved = readProvider() ?? DEFAULT_PROVIDER;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- restore sekali dari localStorage
-    setProviderState(saved);
-    setKeyState((prev) => (prev.trim() ? prev : readKey(saved)));
-  }, []);
-
-  function setProvider(p: ProviderId) {
-    if (testingRef.current) return;           // legacy: abaikan saat sedang menguji
-    writeProvider(p);                          // M11: pilihan dihormati di kunjungan berikutnya
-    setProviderState(p);
-    setStatusState('idle');
-    setNoteState(null);
-    setModel(undefined);
-    setKeyState((prev) => (prev.trim() ? prev : readKey(p)));
-  }
-
-  function setKey(v: string) {
-    setKeyState(v);                           // mengetik selama tes tetap diterima…
-    if (testingRef.current) return;           // …tapi status tidak di-reset (legacy)
-    setStatusState('idle');
-    setNoteState(null);
-  }
-
-  async function test() {
-    if (provider === 'coming-soon' || testingRef.current) return;
-    const k = key.trim();
+  // M19: satu jalur tes dipakai tombol manual, boot, dan ganti provider supaya status
+  // 'Menguji…' → 'Aktif'/'Gagal' selalu berlaku sama. testingRef menolak tes beruntun.
+  async function runTest(p: ProviderId, rawKey: string) {
+    if (p === 'coming-soon' || testingRef.current) return;
+    const k = rawKey.trim();
     testingRef.current = true;
     setStatusState('testing');
-    setNoteState(TESTING_NOTES[provider === 'groq' ? 'groq' : 'gemini']);
+    setNoteState(TESTING_NOTES[p]);
     try {
       if (!k) { setStatusState('fail'); setNoteState(EMPTY_NOTE); return; }
-      const adapter = getProvider(provider);
+      const adapter = getProvider(p);
       if (!adapter) { setStatusState('fail'); setNoteState(SOON_NOTE); return; }
       const res = await adapter.testConnection(k);
       if (res.ok) {
-        writeKey(provider, k);                // hanya setelah tes lulus
+        writeKey(p, k);                      // hanya setelah tes lulus
         setModel(res.model);
         setStatusState('ok');
         setNoteState(OK_NOTE);
@@ -112,6 +94,45 @@ export function useProvider() {
     } finally {
       testingRef.current = false;
     }
+  }
+
+  // boot: pulihkan pilihan provider tersimpan (M11 — kalau belum pernah memilih → Groq),
+  // isi field key dari storage (legacy loadStoredKey), lalu M19: key tersimpan langsung
+  // dites ulang — status awal 'Menguji…' → 'Aktif'/'Gagal', bukan 'Belum dites' basi.
+  // Sinkronisasi satu kali setelah mount supaya nilai awal = '' saat hydration (localStorage
+  // tidak ada di server); efek ini tidak pernah berulang sehingga tidak ada cascading render.
+  useEffect(() => {
+    const saved = readProvider() ?? DEFAULT_PROVIDER;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- restore sekali dari localStorage
+    setProviderState(saved);
+    const stored = readKey(saved).trim();
+    setKeyState((prev) => (prev.trim() ? prev : stored));
+    if (stored) void runTest(saved, stored);
+  }, []);
+
+  function setProvider(p: ProviderId) {
+    if (testingRef.current) return;           // legacy: abaikan saat sedang menguji
+    writeProvider(p);                          // M11: pilihan dihormati di kunjungan berikutnya
+    setProviderState(p);
+    setStatusState('idle');
+    setNoteState(null);
+    setModel(undefined);
+    const stored = readKey(p).trim();
+    // field diisi key provider tujuan bila ada (yang tampil = yang akan dites),
+    // kalau tidak ada key tersimpan isi lama dipertahankan (legacy)
+    setKeyState((prev) => stored || prev.trim());
+    if (stored) void runTest(p, stored);       // M19: auto-test key tersimpan
+  }
+
+  function setKey(v: string) {
+    setKeyState(v);                           // mengetik selama tes tetap diterima…
+    if (testingRef.current) return;           // …tapi status tidak di-reset (legacy)
+    setStatusState('idle');
+    setNoteState(null);
+  }
+
+  function test() {
+    return runTest(provider, key);
   }
 
   return {

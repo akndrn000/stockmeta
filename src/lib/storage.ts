@@ -7,7 +7,8 @@ import { hasContent } from './metadata';
 
 const KEY_LS: Partial<Record<ProviderId, string>> = {
   gemini: 'stockmeta_gemini_key',
-  groq: 'stockmeta_groq_key'
+  groq: 'stockmeta_groq_key',
+  openrouter: 'stockmeta_openrouter_key'
 };
 
 export const SESS_KEY = 'stockmeta_session';
@@ -41,7 +42,7 @@ export function writeKey(provider: ProviderId, key: string): void {
 export function readProvider(): ProviderId | null {
   try {
     const v = ls()?.getItem(PROVIDER_KEY);
-    return v === 'gemini' || v === 'groq' || v === 'coming-soon' ? v : null;
+    return v === 'gemini' || v === 'groq' || v === 'openrouter' || v === 'coming-soon' ? v : null;
   } catch { return null; }
 }
 

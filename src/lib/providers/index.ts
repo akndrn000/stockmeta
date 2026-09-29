@@ -3,11 +3,13 @@
 import type { ProviderId } from '../types';
 import { gemini } from './gemini';
 import { groq } from './groq';
+import { openrouter } from './openrouter';
 import type { ProviderAdapter } from './types';
 
 export const registry: Record<ProviderId, ProviderAdapter | undefined> = {
   gemini,
   groq,
+  openrouter,
   'coming-soon': undefined
 };
 

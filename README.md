@@ -35,6 +35,7 @@ menyentuh server aplikasi ini.
 | --- | --- | --- |
 | **Groq** (default) | `qwen/qwen3.8-27b` | Limit gratis ketat (**±8.000 token/menit**) — batch besar bisa lambat karena menunggu limit reset. |
 | **Gemini** | Model flash terbaru (deteksi otomatis) | Kadang lebih sering terkena limit/sibuk dibanding Groq (`429` per menit dan per hari) — coba Groq dulu kalau sering gagal. |
+| **OpenRouter** | `openrouter/free` (otomatis, vision) | Cadangan: free tier sangat terbatas (**±20 request/hari** tanpa isi saldo) — model vision gratis dipilih otomatis OpenRouter. |
 
 Saran: kalau sering muncul pemberitahuan **“Menunggu limit reset”**, naikkan **Jeda antar
 foto** (misalnya 12 atau 20 detik) di Lembar kerja. Retry berjalan otomatis (maksimal 5
