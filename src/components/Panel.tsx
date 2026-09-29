@@ -28,14 +28,17 @@ export function Panel({
   return (
     <section
       id={id}
-      className={`flex min-w-0 flex-col overflow-hidden rounded-md border border-border bg-surface ${className}`}
+      className={`flex min-w-0 flex-col scroll-mt-4 overflow-hidden rounded-xl border border-border bg-surface min-[1120px]:scroll-mt-40 ${className}`}
     >
-      <div className="flex items-center gap-3 border-b border-border px-4 py-3">
-        <div className="flex min-w-0 items-baseline gap-3">
+      {/* flex-wrap: di lebar sangat sempit (320px) baris aksi pindah ke baris kedua —
+          judul & meta tetap utuh, tidak pernah terpotong. */}
+      <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1.5">
           <h2 className="truncate text-title font-bold tracking-[-0.015em] text-text">
             {title}
           </h2>
-          <span className="shrink-0 font-mono text-meta font-bold uppercase tracking-[0.08em] text-text-muted">
+          {/* meta = readout berbentuk pil (bukan teks telanjang) — angka tabular */}
+          <span className="shrink-0 rounded-full border border-border bg-bg-secondary px-2 py-0.5 font-mono text-meta font-bold uppercase tracking-[0.06em] text-text-secondary tabular-nums">
             {meta}
           </span>
         </div>

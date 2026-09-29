@@ -42,18 +42,18 @@ export function KeywordEditor({ keywords, min, onChange, disabled }: {
       {/* M18: penghitung & badge naik ke baris label — label kiri, penghitung + salin kanan;
           flex-wrap + ml-auto bila layar sempit (grup kanan turun dan tetap rata kanan). */}
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-        <label htmlFor="kw-input" className="text-meta font-semibold leading-none tracking-[0.01em] text-text-muted">
+        <label htmlFor="kw-input" className="text-meta font-semibold uppercase tracking-[0.06em] text-text-muted">
           Kata kunci
         </label>
         <span className="ml-auto flex shrink-0 items-center gap-1.5">
           <span id="kw-count" className="flex shrink-0 items-center gap-1.5">
             {/* M16: badge meta kecil (penghitung, min, penuh) = teks polos tanpa kotak —
                 hanya badge STATUS (berwarna aktif) yang memakai garis 2px. */}
-            <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-text-muted">
+            <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-text-muted tabular-nums">
               {n}/{MAX_KEYWORDS}
             </span>
             {n < min && (
-              <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-warning">
+              <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-warning tabular-nums">
                 min {min}
               </span>
             )}
@@ -79,7 +79,7 @@ export function KeywordEditor({ keywords, min, onChange, disabled }: {
           {keywords.map((k, i) => (
             <li
               key={`${k.toLowerCase()}-${i}`}
-              className="inline-flex max-w-full items-center gap-1 rounded border border-border bg-surface-elevated py-1 pl-2 pr-1 text-small text-text"
+              className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-surface-elevated py-1 pl-3 pr-1.5 text-small text-text transition-colors duration-150 hover:border-border-strong"
             >
               <span className="min-w-0 truncate" title={k}>{k}</span>
               <button
@@ -87,7 +87,7 @@ export function KeywordEditor({ keywords, min, onChange, disabled }: {
                 onClick={() => onChange(removeKeyword(keywords, i))}
                 aria-label={`Hapus kata kunci ${k}`}
                 title={`Hapus kata kunci ${k}`}
-                className="btn-compact relative grid h-5 w-5 place-items-center rounded text-text-muted transition-colors hover:bg-accent-tint hover:text-error before:absolute before:-inset-2.5 before:content-['']"
+                className="btn-compact relative grid h-5 w-5 place-items-center rounded-full text-text-muted transition-colors duration-150 hover:bg-error-tint hover:text-error before:absolute before:-inset-3 before:content-['']"
               >
                 <svg width="9" height="9" viewBox="0 0 10 10" fill="none" aria-hidden="true">
                   <path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -127,10 +127,16 @@ export function KeywordEditor({ keywords, min, onChange, disabled }: {
         placeholder={full ? 'Penuh — hapus salah satu dulu' : 'Ketik kata kunci, pisahkan koma atau Enter'}
         spellCheck={false}
         autoCapitalize="none"
-        className="h-10 w-full rounded border border-border-control bg-surface-elevated px-3 py-2 text-body text-text transition-colors placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
+        className="h-10 w-full rounded-md border border-border-control bg-surface-elevated px-3 py-2 text-body text-text transition-colors duration-150 placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
       />
 
-      <p role="status" aria-live="polite" className="min-h-4 text-small font-medium text-text-secondary">
+      {/* M19 (E.3): saat kosong baris ini jadi sr-only — ruang kosong 16px di bawah input
+          hilang, tapi elemen aria-live tetap ada di DOM supaya pesan dilewati tetap diumumkan. */}
+      <p
+        role="status"
+        aria-live="polite"
+        className={`text-small font-medium text-text-secondary ${skip ? 'min-h-4' : 'sr-only'}`}
+      >
         {skip}
       </p>
     </div>

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import { InlineScript } from "../components/InlineScript";
 import "./globals.css";
@@ -14,6 +14,14 @@ export const metadata: Metadata = {
   title: "StockMeta — Metadata AI untuk Adobe Stock & Shutterstock",
   description:
     "Buat judul, deskripsi, kata kunci, dan kategori unggahan stok secara batch dengan Gemini atau Groq. API key disimpan hanya di browser Anda.",
+};
+
+// M19: viewport mengikuti lebar perangkat + safe-area (HP berponi/landscape) tanpa
+// memblokir zoom (tanpa maximumScale/userScalable) — API Next 16 "viewport" export.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover'
 };
 
 // Nilai sama dengan THEME_KEY ('stockmeta_theme') di src/lib/storage.ts — sengaja inline

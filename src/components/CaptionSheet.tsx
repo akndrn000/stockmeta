@@ -37,7 +37,7 @@ function FieldNote({ text, tone = 'ok', id }: { text: string; tone?: 'ok' | 'nea
   return (
     <span
       id={id}
-      className={`shrink-0 font-mono text-meta font-bold uppercase tracking-[0.08em] transition-colors ${
+      className={`shrink-0 font-mono text-meta font-bold uppercase tracking-[0.08em] tabular-nums transition-colors duration-150 ${
         tone === 'over' ? 'text-error' : tone === 'near' ? 'text-warning' : 'text-text-muted'
       }`}
     >
@@ -67,7 +67,7 @@ function Field({ id, label, copyText, note, hint, disabled, children }: {
       {/* M18: flex-wrap bila layar sempit — grup kanan turun ke baris kedua dan tetap
           rata kanan (ml-auto), sehingga label & tombol salin tidak pernah meluber. */}
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-        <label htmlFor={id} className="text-meta font-semibold leading-none tracking-[0.01em] text-text-muted">
+        <label htmlFor={id} className="text-meta font-semibold uppercase tracking-[0.06em] text-text-muted">
           {label}
         </label>
         {hasRight && (
@@ -84,7 +84,7 @@ function Field({ id, label, copyText, note, hint, disabled, children }: {
 }
 
 const selectCls =
-  'h-10 w-full appearance-none rounded border border-border-control bg-surface-elevated px-3 py-2 pr-8 text-body font-semibold text-text transition-colors hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50';
+  'h-10 w-full appearance-none rounded-md border border-border-control bg-surface-elevated px-3 py-2 pr-8 text-body font-semibold text-text transition-colors duration-150 hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50';
 
 function SelectArrow() {
   return (
@@ -141,6 +141,25 @@ export function CaptionSheet({ session }: {
   const err = frame ? frame.error[platform] : '';
   const showError = Boolean(frame && err && st === 'gagal');
 
+  // M19 (E.4): field "Tema untuk frame ini" dipasangkan dua kolom dengan Kategori bila
+  // kartu cukup lebar (@container → @md), satu kolom bila sempit. JSX dipakai ulang oleh
+  // kedua cabang platform supaya urutan & jumlah field tetap sama.
+  const temaField = (
+    <Field id="caption-tema" label="Tema untuk frame ini (opsional)" disabled={!frame}>
+      <input
+        id="caption-tema"
+        type="text"
+        value={frame?.tema ?? ''}
+        onChange={(e) => {
+          if (frame) setFrameTema(frame.id, e.target.value);
+        }}
+        placeholder={tema || 'ikuti tema batch'}
+        disabled={!frame}
+        className="h-10 w-full rounded-md border border-border-control bg-surface-elevated px-3 py-2 text-body text-text transition-colors duration-150 placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
+      />
+    </Field>
+  );
+
   return (
     <Panel
       id="lembar-caption"
@@ -173,19 +192,35 @@ export function CaptionSheet({ session }: {
                   ? 'Belum ada frame — upload gambar dulu di lembar kerja.'
                   : 'Belum ada metadata — jalankan Buat metadata dulu.'
             }
-            className={`rounded border border-border-control px-3 py-1.5 text-body font-semibold text-text transition-colors hover:bg-accent-tint ${
-              canExport ? '' : 'cursor-not-allowed opacity-45'
+            className={`inline-flex items-center gap-2 rounded-md border border-accent/40 bg-accent-tint/60 px-3.5 py-1.5 text-body font-semibold text-accent-text transition-colors duration-150 hover:border-accent hover:bg-accent-tint ${
+              canExport ? '' : 'cursor-not-allowed opacity-45 hover:border-accent/40 hover:bg-accent-tint/60'
             }`}
           >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path
+                d="M7 1.8v6.6m0 0L4.4 5.9M7 8.4l2.6-2.5"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M1.9 9.4v1.5a1.3 1.3 0 0 0 1.3 1.3h7.6a1.3 1.3 0 0 0 1.3-1.3V9.4"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
             Export CSV
           </button>
           <span className="flex flex-wrap items-center gap-3">
             {rowsWithNotes > 0 && (
-              <span className="text-meta font-medium text-text-muted">
+              <span className="text-meta font-medium uppercase tracking-[0.06em] text-warning">
                 {rowsWithNotes} baris punya saran perbaikan
               </span>
             )}
-            <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-text-secondary">
+            <span className="rounded-full border border-border bg-bg-secondary px-2.5 py-1 font-mono text-meta font-bold uppercase tracking-[0.06em] text-text-secondary tabular-nums">
               {exportRows} baris
             </span>
           </span>
@@ -197,20 +232,40 @@ export function CaptionSheet({ session }: {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-controls="caption-body"
-        className="mb-3 w-full items-center justify-between gap-2 rounded border border-border-control px-3 py-2 text-body font-semibold text-text-secondary transition-colors hover:bg-accent-tint lg:hidden"
+        className="mb-3 flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-md border border-border bg-transparent px-3 py-2 text-body font-semibold text-text-secondary transition-colors duration-150 hover:border-border-control hover:bg-accent-tint hover:text-text lg:hidden"
       >
-        <span className="inline-flex items-center gap-2">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" className={`transition-transform ${open ? '' : '-rotate-90'}`}>
+        <span className="inline-flex shrink-0 items-center gap-2">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" className={`transition-transform duration-150 ${open ? '' : '-rotate-90'}`}>
             <path d="M2.5 4.5L6 8l3.5-3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           {open ? 'Sembunyikan detail' : 'Tampilkan detail'}
         </span>
-        <span className="truncate font-mono text-meta uppercase tracking-[0.08em] text-text-muted">
+        <span
+          className="min-w-0 truncate font-mono text-meta uppercase tracking-[0.08em] text-text-muted"
+          title={frame ? frame.name : undefined}
+        >
           {frame ? frame.name : 'belum ada frame'}
         </span>
       </button>
 
-      <div id="caption-body" className={`flex flex-col gap-4 ${open ? '' : 'max-lg:hidden'}`}>
+      <div id="caption-body" className={`flex flex-col gap-4 @container ${open ? '' : 'max-lg:hidden'}`}>
+        {/* Empty state ramah: ikon + teks yang sudah ada ("belum ada frame") + ruang lega —
+            hanya saat sesi benar-benar kosong; seluruh field tetap dirender di bawahnya. */}
+        {frames.length === 0 && (
+          <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border-strong bg-bg-secondary px-4 py-8 text-center">
+            <span aria-hidden="true" className="grid h-10 w-10 place-items-center rounded-md border border-border bg-surface text-text-muted">
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2.5" y="4" width="15" height="12" rx="2" />
+                <path d="M2.5 12.5l3.6-3.2a1.5 1.5 0 0 1 2 0l4.4 3.9" />
+                <path d="M12.2 11.2l1.5-1.3a1.5 1.5 0 0 1 2 0l1.8 1.6" />
+                <circle cx="7.2" cy="7.8" r="1.1" />
+              </svg>
+            </span>
+            <p className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-text-secondary">
+              belum ada frame
+            </p>
+          </div>
+        )}
         {/* M14: strip nama file + status hanya bila ada frame terpilih — kotak kosong M13
             ("Belum ada frame dipilih") dihapus; struktur field di bawah yang menandai
             lembar ini masih kosong (semuanya nonaktif sampai ada frame). */}
@@ -223,7 +278,7 @@ export function CaptionSheet({ session }: {
                 label netral (menunggu/proses) memakai garis putus-putus warna abu-agar
                 konsisten dengan badge provider saat idle. */}
             <span
-              className={`badge-bracket shrink-0 rounded border-2 px-2 py-0.5 font-mono text-meta font-bold uppercase tracking-[0.08em] transition-colors ${
+              className={`badge-bracket shrink-0 rounded-md border-2 px-2 py-0.5 font-mono text-meta font-bold uppercase tracking-[0.08em] transition-colors duration-150 ${
                 st === 'siap'
                   ? 'border-success text-success'
                   : st === 'gagal'
@@ -239,7 +294,7 @@ export function CaptionSheet({ session }: {
         {/* M13: hanya pesan error — tombol & konfirmasi "Timpa hasil yang ada?" pindah
             ke ikon buat ulang di tile Worksheet (showError = ada frame + status gagal) */}
         {showError && (
-          <div role="alert" className="rounded-md border-2 border-error bg-error-tint p-3">
+          <div role="alert" className="rounded-lg border-2 border-error bg-error-tint p-3">
             <p className="text-body font-semibold leading-snug text-error">{err}</p>
           </div>
         )}
@@ -271,7 +326,7 @@ export function CaptionSheet({ session }: {
                 placeholder="Judul menjual, spesifik, tanpa frasa generik"
                 disabled={!frame}
                 aria-describedby="caption-title-note"
-                className="w-full resize-none rounded border border-border-control bg-surface-elevated px-3 py-2 text-body leading-relaxed text-text transition-colors placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full resize-none rounded-md border border-border-control bg-surface-elevated px-3 py-2 text-body leading-relaxed text-text transition-colors duration-150 placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
               />
             </Field>
 
@@ -282,23 +337,27 @@ export function CaptionSheet({ session }: {
               disabled={!frame}
             />
 
-            <Field id="caption-category" label="Kategori" copyText={adobe?.category ?? ''} disabled={!frame}>
-              <div className="relative">
-                <select
-                  id="caption-category"
-                  value={adobe?.category ?? ''}
-                  onChange={(e) => patchAdobe({ category: e.target.value })}
-                  disabled={!frame}
-                  className={selectCls}
-                >
-                  <option value="">— pilih kategori —</option>
-                  {ADOBE_CATEGORIES.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-                <SelectArrow />
-              </div>
-            </Field>
+            {/* M19 (E.4): Kategori + Tema berdampingan bila kartu cukup lebar */}
+            <div className="grid gap-4 @md:grid-cols-2">
+              <Field id="caption-category" label="Kategori" copyText={adobe?.category ?? ''} disabled={!frame}>
+                <div className="relative">
+                  <select
+                    id="caption-category"
+                    value={adobe?.category ?? ''}
+                    onChange={(e) => patchAdobe({ category: e.target.value })}
+                    disabled={!frame}
+                    className={selectCls}
+                  >
+                    <option value="">— pilih kategori —</option>
+                    {ADOBE_CATEGORIES.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                  <SelectArrow />
+                </div>
+              </Field>
+              {temaField}
+            </div>
           </>
         ) : (
           <>
@@ -326,7 +385,7 @@ export function CaptionSheet({ session }: {
                 placeholder="Satu dua kalimat yang menggambarkan subjek, gaya, dan suasana"
                 disabled={!frame}
                 aria-describedby="caption-desc-note"
-                className="w-full resize-none rounded border border-border-control bg-surface-elevated px-3 py-2 text-body leading-relaxed text-text transition-colors placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full resize-none rounded-md border border-border-control bg-surface-elevated px-3 py-2 text-body leading-relaxed text-text transition-colors duration-150 placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
               />
             </Field>
 
@@ -337,75 +396,74 @@ export function CaptionSheet({ session }: {
               disabled={!frame}
             />
 
-            <Field id="caption-cat1" label="Kategori utama" copyText={cats[0] ?? ''} disabled={!frame}>
-              <div className="relative">
-                <select
-                  id="caption-cat1"
-                  value={cats[0] ?? ''}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    patchShutter({ categories: v ? (cats[1] && cats[1] !== v ? [v, cats[1]] : [v]) : [] });
-                  }}
-                  disabled={!frame}
-                  className={selectCls}
-                >
-                  <option value="">— pilih kategori —</option>
-                  {SHUTTERSTOCK_CATEGORIES.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-                <SelectArrow />
-              </div>
-            </Field>
+            {/* M19 (E.4): dua select kategori berdampingan bila kartu cukup lebar */}
+            <div className="grid gap-4 @md:grid-cols-2">
+              <Field id="caption-cat1" label="Kategori utama" copyText={cats[0] ?? ''} disabled={!frame}>
+                <div className="relative">
+                  <select
+                    id="caption-cat1"
+                    value={cats[0] ?? ''}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      patchShutter({ categories: v ? (cats[1] && cats[1] !== v ? [v, cats[1]] : [v]) : [] });
+                    }}
+                    disabled={!frame}
+                    className={selectCls}
+                  >
+                    <option value="">— pilih kategori —</option>
+                    {SHUTTERSTOCK_CATEGORIES.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                  <SelectArrow />
+                </div>
+              </Field>
 
-            <Field id="caption-cat2" label="Kategori tambahan (opsional)" copyText={cats[1] ?? ''} disabled={!frame}>
-              <div className="relative">
-                <select
-                  id="caption-cat2"
-                  value={cats[1] ?? ''}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    patchShutter({ categories: v ? [cats[0], v].filter(Boolean) : cats[0] ? [cats[0]] : [] });
-                  }}
-                  disabled={!frame}
-                  className={selectCls}
-                >
-                  <option value="">— pilih kategori —</option>
-                  {SHUTTERSTOCK_CATEGORIES.filter((c) => c !== cats[0]).map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-                <SelectArrow />
-              </div>
-            </Field>
+              <Field id="caption-cat2" label="Kategori tambahan (opsional)" copyText={cats[1] ?? ''} disabled={!frame}>
+                <div className="relative">
+                  <select
+                    id="caption-cat2"
+                    value={cats[1] ?? ''}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      patchShutter({ categories: v ? [cats[0], v].filter(Boolean) : cats[0] ? [cats[0]] : [] });
+                    }}
+                    disabled={!frame}
+                    className={selectCls}
+                  >
+                    <option value="">— pilih kategori —</option>
+                    {SHUTTERSTOCK_CATEGORIES.filter((c) => c !== cats[0]).map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                  <SelectArrow />
+                </div>
+              </Field>
+            </div>
           </>
         )}
 
-        {/* M14: hint "Kosongkan untuk memakai tema batch." dihapus — labelnya sudah menjelaskan */}
-        <Field id="caption-tema" label="Tema untuk frame ini (opsional)" disabled={!frame}>
-          <input
-            id="caption-tema"
-            type="text"
-            value={frame?.tema ?? ''}
-            onChange={(e) => {
-              if (frame) setFrameTema(frame.id, e.target.value);
-            }}
-            placeholder={tema || 'ikuti tema batch'}
-            disabled={!frame}
-            className="h-10 w-full rounded border border-border-control bg-surface-elevated px-3 py-2 text-body text-text transition-colors placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
-          />
-        </Field>
+        {/* M14: hint "Kosongkan untuk memakai tema batch." dihapus — labelnya sudah menjelaskan.
+            M19: di cabang Adobe field ini ikut grid dua kolom bersama Kategori (lihat atas). */}
+        {platform === 'shutterstock' && temaField}
 
-        {/* Saran hanya relevan saat ada frame + slot berisi — selain itu tidak dirender */}
+        {/* Saran hanya relevan saat ada frame + slot berisi — selain itu tidak dirender.
+            Kotak AMBER lembut (non-pemblokir): judul & ikon warning, isi tetap teks sekunder
+            supaya kontras AA di kedua mode. */}
         {notes.length > 0 && (
-          <div className="rounded-md border border-border bg-surface-elevated p-3">
-            <p className="mb-1.5 font-mono text-meta font-bold uppercase tracking-[0.08em] text-text-muted">
+          <div className="rounded-lg border border-warning/45 bg-warning-tint p-3">
+            <p className="mb-1.5 flex items-center gap-1.5 font-mono text-meta font-bold uppercase tracking-[0.08em] text-warning">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M6 1.6l4.6 8H1.4l4.6-8z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                <path d="M6 5v1.9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                <circle cx="6" cy="8.5" r="0.7" fill="currentColor" />
+              </svg>
               Saran perbaikan
             </p>
             <ul className="flex flex-col gap-1.5">
               {notes.map((note, i) => (
                 <li key={`${note.field}-${i}`} className="flex items-start gap-2 text-small leading-relaxed text-text-secondary">
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" className="mt-0.5 shrink-0 text-accent-text">
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" className="mt-0.5 shrink-0 text-warning">
                     <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.3" />
                     <path d="M6 3.4v.1M6 5.4v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                   </svg>

@@ -256,13 +256,12 @@ describe('keterangan bantu dihapus (M14)', () => {
     expect(host.textContent).not.toContain('Naikkan jika sering muncul');
   });
 
-  it('grid thumbnail: auto-fill minmax di layar sempit + tepat 5 kolom di ≥1120px (M15)', () => {
+  it('grid thumbnail: auto-fill minmax intrinsik, tanpa kolom per breakpoint (M19)', () => {
     addFrames(2);
     const grid = host.querySelector('ul.grid');
     expect(grid).not.toBeNull();
-    expect(grid!.className).toContain('minmax(9.375rem,1fr)');   // 150px piksel-tetap diganti rem
-    // ≥1120px (bukan lg): di 1024–1119px tile terlalu sempit untuk 5 kolom tanpa tabrakan
-    expect(grid!.className).toContain('min-[1120px]:grid-cols-5');
+    expect(grid!.className).toContain('minmax(7.5rem,1fr)');   // 120px — aman dari tabrakan badge
+    expect(grid!.className).not.toContain('grid-cols-5');        // kolom kini ikut lebar kartu
     expect(grid!.className).not.toContain('lg:grid-cols-5');
   });
 });

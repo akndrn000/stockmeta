@@ -105,7 +105,9 @@
      meta 11 (label/counter/badge/readout) · small 13 (hint, nama file, chip, pesan pendukung)
      body 14 (nilai isian, teks tombol, teks isi/dropzone) · title 16 (judul panel)
      brand 20 (nama brand). Nilai `text-[NNpx]` hard-coded tidak dipakai lagi. */
-  --text-meta: 11px;
+  /* M19: teks kecil dinaikkan ke ambang 12px (lantai responsif brief) dan dibuat fluid —
+     rentang sempit (12 → 12,5px) supaya tampilan desktop praktis tidak berubah. */
+  --text-meta: clamp(12px, 11.5px + 0.15vw, 12.5px);
   --text-meta--line-height: 1.4;
   --text-small: 13px;
   --text-small--line-height: 1.5;
@@ -126,6 +128,10 @@
     font-family: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
     background-color: var(--bg);
     color: var(--text);
+    /* M19: latar mengisi seluruh viewport (halaman pendek tetap penuh warna) + jaring
+       pengaman overflow-x — layout sendiri diukur bebas overflow di semua lebar. */
+    min-height: 100dvh;
+    overflow-x: clip;
   }
 
   /* Seleksi & kursor mengikuti aksen (safelight) */
@@ -157,6 +163,28 @@
    border/latar aksen yang bersih. Tidak berdenyut jadi aman bagi prefers-reduced-motion. */
 .glow {
   box-shadow: var(--glow);
+}
+
+/* M19: SATU container dipakai header, baris status, panel provider, dan main —
+   tepi kiri/kanan semuanya sejajar. Lebar 100% dengan max longgar (120rem) supaya
+   di 1920px konten memakai hampir seluruh lebar, di ultrawide tetap terpusat.
+   Padding samping fluid + safe-area (HP berponi / landscape) — bukan nilai piksel
+   yang dikunci per breakpoint. */
+.shell {
+  width: 100%;
+  max-width: 120rem;
+  margin-inline: auto;
+  padding-inline: max(clamp(0.75rem, 2vw, 2rem), env(safe-area-inset-left, 0px))
+    max(clamp(0.75rem, 2vw, 2rem), env(safe-area-inset-right, 0px));
+}
+
+/* Scrollbar horizontal disembunyikan (baris chip status header) — scroll tetap jalan,
+   termasuk dengan trackpad/swipe. */
+.scroll-none {
+  scrollbar-width: none;
+}
+.scroll-none::-webkit-scrollbar {
+  display: none;
 }
 
 /* Badge status bergaya bracket terminal (M15): "[ AKTIF ]" — teks asli tetap di DOM
@@ -223,16 +251,31 @@
   }
 }
 
-/* Target sentuh layar kecil (tanpa mouse): semua kontrol isian & tombol minimal 40px.
-   Tombol ikon ringkas (hapus chip / hapus frame) memakai .btn-compact + area klik
-   pseudo-element, supaya tidak membesar secara visual. */
-@media (max-width: 1023px) {
+/* Target sentuh layar kecil / perangkat sentuh (WCAG 2.5.5): semua kontrol isian &
+   tombol minimal 44px hanya di bawah 1120px ATAU saat pointer kasar — desktop dengan
+   mouse tidak membengkak. Isian juga dinaikkan ke 16px di media yang sama supaya iOS
+   tidak auto-zoom saat fokus (brief C). Tombol ikon ringkas (.btn-compact) memakai
+   area klik pseudo-element, jadi tidak ikut membesar secara visual. */
+@media (max-width: 1119px), (pointer: coarse) {
   input:not([type="file"]),
   select,
   textarea,
   button:not(.btn-compact) {
-    min-height: 40px;
+    min-height: 44px;
   }
+
+  input:not([type="file"]):not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* M19: fokus segmen platform — ring tipis dengan offset supaya TIDAK menumpuk di atas
+   isian aksen tombol aktif (outline selalu di luar elemen, tidak ganda). */
+[role="group"] > button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 /* Scrollbar dikustomisasi dari palet (M13) — hanya dipakai daftar chip kata kunci,
@@ -255,4 +298,30 @@
 }
 .scroll-slim::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
+}
+
+/* Scrollbar dokumen ikut palet — bagian dari "browser surfaces" yang selama ini memakai
+   default peramban (abu terang di mode gelap). Track se warna halaman, thumb dari
+   --border-strong dengan ruang dalam supaya tetap terbaca sebagai bilah, bukan garis. */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+  border: 3px solid var(--bg);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-muted);
+}
+::-webkit-scrollbar-corner {
+  background: var(--bg);
 }
