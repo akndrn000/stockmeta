@@ -1,8 +1,9 @@
 'use client';
 // Kata kunci sebagai chip (enter/koma/tempel pecah semua), dedupe + batas dari lib/keywords.
 // Salin daftar (format dipisah koma) lewat satu tombol di samping label — M12: kotak
-// "Kata kunci (siap tempel)" dihapus. M13: daftar chip dibatasi 200px + scroll, penghitung
-// & badge menempel di pojok kanan bawah kotak input.
+// "Kata kunci (siap tempel)" dihapus. M13: daftar chip dibatasi 200px + scroll.
+// M18: penghitung `n/50` + badge `min N`/`penuh` keluar dari dalam kotak input (posisi M13,
+// ruang cadangan `pr-24`) → sebaris dengan label, di kiri tombol salin. Input kembali px-3.
 import { useState } from 'react';
 import { addKeywords, keywordsToPlain, parseKeywordInput, removeKeyword } from '../lib/keywords';
 import { MAX_KEYWORDS } from '../lib/limits';
@@ -38,11 +39,32 @@ export function KeywordEditor({ keywords, min, onChange, disabled }: {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between gap-2">
+      {/* M18: penghitung & badge naik ke baris label — label kiri, penghitung + salin kanan;
+          flex-wrap + ml-auto bila layar sempit (grup kanan turun dan tetap rata kanan). */}
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
         <label htmlFor="kw-input" className="text-meta font-semibold leading-none tracking-[0.01em] text-text-muted">
           Kata kunci
         </label>
-        <CopyButton text={plain} label="daftar kata kunci" disabled={disabled} />
+        <span className="ml-auto flex shrink-0 items-center gap-1.5">
+          <span id="kw-count" className="flex shrink-0 items-center gap-1.5">
+            {/* M16: badge meta kecil (penghitung, min, penuh) = teks polos tanpa kotak —
+                hanya badge STATUS (berwarna aktif) yang memakai garis 2px. */}
+            <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-text-muted">
+              {n}/{MAX_KEYWORDS}
+            </span>
+            {n < min && (
+              <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-warning">
+                min {min}
+              </span>
+            )}
+            {full && (
+              <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-accent-text">
+                penuh
+              </span>
+            )}
+          </span>
+          <CopyButton text={plain} label="daftar kata kunci" disabled={disabled} />
+        </span>
       </div>
 
       {/* M13: SATU-satunya pengecualian "tanpa scroll internal" (M12) — daftar bisa 50 chip,
@@ -76,55 +98,37 @@ export function KeywordEditor({ keywords, min, onChange, disabled }: {
         </ul>
       )}
 
-      {/* M13: penghitung & badge status menempel di pojok kanan bawah kotak input —
-          pr-24 menyisakan ruang supaya teks yang diketik tidak lewat di bawahnya. */}
-      <div className="relative">
-        <input
-          id="kw-input"
-          type="text"
-          value={draft}
-          disabled={disabled || (full && draft === '')}
-          onChange={(e) => {
-            const v = e.target.value;
-            if (/[,;\n]/.test(v)) commit(v);
-            else setDraft(v);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              commit(draft);
-            } else if (e.key === 'Backspace' && draft === '' && keywords.length) {
-              onChange(removeKeyword(keywords, keywords.length - 1));
-              setSkip('');
-            }
-          }}
-          onPaste={(e) => {
+      {/* M18: tidak ada lagi penghitung di dalam kotak → wrapper `relative` dan `pr-24`
+          (ruang cadangan) dihapus; input kembali px-3 seperti kotak isian lain. */}
+      <input
+        id="kw-input"
+        type="text"
+        value={draft}
+        disabled={disabled || (full && draft === '')}
+        aria-describedby="kw-count"
+        onChange={(e) => {
+          const v = e.target.value;
+          if (/[,;\n]/.test(v)) commit(v);
+          else setDraft(v);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
             e.preventDefault();
-            commit(e.clipboardData.getData('text'));
-          }}
-          placeholder={full ? 'Penuh — hapus salah satu dulu' : 'Ketik kata kunci, pisahkan koma atau Enter'}
-          spellCheck={false}
-          autoCapitalize="none"
-          className="h-10 w-full rounded border border-border-control bg-surface-elevated px-3 py-2 pr-24 text-body text-text transition-colors placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
-        />
-        {/* M16: badge meta kecil (penghitung, min, penuh) = teks polos tanpa kotak —
-            hanya badge STATUS (berwarna aktif) yang memakai garis 2px. */}
-        <span className="pointer-events-none absolute bottom-1 right-3 flex items-center gap-1.5">
-          <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-text-muted">
-            {n}/{MAX_KEYWORDS}
-          </span>
-          {n < min && (
-            <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-warning">
-              min {min}
-            </span>
-          )}
-          {full && (
-            <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-accent-text">
-              penuh
-            </span>
-          )}
-        </span>
-      </div>
+            commit(draft);
+          } else if (e.key === 'Backspace' && draft === '' && keywords.length) {
+            onChange(removeKeyword(keywords, keywords.length - 1));
+            setSkip('');
+          }
+        }}
+        onPaste={(e) => {
+          e.preventDefault();
+          commit(e.clipboardData.getData('text'));
+        }}
+        placeholder={full ? 'Penuh — hapus salah satu dulu' : 'Ketik kata kunci, pisahkan koma atau Enter'}
+        spellCheck={false}
+        autoCapitalize="none"
+        className="h-10 w-full rounded border border-border-control bg-surface-elevated px-3 py-2 text-body text-text transition-colors placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
+      />
 
       <p role="status" aria-live="polite" className="min-h-4 text-small font-medium text-text-secondary">
         {skip}

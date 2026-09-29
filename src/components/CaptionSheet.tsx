@@ -8,6 +8,10 @@
 // M14: TIDAK ADA lagi kotak kosong "Belum ada frame dipilih" — struktur field selalu dirender
 // (Judul/Deskripsi, Kata kunci, Kategori, Tema, Saran bila relevan, footer Export CSV) dan
 // hanya dinonaktifkan sampai ada frame terpilih, supaya lembar tidak pernah terlihat kosong.
+// M18: penghitung keluar dari dalam kotak (posisi M13) → sebaris dengan LABEL field, di atas
+// kotak isian. Baris label: label di kiri, keterangan + tombol salin di kanan (flex-wrap,
+// turun ke baris kedua yang tetap rata kanan bila layar sempit). Ruang cadangan dalam kotak
+// (pb-6) ikut dihapus karena tidak ada lagi teks yang menumpang di atas kolom isian.
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import type { useSession } from '../hooks/useSession';
@@ -25,15 +29,15 @@ type Session = ReturnType<typeof useSession>;
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
-// Keterangan bantu yang menempel DI DALAM kotak isian (pojok kanan bawah, menempel, tanpa
-// baris terpisah di bawah) — M13. pointer-events-none supaya klik tetap mengenai textarea.
-// M17: nada peringatan — netral sampai 60% kuota (text-muted), mulai 60% → warning,
-// melewati batas → error. Dipakai sebagai aria-describedby textarea.
-function InFieldNote({ text, tone = 'ok', id }: { text: string; tone?: 'ok' | 'near' | 'over'; id?: string }) {
+// Keterangan bantu penghitung/kuota — sebaris dengan label field, di atas kotak isian (M18;
+// menggantikan posisi M13 yang menempel di pojok kanan bawah textarea). M17: nada peringatan —
+// netral sampai 60% kuota (text-muted), mulai 60% → warning, melewati batas → error.
+// Tetap dipakai sebagai aria-describedby textarea.
+function FieldNote({ text, tone = 'ok', id }: { text: string; tone?: 'ok' | 'near' | 'over'; id?: string }) {
   return (
     <span
       id={id}
-      className={`pointer-events-none absolute bottom-1.5 right-3 font-mono text-meta font-bold uppercase tracking-[0.08em] transition-colors ${
+      className={`shrink-0 font-mono text-meta font-bold uppercase tracking-[0.08em] transition-colors ${
         tone === 'over' ? 'text-error' : tone === 'near' ? 'text-warning' : 'text-text-muted'
       }`}
     >
@@ -46,22 +50,32 @@ function InFieldNote({ text, tone = 'ok', id }: { text: string; tone?: 'ok' | 'n
 const toneFor = (len: number, max: number): 'ok' | 'near' | 'over' =>
   len > max ? 'over' : len >= Math.ceil(max * 0.6) ? 'near' : 'ok';
 
-function Field({ id, label, copyText, hint, disabled, children }: {
+function Field({ id, label, copyText, note, hint, disabled, children }: {
   id?: string;
   label: string;
   copyText?: string;
+  /** M18: penghitung/keterangan sebaris dengan label (label kiri, keterangan + salin kanan) */
+  note?: ReactNode;
   hint?: string;
   /** M14: nonaktifkan tombol salin saat belum ada frame terpilih */
   disabled?: boolean;
   children: ReactNode;
 }) {
+  const hasRight = note !== undefined || copyText !== undefined;
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between gap-2">
+      {/* M18: flex-wrap bila layar sempit — grup kanan turun ke baris kedua dan tetap
+          rata kanan (ml-auto), sehingga label & tombol salin tidak pernah meluber. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
         <label htmlFor={id} className="text-meta font-semibold leading-none tracking-[0.01em] text-text-muted">
           {label}
         </label>
-        {copyText !== undefined && <CopyButton text={copyText} label={label} disabled={disabled} />}
+        {hasRight && (
+          <span className="ml-auto flex shrink-0 items-center gap-1.5">
+            {note}
+            {copyText !== undefined && <CopyButton text={copyText} label={label} disabled={disabled} />}
+          </span>
+        )}
       </div>
       {children}
       {hint && <p className="text-small leading-relaxed text-text-muted">{hint}</p>}
@@ -234,26 +248,31 @@ export function CaptionSheet({ session }: {
             dinonaktifkan (input/select/salin) selama belum ada frame terpilih. */}
         {platform === 'adobe' ? (
           <>
-            <Field id="caption-title" label="Judul" copyText={title} disabled={!frame}>
-              {/* M13: batas + penghitung menempel di pojok kanan bawah textarea (pb-6
-                  menjaga teks yang diketik tidak tertimpa) */}
-              <div className="relative">
-                <textarea
-                  id="caption-title"
-                  rows={2}
-                  value={title}
-                  onChange={(e) => patchAdobe({ title: e.target.value })}
-                  placeholder="Judul menjual, spesifik, tanpa frasa generik"
-                  disabled={!frame}
-                  aria-describedby="caption-title-note"
-                  className="w-full resize-none rounded border border-border-control bg-surface-elevated px-3 pb-6 pt-2 text-body leading-relaxed text-text transition-colors placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
-                />
-                <InFieldNote
+            <Field
+              id="caption-title"
+              label="Judul"
+              copyText={title}
+              disabled={!frame}
+              note={
+                <FieldNote
                   id="caption-title-note"
                   text={`${title.length}/${MAX_TITLE_CSV} · tanpa koma`}
                   tone={toneFor(title.length, MAX_TITLE_CSV)}
                 />
-              </div>
+              }
+            >
+              {/* M18: penghitung naik ke baris label — textarea kembali py-2 (ruang pb-6
+                  untuk teks yang menempel di dalam kotak tidak diperlukan lagi) */}
+              <textarea
+                id="caption-title"
+                rows={2}
+                value={title}
+                onChange={(e) => patchAdobe({ title: e.target.value })}
+                placeholder="Judul menjual, spesifik, tanpa frasa generik"
+                disabled={!frame}
+                aria-describedby="caption-title-note"
+                className="w-full resize-none rounded border border-border-control bg-surface-elevated px-3 py-2 text-body leading-relaxed text-text transition-colors placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
+              />
             </Field>
 
             <KeywordEditor
@@ -283,25 +302,32 @@ export function CaptionSheet({ session }: {
           </>
         ) : (
           <>
-            <Field id="caption-desc" label="Deskripsi" copyText={desc} hint="Tulis kalimat deskriptif utuh, bukan daftar kata." disabled={!frame}>
-              {/* Petunjuk instruksional tetap di bawah (M13); hanya penghitung yang masuk */}
-              <div className="relative">
-                <textarea
-                  id="caption-desc"
-                  rows={3}
-                  value={desc}
-                  onChange={(e) => patchShutter({ description: e.target.value })}
-                  placeholder="Satu dua kalimat yang menggambarkan subjek, gaya, dan suasana"
-                  disabled={!frame}
-                  aria-describedby="caption-desc-note"
-                  className="w-full resize-none rounded border border-border-control bg-surface-elevated px-3 pb-6 pt-2 text-body leading-relaxed text-text transition-colors placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
-                />
-                <InFieldNote
+            <Field
+              id="caption-desc"
+              label="Deskripsi"
+              copyText={desc}
+              hint="Tulis kalimat deskriptif utuh, bukan daftar kata."
+              disabled={!frame}
+              note={
+                <FieldNote
                   id="caption-desc-note"
                   text={`${desc.length}/${MAX_DESCRIPTION}`}
                   tone={toneFor(desc.length, MAX_DESCRIPTION)}
                 />
-              </div>
+              }
+            >
+              {/* Petunjuk instruksional tetap di bawah kotak; hanya penghitung yang masuk
+                  ke baris label (M18). */}
+              <textarea
+                id="caption-desc"
+                rows={3}
+                value={desc}
+                onChange={(e) => patchShutter({ description: e.target.value })}
+                placeholder="Satu dua kalimat yang menggambarkan subjek, gaya, dan suasana"
+                disabled={!frame}
+                aria-describedby="caption-desc-note"
+                className="w-full resize-none rounded border border-border-control bg-surface-elevated px-3 py-2 text-body leading-relaxed text-text transition-colors placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
+              />
             </Field>
 
             <KeywordEditor

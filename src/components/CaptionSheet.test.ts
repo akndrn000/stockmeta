@@ -5,11 +5,13 @@
 // frame gagal tetap, tombol/konfirmasi "Timpa hasil yang ada?" tidak ada di sini.
 // M14: tidak ada kotak kosong — struktur field selalu dirender dan nonaktif sampai ada frame.
 // Audit F2: footer menghitung baris yang benar-benar diekspor.
+// M18: penghitung judul/deskripsi/kata kunci sebaris dengan LABEL (di atas kotak isian),
+// bukan menempel di dalam kotak (posisi M13) — ruang cadangan pb-6/pr-24 ikut dihapus.
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSession } from '../hooks/useSession';
-import { MAX_FRAMES } from '../lib/limits';
+import { MAX_DESCRIPTION, MAX_FRAMES, MAX_KEYWORDS } from '../lib/limits';
 import type { Frame } from '../lib/types';
 import { CaptionSheet } from './CaptionSheet';
 
@@ -251,17 +253,58 @@ describe('CaptionSheet — footer jumlah baris ekspor (F2)', () => {
   });
 });
 
-describe('CaptionSheet — keterangan bantu menempel di dalam kotak (M13)', () => {
-  it('penghitung judul & deskripsi berada di dalam textarea, bukan baris terpisah', () => {
+describe('CaptionSheet — keterangan sebaris dengan label (M18)', () => {
+  it('penghitung judul pindah ke baris label (di atas textarea), ruang dalam kotak dihapus', () => {
     const [id] = addFrames(1);
     act(() => {
       api().s.select(id);
       api().s.updateMetadata(id, 'adobe', { title: 'Judul pendek' });
     });
-    const note = host.querySelector('#caption-title + span');
+    const ta = host.querySelector('#caption-title') as HTMLTextAreaElement;
+    const note = host.querySelector('#caption-title-note');
     expect(note).not.toBeNull();
     expect(note!.textContent).toContain('/70');
-    expect(note!.className).toContain('pointer-events-none');   // tidak menutup klik textarea
-    expect(text()).not.toContain('maks 70 karakter');           // baris hint lama hilang
+    // M18: keterangan berada di baris label, sebelum kotak isian — bukan menempel di dalamnya
+    expect(ta.previousElementSibling!.contains(note!)).toBe(true);
+    expect(note!.className).not.toContain('absolute');             // keluar dari posisi menempel
+    expect(ta.className).not.toContain('pb-6');                    // ruang cadangan dihapus
+    expect(text()).not.toContain('maks 70 karakter');              // baris hint lama tetap hilang
+  });
+
+  it('tombol salin tetap sebaris dengan label & penghitung', () => {
+    addFrames(1);
+    const row = host.querySelector('label[for="caption-title"]')!.parentElement!;
+    expect(row.querySelector('#caption-title-note')).not.toBeNull();
+    expect(row.querySelector('[aria-label="Salin Judul"]')).not.toBeNull();
+  });
+
+  it('deskripsi (Shutterstock): penghitung n/maks juga naik ke baris label', () => {
+    const [id] = addFrames(1);
+    const desc = 'Dua kalimat.';
+    act(() => {
+      api().s.select(id);
+      api().s.setPlatform('shutterstock');
+      api().s.updateMetadata(id, 'shutterstock', { description: desc });
+    });
+    const ta = host.querySelector('#caption-desc') as HTMLTextAreaElement;
+    const note = host.querySelector('#caption-desc-note');
+    expect(note).not.toBeNull();
+    expect(note!.textContent).toBe(`${desc.length}/${MAX_DESCRIPTION}`);
+    expect(ta.previousElementSibling!.contains(note!)).toBe(true);
+    expect(ta.className).not.toContain('pb-6');
+    expect(ta.getAttribute('aria-describedby')).toBe('caption-desc-note');
+  });
+
+  it('penghitung kata kunci juga keluar dari kotak input (M18)', () => {
+    addFrames(1);
+    const kw = host.querySelector('#kw-input') as HTMLInputElement;
+    const count = host.querySelector('#kw-count');
+    const labelRow = host.querySelector('label[for="kw-input"]')!.parentElement!;
+    expect(count).not.toBeNull();
+    expect(count!.textContent).toContain(`0/${MAX_KEYWORDS}`);
+    expect(kw.getAttribute('aria-describedby')).toBe('kw-count');       // tetap terhubung utk pembaca layar
+    expect(kw.className).not.toContain('pr-24');                        // ruang cadangan dihapus
+    expect(labelRow.contains(count!)).toBe(true);                       // penghitung sebaris dengan label
+    expect(labelRow.querySelector('[aria-label="Salin daftar kata kunci"]')).not.toBeNull();
   });
 });

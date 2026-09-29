@@ -158,12 +158,13 @@ Pemakaian (dalam satuan Tailwind `1 = 4px`):
 | 8px (`gap-2`, `py-2`, `pt/pb-2`) | Antar butir sejajar (baris tombol, grup header), ritme dalam blok |
 | 12px (`gap-3`, `p-3`, `px-3/4 py-3`) | Antar elemen dalam satu komponen; padding band (Header, ProviderPanel) |
 | 16px (`gap-4`, `p-4`) | Antar blok/bidang (antar-field CaptionSheet, isi panel, `main`) |
-| 24px (`px-6`, `pb-6`) | Ruang lega dropzone; reserve penghitung textarea |
+| 24px (`px-6`, `py-6`) | Ruang lega dropzone (reserve penghitung textarea dihapus — M18) |
 
 - **Tidak ada** nilai 10px (`gap-2.5`, `py-2.5`, `pb-2.5`) — semuanya digeser ke 8px atau 12px.
   Pengganti `py-2.5` pada tombol besar = `py-2` (tinggi efektif ≈40px termasuk border).
-- Reserve fungsional (bukan skala): `pr-8` (panah select), `pr-10` (tombol lihat key),
-  `pr-24` (penghitung keyword) — ruang yang sengaja dikosongkan agar tidak tertimpa.
+- Reserve fungsional (bukan skala): `pr-8` (panah select), `pr-10` (tombol lihat key) —
+  ruang yang sengaja dikosongkan agar tidak tertimpa. `pr-24` (penghitung keyword) **dihapus
+  oleh M18**: penghitung keluar dari kotak dan pindah ke baris label.
 - Offset posisi menempel pada skala yang sama (6px `1.5`, 12px `3`, 48px `12` untuk ikon tile).
 
 ## Badge bracket
@@ -189,8 +190,8 @@ Dua keluarga badge, dibedakan peran — bukan per selera:
 | `Header` | Title bar terminal: indikator fosfor + wordmark (tanpa glow — M17), segmen platform (`aria-pressed`, pelat aktif isian aksen), ThemeToggle, readout status mono bergaya prompt "❯" — pemisah `/` `aria-hidden`, status berwarna (`--success`/`--error`/`--accent-text`), ditutup garis tipis `--accent-faint`. Band `bg-bg-secondary`. |
 | `ProviderPanel` | Band `bg-bg-secondary`: pilih provider, API key (lihat/sembunyikan), `Tes koneksi` (outline aksen, `h-10`) + badge bracket `role="status"` berisi titik indikator warna (sukses/gagal/menguji/idle), catatan limit `text-muted`. |
 | `Worksheet` | Dropzone kosong (dashed `border-border-control` + `bg-bg-secondary` + ikon unggah), grid frame (tile: pilih — border aksen 2px + tint, tanpa glow; badge status `MENUNGGU`/`SIAP`/`GAGAL`, hapus, **ikon buat ulang per tile** — merah untuk frame gagal), tema batch, jeda antar foto, Generate (solid aksen + glow, `h-11`)/Batalkan (merah) + Buat ulang semua, ProgressBar (`aria-live`, radius 4px), Coba lagi. |
-| `CaptionSheet` | Field edit per platform (penghitung menempel di dalam kotak; nada warna netral → `--warning` ≥60% kuota → `--error` lewat batas, dirujuk `aria-describedby`), KeywordEditor (chip), kotak error `bg-error-tint border-error`, strip status bracket, footer Export CSV (jumlah baris `text-secondary`) — **tanpa tombol buat ulang** (pindah ke tile). **M14: struktur field selalu dirender** dan hanya nonaktif sampai ada frame terpilih. |
-| `KeywordEditor` | Chip kata kunci + input (Enter/koma/tempel) + satu tombol salin daftar; daftar chip dibatasi `12.5rem` + scroll vertikal (**satu-satunya scroll internal**, `overflow-x-hidden` — M15); penghitung `0/50` menempel di kotak input. |
+| `CaptionSheet` | Field edit per platform (penghitung **sebaris dengan label** di atas kotak — M18; nada warna netral → `--warning` ≥60% kuota → `--error` lewat batas, dirujuk `aria-describedby`), KeywordEditor (chip), kotak error `bg-error-tint border-error`, strip status bracket, footer Export CSV (jumlah baris `text-secondary`) — **tanpa tombol buat ulang** (pindah ke tile). **M14: struktur field selalu dirender** dan hanya nonaktif sampai ada frame terpilih. |
+| `KeywordEditor` | Chip kata kunci + input (Enter/koma/tempel) + satu tombol salin daftar; daftar chip dibatasi `12.5rem` + scroll vertikal (**satu-satunya scroll internal**, `overflow-x-hidden` — M15); penghitung `0/50` sebaris dengan label (grup `#kw-count` di kiri tombol salin — M18). |
 | `CopyButton`, `ThemeToggle` | Kontrol kecil berlabel ARIA, radius 4px. |
 
 ## Layout & responsif (M15)
@@ -285,4 +286,27 @@ Dua keluarga badge, dibedakan peran — bukan per selera:
 - **Counter isian memberi nada**: netral `--text-muted` → `--warning` mulai 60% kuota →
   `--error` melewati batas, dirujuk lewat `aria-describedby`.
 - Verifikasi M17: `vitest` **185/185**, `tsc --noEmit` **0**, `eslint` **0**, `next build`
+  sukses, `impeccable detect --json src` → **`[]`** (exit 0).
+
+## Keputusan sadar M18
+
+- **Keterangan & penghitung keluar dari kotak → sebaris dengan LABEL** — membalik keputusan
+  M13 ("menempel di dalam kotak") karena masukan langsung: penghitung memakai ruang yang
+  dibutuhkan teks yang diketik, dan `0/70 · TANPA KOMA` lebih cepat ditemukan bila
+  berdampingan dengan labelnya. Baris label =
+  `flex flex-wrap items-center justify-between gap-x-2 gap-y-1`: **label kiri**, **grup
+  kanan** `ml-auto` berisi keterangan + tombol `Salin`; saat layar/zoom sempit grup kanan
+  turun ke baris kedua dan **tetap rata kanan**, sehingga tombol salin tidak pernah berpindah
+  ke tengah atau meluber.
+- **Ruang cadangan ikut dihapus**: `pb-6` (textarea judul & deskripsi) dan `pr-24` (input kata
+  kunci) → kotak kembali `py-2` / `px-3` seragam dengan kotak isian lain; pembungkus
+  `relative` ketiganya dihapus (`<select>` tetap `relative` — untuk panahnya).
+- **`pointer-events-none` tidak diperlukan lagi**: teks yang dulu menumpang di atas kolom
+  isian kini berada di luar kotak.
+- **Aksesibilitas naik, tidak turun**: penghitung judul & deskripsi tetap dirujuk
+  `aria-describedby`; input kata kunci kini punya `aria-describedby="kw-count"` **(baru)**
+  karena penghitungnya pindah ke luar kotak.
+- **Field tanpa keterangan tidak dipaksakan**: Kategori & Tema tetap hanya label + `Salin` —
+  counter hanya muncul bila memang ada kuota (judul, deskripsi, kata kunci).
+- Verifikasi M18: `vitest` **188/188**, `tsc --noEmit` **0**, `eslint` **0**, `next build`
   sukses, `impeccable detect --json src` → **`[]`** (exit 0).

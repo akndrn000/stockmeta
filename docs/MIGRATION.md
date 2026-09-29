@@ -234,6 +234,11 @@ Tanpa e2e, tanpa menjalankan server. Detektor desain (`impeccable detect --json`
 
 ### 3. Keterangan bantu & penghitung masuk ke DALAM kotak isian
 
+> **Sebagian besar dibatalkan oleh M18** (lihat "Perbaikan pasca-M17 (M18)"): penghitung
+> pindah ke baris label di atas kotak, `pb-6`/`pr-24`/`pointer-events-none` dihapus. Yang
+> bertahan dari M13: penghitung Deskripsi (`n/200`), penggabungan hint+penghitung judul jadi
+> satu keterangan, dan penghapusan baris hint lama `maks 70 karakter`.
+
 - `src/components/CaptionSheet.tsx` — komponen baru `InFieldNote`
   (`absolute bottom-1.5 right-3`, mono 10px uppercase `--ink-3`, `pointer-events-none`):
   - **Judul (Adobe)**: hint `maks 70 karakter, tanpa koma` + penghitung yang tadinya baris
@@ -361,12 +366,12 @@ Hasil audit komponen (poin 4, rentang uji 360px → >1920px dan zoom 50–150%, 
   terpotong di lebar berapa pun.
 - `Worksheet`: grid `auto-fill minmax(9.375rem,1fr)` tetap dari M6 (hanya unitnya diganti);
   dropzone `min-h-44`; tombol + pesan limit `flex-wrap`.
-- `CaptionSheet`: semua field `w-full`; footer `flex-wrap`; `InFieldNote` tetap menempel di
-  dalam textarea (`pb-6` menyisakan ruang, `right-3` mengikuti padding kotak).
-- Elemen absolut: ikon tile (`right-12`/`right-1.5`, `top-1.5`), popover
-  (`left-1.5 right-1.5 top-[2.625rem]`), dan `InFieldNote` — semuanya rem, jadi menempel pada
+- `CaptionSheet`: semua field `w-full`; footer `flex-wrap`. (**M18:** `InFieldNote` sudah tidak
+  menempel di dalam textarea — kini `FieldNote` sebaris dengan label, lihat "Perbaikan pasca-M17 (M18)".)
+- Elemen absolut: ikon tile (`right-12`/`right-1.5`, `top-1.5`) dan popover
+  (`left-1.5 right-1.5 top-[2.625rem]`) — semuanya rem, jadi menempel pada
   anchor-nya di semua ukuran; popover tetap di dalam thumbnail (≥ `9.375rem`, tile
-  `overflow-hidden`).
+  `overflow-hidden`). `InFieldNote` (absolut saat itu) dihapus oleh M18.
 - `lg:grid-cols-[3fr_2fr]` memakai `fr` — kolom menyesuaikan tanpa lebar absolut.
 - **Tindak lanjut manual (belum bisa dilakukan tanpa server):** buka halaman, uji lebar
   360 / 768 / 1024 / 1440 / 1920px dan zoom 50/67/80/100/125/150% — pastikan kedua panel sama
@@ -487,8 +492,8 @@ styling + token CSS. Tiga skala resmi ditulis ke `docs/DESIGN.md` ("Skala M16").
   tabrakan `W ≥ 82 + 27,2 = 109,2px` (badge nomor `text-meta` tanpa kotak) → aman sejak
   V ≥1068px; ambang 1120px menyisakan ≈6,2px. Komentar matematika di `Worksheet.tsx`
   dan `docs/DESIGN.md` ikut diperbarui.
-- Reserve fungsional dibiarkan: `pr-8` (panah select), `pr-10` (tombol lihat key),
-  `pr-24` (penghitung keyword).
+- Reserve fungsional dibiarkan: `pr-8` (panah select), `pr-10` (tombol lihat key);
+  `pr-24` (penghitung keyword) — **dihapus oleh M18** (penghitung pindah ke baris label).
 
 ### 4. Badge terbagi dua keluarga
 
@@ -603,6 +608,48 @@ Perbaikan kecil pasca-M17 atas temuan "border vs permukaan hanya ≈1,6–2,2:1"
 - Kontras terukur skrip: gelap **3,78 / 3,55 / 3,85 / 3,99:1** dan terang
   **3,87 / 3,99 / 3,34 / 3,57:1** (vs surface / elevated / bg-secondary / bg) — semua ≥3.
 
+## Perbaikan pasca-M17 (M18) — bukan tahap migrasi baru
+
+**Membalik sebagian keputusan M13** (masukan langsung): keterangan bantu & penghitung tidak
+lagi "menempel" di dalam kotak isian, melainkan **sebaris dengan label field — di atas kotak**.
+Alasan: penghitung di atas kolom isian memakai ruang yang seharusnya dipakai teks yang diketik,
+dan `0/70 · TANPA KOMA` lebih cepat ditemukan kalau berdampingan dengan labelnya.
+
+### 1. Posisi keterangan & penghitung
+
+- `src/components/CaptionSheet.tsx`: komponen `InFieldNote` → **`FieldNote`** — tanpa
+  `absolute`, tanpa `bottom-1.5 right-3`, tanpa `pointer-events-none` (tidak ada lagi teks
+  yang menutupi kolom isian). Dipakai lewat prop baru **`note`** pada `Field`; baris label
+  jadi `flex flex-wrap items-center justify-between gap-x-2 gap-y-1`:
+  **label di kiri**, **grup kanan** (`ml-auto`) berisi keterangan + tombol `Salin`.
+  Saat layar/zoom sempit grup kanan turun ke baris kedua dan **tetap rata kanan**, sehingga
+  label & tombol salin tidak pernah meluber.
+  - **Judul**: `n/70 · tanpa koma`, nada netral → `--warning` ≥60% → `--error` (M17) tetap,
+    masih dirujuk `aria-describedby` textarea.
+  - **Deskripsi**: `n/200` (`MAX_DESCRIPTION`) sama; petunjuk instruksional
+    `Tulis kalimat deskriptif utuh …` tetap di **bawah** kotak.
+  - **Kategori / Tema**: tanpa keterangan → baris label hanya label + `Salin` (tidak dipaksakan).
+- `src/components/KeywordEditor.tsx`: `0/50`, badge `min N`, dan `penuh` pindah ke baris
+  label dalam grup **`#kw-count`** (di kiri tombol salin), dan input kini memakai
+  **`aria-describedby="kw-count"`** — penghitung yang keluar dari kotak tetap terbaca
+  pembaca layar.
+
+### 2. Ruang cadangan di dalam kotak dihapus
+
+| Lokasi | Sebelum (M13) | Sesudah (M18) |
+| --- | --- | --- |
+| textarea judul & deskripsi | `pb-6 pt-2` (24px kosong di bawah) | `py-2` |
+| input kata kunci | `pr-24` (96px cadangan) | `px-3` (seragam kotak isian lain) |
+| pembungkus `relative` (2 textarea + 1 input) | ada | **dihapus**; `<select>` tetap `relative` — dipakai panah |
+
+### 3. Tes & verifikasi
+
+- `src/components/CaptionSheet.test.ts`: blok lama M13 (selector `#caption-title + span` +
+  cek `pointer-events-none`) diganti **4 tes M18** — penghitung ada di baris label
+  (`ta.previousElementSibling.contains(note)`), `pb-6`/`pr-24` hilang, `aria-describedby`
+  judul/deskripsi/kata kunci tetap terpasang, tombol `Salin` masih sebaris label & penghitung.
+- **188/188 tes**, `npx tsc --noEmit` 0 error, `npx eslint .` 0 temuan.
+
 ## Kontrak perilaku (WAJIB sama dengan legacy)
 
 Sumber: `legacy/docs/PROGRESS.md` + `legacy/js/*.js`. Tanda **[BARU]** = perilaku baru yang
@@ -716,9 +763,11 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
 - Field editable (ikut platform), **tombol salin per field** (feedback `Disalin`, reset 1.4s).
 - Keyword sebagai **chip** + input; salin daftar (dipisah koma) lewat **satu tombol salin di
   samping label `Kata kunci`** **[M12: kotak teks `KEYWORDS (SIAP TEMPEL)`/cerminan dihapus]**.
-  **[M13]** penghitung `0/50` + badge `min N`/`penuh` **menempel di pojok kanan bawah kotak
-  input** (ruang cadangan `pr-24`), dan daftar chip dibatasi **`max-height` 200px + scroll**
-  — satu-satunya scroll internal di aplikasi (pengecualian terdokumentasi M13).
+  **[M13 → M18]** penghitung `0/50` + badge `min N`/`penuh` **sebaris dengan label
+  `Kata kunci`** (grup `#kw-count` di kiri tombol salin; posisi lama M13 di dalam kotak dan
+  ruang cadangan `pr-24` dihapus, input kini `aria-describedby="kw-count"`), dan daftar chip
+  dibatasi **`max-height` 200px + scroll** — satu-satunya scroll internal di aplikasi
+  (pengecualian terdokumentasi M13).
 - **Buat ulang satu frame** **[BARU + M13: pindah tempat]**: jalur batch yang sama
   (`useBatch.regenerateFrame`); slot platform sudah berisi → konfirmasi **`Timpa hasil yang
   ada?`**; nonaktif + alasan jelas bila file asli hilang / provider belum Aktif / batch berjalan.
@@ -733,9 +782,11 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
   pernah digenerate tidak dinilai; kotak error frame `gagal` tetap tampil meski slot kosong.
 - Petunjuk judul Adobe **`maks 70 karakter, tanpa koma`** **[M9a]**; saran non-pemblokir baru:
   judul > 70 (batas CSV), judul ber-koma, nama file > 30 karakter (Adobe saja).
-  **[M13]** petunjuk batas + penghitung judul **menempel di pojok kanan bawah textarea**
-  (bukan baris terpisah); deskripsi punya penghitung `n/200` yang sama, sedangkan petunjuk
-  instruksional tetap di bawah kotak.
+  **[M13 → M18]** petunjuk batas + penghitung judul kini **sebaris dengan label `Judul`
+  (di atas textarea)** — bukan di dalam kotak (M13) dan bukan baris terpisah (M9a); deskripsi
+  punya penghitung `n/200` di baris label `Deskripsi`, sedangkan petunjuk instruksional tetap
+  di bawah kotak. Baris label memakai `flex-wrap`: label kiri, keterangan + `Salin` kanan, dan
+  grup kanan turun ke baris kedua yang tetap rata kanan bila layar sempit.
 - Footer **`N baris punya saran perbaikan`** **[M9a]**: jumlah frame (baris) yang punya saran
   untuk platform aktif — tampil di dekat tombol `Export CSV` bila > 0, **tidak memblokir
   ekspor**. Footer **`N baris`** = jumlah baris yang **benar-benar diekspor** (slot berisi),
@@ -817,9 +868,10 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
   error. Konfirmasi `Timpa hasil yang ada?` dipindah ke popover yang menempel pada tile.
 - Scroll internal (M13): aturan M12 "tanpa scroll non-body" kini punya **satu pengecualian yang
   disengaja dan terdokumentasi** — daftar chip kata kunci (maks 50 item) dibatasi 200px.
-- Keterangan bantu (M13): hint batas & penghitung karakter **menempel di dalam kotak isian**
-  (pojok kanan bawah), bukan baris terpisah di bawah — kecuali petunjuk instruksional yang
-  sengaja tetap di luar agar kotak tidak penuh.
+- Keterangan bantu (M13 → **sebagian dibatalkan oleh M18**): hint batas & penghitung karakter
+  sempat **menempel di dalam kotak isian** (pojok kanan bawah); sejak **M18** penghitung
+  **sebaris dengan label di atas kotak**, hanya petunjuk instruksional yang tetap di bawah
+  kotak agar kolom isian tidak kehilangan ruang teks.
 - Keterangan baris (M14): tiga hint di bawah field (`Tema utama`, `Jeda antar foto`,
   `Tema untuk frame ini`) dihapus — labelnya sudah menjelaskan; hanya petunjuk instruksional
   Deskripsi Shutterstock yang tersisa.
