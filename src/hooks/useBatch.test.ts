@@ -31,7 +31,7 @@ let calls = 0;
 
 const fakeAdapter: ProviderAdapter = {
   id: 'gemini',
-  testConnection: async () => ({ ok: true, model: 'fake-model' }),
+  testConnection: async () => ({ ok: true }),
   generateForImage: async (args) => {
     const step = script[Math.min(calls, Math.max(script.length - 1, 0))] ?? {};
     calls++;

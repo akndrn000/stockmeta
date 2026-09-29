@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { gemini, pickGeminiModel } from './gemini';
+import { gemini } from './gemini';
+import { GEMINI_MODEL } from './models';
 
 const fetchMock = vi.fn();
 
@@ -9,11 +10,25 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-function jsonRes(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+function jsonRes(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json', ...headers }
+  });
 }
 
+const genArgs = { apiKey: 'RAHASIA', image: { base64: 'QUFBQQ==', mimeType: 'image/jpeg' }, platform: 'adobe' } as const;
+
 describe('gemini.testConnection', () => {
+  it('tes ke endpoint model tunggal: key valid + model tersedia → sukses', async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes({ name: 'models/' + GEMINI_MODEL }));
+    await expect(gemini.testConnection('kunci')).resolves.toEqual({ ok: true });
+
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + '?key=kunci');
+    expect(url).not.toContain('kunci-rahasia');
+  });
+
   it('400 API_KEY_INVALID → key salah (peta dari BODY, bukan status saja)', async () => {
     fetchMock.mockResolvedValueOnce(jsonRes({
       error: {
@@ -28,22 +43,20 @@ describe('gemini.testConnection', () => {
     });
   });
 
-  it('sukses: 200 + models[] → model auto-detect dari preferensi legacy', async () => {
-    fetchMock.mockResolvedValueOnce(jsonRes({ models: [
-      { name: 'models/gemini-2.5-flash', supportedGenerationMethods: ['generateContent'] },
-      { name: 'models/gemini-3.5-flash', supportedGenerationMethods: ['generateContent'] }
-    ] }));
-    await expect(gemini.testConnection('kunci')).resolves.toEqual({ ok: true, model: 'gemini-3.5-flash' });
+  it('404 model ditolak API → pesan menyebut nama model (tanpa pindah model diam-diam)', async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes({
+      error: { code: 404, message: 'models/' + GEMINI_MODEL + ' is not found', status: 'NOT_FOUND' }
+    }, 404));
+    const out = await gemini.testConnection('kunci');
+    expect(out.ok).toBe(false);
+    expect((out as { message: string }).message).toContain(GEMINI_MODEL);
+    expect((out as { message: string }).message).toContain('laporkan');
   });
 
-  it('429 → batas kuota; 200 tanpa model → ditolak', async () => {
+  it('429 → batas kuota', async () => {
     fetchMock.mockResolvedValueOnce(jsonRes({ error: { message: 'quota' } }, 429));
     await expect(gemini.testConnection('kunci')).resolves.toEqual({
       ok: false, message: 'Batas kuota tercapai (429) — coba lagi nanti.'
-    });
-    fetchMock.mockResolvedValueOnce(jsonRes({ models: [] }));
-    await expect(gemini.testConnection('kunci')).resolves.toEqual({
-      ok: false, message: 'Key diterima, tapi tidak ada model yang bisa dipakai.'
     });
   });
 
@@ -55,32 +68,36 @@ describe('gemini.testConnection', () => {
   });
 });
 
-describe('pickGeminiModel', () => {
-  it('preferensi urut legacy: 3.6 menang atas 2.5', () => {
-    expect(pickGeminiModel([
-      { name: 'models/gemini-2.5-flash', supportedGenerationMethods: ['generateContent'] },
-      { name: 'models/gemini-3.6-flash', supportedGenerationMethods: ['generateContent'] }
-    ])).toBe('gemini-3.6-flash');
+describe('gemini.generateForImage', () => {
+  it('hanya memakai model tunggal dari models.ts (tanpa daftar/pemilihan model)', async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes({ candidates: [{ content: { parts: [{ text: '{"keywords":[]}' }] } }] }));
+    await gemini.generateForImage(genArgs);
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(url).toContain('/models/' + GEMINI_MODEL + ':generateContent');
+    expect(url).not.toContain('gemini-2');
+    expect(url).toContain('key=RAHASIA');
+    expect(url.indexOf('RAHASIA')).toBeGreaterThan(url.indexOf('key='));
   });
 
-  it('hanya model yang mendukung generateContent', () => {
-    expect(pickGeminiModel([
-      { name: 'models/gemini-3.5-flash', supportedGenerationMethods: ['embedContent'] }
-    ])).toBe('gemini-2.5-flash');
+  it('429 RESOURCE_EXHAUSTED (kuota harian) → TIDAK di-retry, pesan jelas Indonesia', async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes({
+      error: {
+        code: 429,
+        message: "Quota exceeded for quota metric 'GenerateContentRequestCount' and limit 'GenerateContentRequestsPerDay'",
+        status: 'RESOURCE_EXHAUSTED'
+      }
+    }, 429));
+    await expect(gemini.generateForImage(genArgs)).rejects.toThrow(
+      'Kuota harian Gemini habis, coba lagi besok atau pakai Groq.'
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('nama tanpa prefix models/ dan tanpa supportedGenerationMethods tetap dipakai', () => {
-    expect(pickGeminiModel([{ name: 'gemini-3.7-flash' }])).toBe('gemini-3.7-flash');
-  });
-
-  it('flash non-vision (image/audio/…) di-skip', () => {
-    expect(pickGeminiModel([
-      { name: 'models/gemini-experimental-flash-image', supportedGenerationMethods: ['generateContent'] }
-    ])).toBe('gemini-2.5-flash');
-  });
-
-  it('fallback terakhir', () => {
-    expect(pickGeminiModel([])).toBe('gemini-2.5-flash');
-    expect(pickGeminiModel()).toBe('gemini-2.5-flash');
+  it('429 per menit (tanpa RESOURCE_EXHAUSTED) → menunggu retry-after lalu coba lagi', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonRes({ error: { message: 'Rate limit reached' } }, 429, { 'retry-after': '1' }))
+      .mockResolvedValueOnce(jsonRes({ candidates: [{ content: { parts: [{ text: '{"keywords":[]}' }] } }] }));
+    await gemini.generateForImage(genArgs);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

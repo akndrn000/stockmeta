@@ -12,6 +12,8 @@ menyentuh server aplikasi ini.
   kehilangan hasil (metadata tersimpan per platform).
 - Generate metadata batch: berurutan, bisa dibatalkan, retry sabar saat kena limit, dan
   status per frame (menunggu / memproses / siap / gagal).
+- Fallback antar provider: kuota harian habis atau `503` setelah retry → frame lanjut ke
+  provider lain yang key-nya tersimpan (toggle di panel provider, default aktif).
 - Edit manual per frame: judul atau deskripsi, kata kunci berbentuk chip, kategori resmi,
   tema per foto, saran perbaikan non-pemblokir.
 - Ekspor CSV sesuai template resmi, atau salin per field dengan satu klik.
@@ -34,12 +36,20 @@ menyentuh server aplikasi ini.
 | Provider | Model | Catatan limit gratis |
 | --- | --- | --- |
 | **Groq** (default) | `qwen/qwen3.8-27b` | Limit gratis ketat (**±8.000 token/menit**) — batch besar bisa lambat karena menunggu limit reset. |
-| **Gemini** | Model flash terbaru (deteksi otomatis) | Kadang lebih sering terkena limit/sibuk dibanding Groq (`429` per menit dan per hari) — coba Groq dulu kalau sering gagal. |
-| **OpenRouter** | `openrouter/free` (otomatis, vision) | Cadangan: free tier sangat terbatas (**±20 request/hari** tanpa isi saldo) — model vision gratis dipilih otomatis OpenRouter. |
+| **Gemini** | `gemini-3.5-flash-lite` | **Flash-Lite**: kuota gratis lebih longgar daripada flash biasa. `429` per hari berarti kuota hari itu habis — lanjut besok atau biarkan frame dialihkan ke Groq lewat fallback. |
+| **OpenRouter** | `openrouter/free` (alias vision) | Cadangan: free tier sangat terbatas (**±20 request/hari** tanpa isi saldo). |
+
+Tiap provider memakai **satu model tetap** — tanpa pemilihan model dinamis, tanpa daftar
+model kandidat. Kalau provider aktif gagal karena **kuota harian (`429`)**
+atau **`503` setelah retry habis**, frame itu diproses lewat **provider lain** yang API
+key-nya tersimpan (status frame menampilkan provider yang akhirnya dipakai). Fallback bisa
+dimatikan lewat toggle **Fallback antar provider** di panel provider (default: aktif);
+tanpa key provider lain, frame gagal dengan pesan jelas.
 
 Saran: kalau sering muncul pemberitahuan **“Menunggu limit reset”**, naikkan **Jeda antar
-foto** (misalnya 12 atau 20 detik) di Lembar kerja. Retry berjalan otomatis (maksimal 5
-percobaan); frame yang tetap gagal bisa diproses ulang lewat tombol **Coba lagi frame gagal**.
+foto** (misalnya 12 atau 20 detik) di Lembar kerja. Retry berjalan otomatis (maksimal **3**
+percobaan: tunggu limit per menit, backoff untuk `503`, tanpa retry untuk kuota harian);
+frame yang tetap gagal bisa diproses ulang lewat tombol **Coba lagi frame gagal**.
 
 ## Format CSV
 

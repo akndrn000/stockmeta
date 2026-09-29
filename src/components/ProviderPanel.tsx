@@ -1,16 +1,18 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PROVIDER_LABELS, PROVIDER_ORDER, STATUS_LABELS } from '../hooks/useProvider';
 import type { useProvider } from '../hooks/useProvider';
+import { PROVIDER_MODELS } from '../lib/providers/models';
+import { readFallback, writeFallback } from '../lib/storage';
 
 type ProviderApi = ReturnType<typeof useProvider>;
 
 const GROQ_NOTE =
   'Limit gratis Groq ketat (8.000 token/menit); batch besar bisa lebih lambat karena menunggu limit reset.';
 const GEMINI_NOTE =
-  'Kadang lebih sering terkena limit/sibuk dibanding Groq — coba Groq dulu kalau sering gagal.';
+  'Pakai Flash-Lite — model Gemini dengan kuota gratis paling longgar (jauh lebih longgar daripada flash biasa). Kalau tetap kena 429 harian, lanjutkan besok atau biarkan frame dialihkan ke Groq lewat fallback.';
 const OPENROUTER_NOTE =
-  'Free tier OpenRouter sangat terbatas (sekitar 20 request/hari tanpa isi saldo) — cocok sebagai cadangan, bukan andalan utama. Model dipilih otomatis oleh OpenRouter dari daftar model gratis yang mendukung gambar.';
+  'Free tier OpenRouter sangat terbatas (sekitar 20 request/hari tanpa isi saldo) — cocok sebagai cadangan, bukan andalan utama. Modelnya satu alias tetap (openrouter/free).';
 
 // Label field: kecil, tegas, uppercase — dipakai identik di seluruh halaman.
 const LABEL =
@@ -26,7 +28,20 @@ const NOTE_TONE: Record<string, string> = {
 
 export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean }) {
   const [showKey, setShowKey] = useState(false);
+  // toggle fallback antar provider (default aktif); direstore setelah mount hindari mismatch SSR
+  const [fallback, setFallback] = useState(true);
   const testing = api.status === 'testing';
+  const model = PROVIDER_MODELS[api.provider];
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- restore sekali dari localStorage
+    setFallback(readFallback());
+  }, []);
+
+  function setFallbackEnabled(on: boolean) {
+    setFallback(on);
+    writeFallback(on);
+  }
 
   return (
     <section
@@ -218,9 +233,10 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
             >
               {api.note}
             </p>
-            {api.status === 'ok' && api.model && (
+            {/* model TETAP per provider — teks statis, tanpa dropdown pemilih model */}
+            {model && (
               <span className="font-mono text-meta text-text-muted tabular-nums">
-                Model: <span className="font-bold text-text">{api.model}</span>
+                Model: <span className="font-bold text-text">{model}</span>
               </span>
             )}
             {api.provider === 'groq' && (
@@ -232,6 +248,21 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
             {api.provider === 'openrouter' && (
               <p className="font-mono text-small leading-relaxed text-text-muted">{OPENROUTER_NOTE}</p>
             )}
+            {/* Toggle fallback antar provider: aktif (default) = kuota harian/503 habis →
+                frame diproses provider lain yang key-nya tersimpan. */}
+            <label
+              className="mt-0.5 flex w-fit cursor-pointer items-center gap-2 text-small text-text-secondary"
+              title={busy ? 'Batch berjalan — ubah pengaturan setelah selesai' : undefined}
+            >
+              <input
+                type="checkbox"
+                checked={fallback}
+                disabled={busy}
+                onChange={(e) => setFallbackEnabled(e.target.checked)}
+                className="h-4 w-4 shrink-0 cursor-pointer accent-accent disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              <span>Fallback antar provider saat kuota habis</span>
+            </label>
           </div>
         </div>
       </div>

@@ -1,16 +1,16 @@
 // OpenRouter (OpenAI-compatible) — cadangan bila Groq/Gemini habis kuota. Free tier sangat
-// terbatas (±20 request/hari tanpa isi saldo), jadi model TIDAK di-hardcode: memakai alias
-// 'openrouter/free' agar OpenRouter sendiri memilih model vision gratis yang tersedia.
+// terbatas (±20 request/hari tanpa isi saldo) dan modelnya SATU alias tetap 'openrouter/free'
+// (lihat models.ts) — tanpa daftar model atau pemilihan model dinamis di sisi aplikasi.
 // Tes koneksi = GET /api/v1/models (ringan, tanpa biaya token); generate = POST /chat/completions.
 // Key dikirim lewat header Authorization dan TIDAK PERNAH dicetak ke log.
 import { buildMetadataPrompt, parseMetadataResponse } from '../prompt';
 import type { ParsedMetadata } from '../prompt';
 import { readBody } from './http';
-import { MODEL_RETRY_MAX, ProviderError, parseRetryAfter, withRetry } from './retry';
+import { OPENROUTER_MODEL } from './models';
+import { MODEL_RETRY_MAX, ProviderError, dailyQuotaError, isDailyQuota, parseRetryAfter, withRetry } from './retry';
 import type { GenerateArgs, ProviderAdapter, TestResult } from './types';
 
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
-const OPENROUTER_MODEL = 'openrouter/free';
 
 function openrouterMessage(data: unknown): string {
   const err: unknown = data && typeof data === 'object' && 'error' in data
@@ -34,6 +34,15 @@ function openrouterErrorMessage(status: number, data: unknown, raw: string): str
   if (raw && !data) return `Respons tidak terbaca dari OpenRouter${status ? ` (HTTP ${status}).` : '.'}`;
   if (status) return 'OpenRouter menolak permintaan (' + status + ').';
   return 'Koneksi gagal.';
+}
+
+/** Respons gagal → ProviderError; 429 kuota harian TIDAK di-retry (pesan jelas + fallback). */
+function openrouterHttpError(status: number, data: unknown, raw: string, headers: Headers): ProviderError {
+  if (isDailyQuota(status, raw)) return dailyQuotaError('OpenRouter', 'Groq');
+  return new ProviderError(openrouterErrorMessage(status, data, raw), {
+    status,
+    retryAfterMs: parseRetryAfter(headers, raw)
+  });
 }
 
 async function testConnection(apiKey: string, signal?: AbortSignal): Promise<TestResult> {
@@ -87,12 +96,7 @@ async function generateForImage(args: GenerateArgs): Promise<ParsedMetadata> {
       const { data, raw } = await readBody(res);
       if (!res.ok && attempt === 0 && (res.status === 400 || res.status === 422)) continue;
 
-      if (!res.ok) {
-        throw new ProviderError(openrouterErrorMessage(res.status, data, raw), {
-          status: res.status,
-          retryAfterMs: parseRetryAfter(res.headers, raw)
-        });
-      }
+      if (!res.ok) throw openrouterHttpError(res.status, data, raw, res.headers);
       if (!data) throw new ProviderError('JSON tidak valid', { retryable: true, maxRetries: MODEL_RETRY_MAX });
 
       const choice = (data as { choices?: { message?: { content?: unknown } }[] }).choices?.[0];

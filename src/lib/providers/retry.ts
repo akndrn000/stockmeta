@@ -1,12 +1,27 @@
 // Retry sabar — satu-satunya tempat keputusan tunggu/retry (429/503/dst, hormati retry-after).
+// 429 dibedakan: limit per MENIT → tunggu sesuai header/pesan lalu coba lagi (maks 2 retry);
+// kuota HARIAN habis (RESOURCE_EXHAUSTED / pesan "…per day") → TIDAK di-retry sama sekali.
+// 503/sibuk → backoff 5s/10s (2 retry) lalu gagal. Total percobaan maksimal 3.
 // BATCH_DELAY_MS dipakai jeda antar gambar di M8, BUKAN di sini.
 export const BATCH_DELAY_MS = 3000;
 
 // Respons kosong / JSON tidak valid tidak deterministik → maksimal 2 retry saja.
 export const MODEL_RETRY_MAX = 2;
 
+/** total percobaan bawaan: 1 panggilan awal + maksimal 2 retry. */
+export const MAX_ATTEMPTS_DEFAULT = 3;
+
 const MAX_WAIT_MS = 120_000;   // di atas ini kita menyerah, bukan menunggu
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+
+export interface ProviderErrorOpts {
+  status?: number;
+  retryAfterMs?: number;
+  retryable?: boolean;
+  maxRetries?: number;
+  /** true = 429 kuota HARIAN habis → tanpa retry, layak fallback antar provider */
+  dailyQuota?: boolean;
+}
 
 export class ProviderError extends Error {
   status?: number;
@@ -14,15 +29,39 @@ export class ProviderError extends Error {
   retryable: boolean;
   /** jumlah retry maksimal untuk error ini (default: maxAttempts - 1) */
   maxRetries?: number;
+  /** true bila 429 kuota harian habis (bukan limit per menit) */
+  dailyQuota: boolean;
 
-  constructor(message: string, opts: { status?: number; retryAfterMs?: number; retryable?: boolean; maxRetries?: number } = {}) {
+  constructor(message: string, opts: ProviderErrorOpts = {}) {
     super(message);
     this.name = 'ProviderError';
     this.status = opts.status;
     this.retryAfterMs = opts.retryAfterMs;
     this.retryable = opts.retryable ?? (opts.status !== undefined && RETRYABLE_STATUS.has(opts.status));
     this.maxRetries = opts.maxRetries;
+    this.dailyQuota = opts.dailyQuota ?? false;
   }
+}
+
+/**
+ * Klasifikasi error 429 dari body respons: true = kuota HARIAN habis
+ * (RESOURCE_EXHAUSTED Google atau pesan "…kuota per day"), false = limit per menit
+ * (mis. "Rate limit reached, try again in 7.5s") yang boleh di-retry.
+ */
+export function isDailyQuota(status: number, bodyText: string): boolean {
+  if (status !== 429) return false;
+  if (/RESOURCE_EXHAUSTED/i.test(bodyText)) return true;                 // gaya Google
+  if (/\b(daily|today|tomorrow|besok|harian)\b/i.test(bodyText)) return true;
+  if (/\bper[\s-]?(day|hari)\b/i.test(bodyText)) return true;
+  return /(quota|kuota)[^\n]{0,120}(per[\s-]?day|per[\s-]?hari|harian|daily)/i.test(bodyText);
+}
+
+/** Error 429 kuota harian: tanpa retry, pesan jelas berbahasa Indonesia. */
+export function dailyQuotaError(label: string, alternative: string): ProviderError {
+  return new ProviderError(
+    `Kuota harian ${label} habis, coba lagi besok atau pakai ${alternative}.`,
+    { status: 429, retryable: false, dailyQuota: true }
+  );
 }
 
 export interface WaitInfo {
@@ -33,7 +72,7 @@ export interface WaitInfo {
 }
 
 export interface RetryOptions {
-  /** total percobaan (1 awal + retry) */
+  /** total percobaan (1 awal + retry); default MAX_ATTEMPTS_DEFAULT = 3 */
   maxAttempts?: number;
   onWait?: (info: WaitInfo) => void;
   signal?: AbortSignal;
@@ -56,14 +95,14 @@ function toProviderError(err: unknown): ProviderError {
   return new ProviderError(e?.message || 'Gagal diproses', { retryable: false });
 }
 
-function baseWaitMs(e: ProviderError): number {
+function baseWaitMs(e: ProviderError, attempt: number): number {
   if (e.retryAfterMs) return e.retryAfterMs;
-  if (e.status === 429) return 20000;
-  return 5000;   // 503/500/502/504/jaringan
+  if (e.status === 429) return 20000;                      // limit per menit: reset cepat
+  return 5000 * Math.pow(2, attempt - 1);                  // 503/500/…: backoff 5s → 10s
 }
 
 export async function withRetry<T>(fn: () => Promise<T>, opts: RetryOptions = {}): Promise<T> {
-  const maxAttempts = opts.maxAttempts ?? 5;
+  const maxAttempts = opts.maxAttempts ?? MAX_ATTEMPTS_DEFAULT;
   const sleep = opts.sleep ?? defaultSleep;
   for (let attempt = 1; ; attempt++) {
     try {
@@ -73,7 +112,7 @@ export async function withRetry<T>(fn: () => Promise<T>, opts: RetryOptions = {}
       const allowed = e.maxRetries ?? maxAttempts - 1;
       if (!e.retryable || attempt >= maxAttempts || attempt > allowed) throw e;
 
-      const base = baseWaitMs(e);
+      const base = baseWaitMs(e, attempt);
       if (base > MAX_WAIT_MS) {
         throw new ProviderError(
           'Kuota harian/limit panjang tercapai, coba lagi nanti (~' + Math.ceil(base / 60000) + ' menit)',

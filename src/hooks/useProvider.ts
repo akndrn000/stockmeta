@@ -55,7 +55,6 @@ export interface ProviderState {
   key: string;
   status: ConnectionStatus;
   note: string;          // pesan terakhir; fallback = catatan default provider
-  model?: string;        // hasil auto-detect Gemini (untuk M8)
 }
 
 export function useProvider() {
@@ -63,7 +62,6 @@ export function useProvider() {
   const [key, setKeyState] = useState('');
   const [status, setStatusState] = useState<ConnectionStatus>('idle');
   const [note, setNoteState] = useState<string | null>(null);
-  const [model, setModel] = useState<string | undefined>(undefined);
   const testingRef = useRef(false);
 
   // M19: satu jalur tes dipakai tombol manual, boot, dan ganti provider supaya status
@@ -81,7 +79,6 @@ export function useProvider() {
       const res = await adapter.testConnection(k);
       if (res.ok) {
         writeKey(p, k);                      // hanya setelah tes lulus
-        setModel(res.model);
         setStatusState('ok');
         setNoteState(OK_NOTE);
       } else {
@@ -116,7 +113,6 @@ export function useProvider() {
     setProviderState(p);
     setStatusState('idle');
     setNoteState(null);
-    setModel(undefined);
     const stored = readKey(p).trim();
     // field diisi key provider tujuan bila ada (yang tampil = yang akan dites),
     // kalau tidak ada key tersimpan isi lama dipertahankan (legacy)
@@ -140,7 +136,6 @@ export function useProvider() {
     key,
     status,
     note: note ?? KEY_NOTES[provider],
-    model,
     isSoon: provider === 'coming-soon',
     setProvider,
     setKey,

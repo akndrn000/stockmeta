@@ -14,7 +14,7 @@ import { PROVIDER_LABELS, PROVIDER_ORDER, STATUS_LABELS, useProvider } from './u
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
-const testConnection = vi.fn(async (): Promise<TestResult> => ({ ok: true, model: 'fake-model' }));
+const testConnection = vi.fn(async (): Promise<TestResult> => ({ ok: true }));
 const fakeAdapter: ProviderAdapter = {
   id: 'groq',
   testConnection,
@@ -43,7 +43,7 @@ async function mount() {
 beforeEach(() => {
   localStorage.clear();
   testConnection.mockReset();
-  testConnection.mockResolvedValue({ ok: true, model: 'fake-model' });
+  testConnection.mockResolvedValue({ ok: true });
   registry.gemini = fakeAdapter;
   registry.groq = fakeAdapter;                    // default provider (M11)
   registry.openrouter = fakeAdapter;              // M19
@@ -74,7 +74,7 @@ describe('useProvider — auto-test key tersimpan (M19)', () => {
     expect(api().note).toBe('Memanggil endpoint Groq…');
     expect(STATUS_LABELS[api().status]).toBe('Menguji…');
 
-    await act(async () => { settle?.({ ok: true, model: 'fake-model' }); });
+    await act(async () => { settle?.({ ok: true }); });
     expect(api().status).toBe('ok');
     expect(api().note).toBe('Terhubung — API key disimpan di browser.');
     expect(testConnection).toHaveBeenCalledTimes(1);

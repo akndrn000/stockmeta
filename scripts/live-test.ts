@@ -51,7 +51,6 @@ async function main(): Promise<void> {
 
   const result = await adapter.generateForImage({
     apiKey: key,
-    model: test.model,
     image,
     platform,
     theme: themeArg

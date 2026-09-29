@@ -1,16 +1,17 @@
 // Groq live (OpenAI-compatible) — port dari legacy/js/providers-groq.js. Model tunggal
-// 'qwen/qwen3.8-27b' tanpa fallback: kalau gagal, error tampil apa adanya dari body Groq.
-// Catatan: limit gratis qwen di Groq = 8.000 token/menit, jadi 429 di sini NORMAL dan ditangani
-// retry sabar (20 detik atau sesuai retry-after).
+// 'qwen/qwen3.8-27b' (lihat models.ts) tanpa fallback antar model: kalau gagal, error tampil
+// apa adanya dari body Groq. Catatan: limit gratis qwen di Groq = 8.000 token/menit, jadi 429
+// per menit di sini NORMAL dan ditangani retry sabar (20 detik atau sesuai retry-after);
+// 429 kuota harian → TIDAK di-retry, gagal cepat agar bisa fallback ke provider lain.
 // Key dikirim lewat header Authorization dan TIDAK PERNAH dicetak ke log.
 import { buildMetadataPrompt, parseMetadataResponse } from '../prompt';
 import type { ParsedMetadata } from '../prompt';
 import { readBody } from './http';
-import { MODEL_RETRY_MAX, ProviderError, parseRetryAfter, withRetry } from './retry';
+import { GROQ_MODEL } from './models';
+import { MODEL_RETRY_MAX, ProviderError, dailyQuotaError, isDailyQuota, parseRetryAfter, withRetry } from './retry';
 import type { GenerateArgs, ProviderAdapter, TestResult } from './types';
 
 const GROQ_BASE = 'https://api.groq.com/openai/v1';
-const GROQ_MODEL = 'qwen/qwen3.8-27b';
 
 function groqMessage(data: unknown): string {
   const err = data && typeof data === 'object' && 'error' in data
@@ -29,6 +30,15 @@ function groqErrorMessage(status: number, data: unknown, raw: string): string {
   if (raw && !data) return `Respons tidak terbaca dari Groq${status ? ` (HTTP ${status}).` : '.'}`;
   if (status) return 'Groq menolak permintaan (' + status + ').';
   return 'Koneksi gagal.';
+}
+
+/** Respons gagal → ProviderError; 429 kuota harian TIDAK di-retry (pesan jelas + fallback). */
+function groqHttpError(status: number, data: unknown, raw: string, headers: Headers): ProviderError {
+  if (isDailyQuota(status, raw)) return dailyQuotaError('Groq', 'Gemini');
+  return new ProviderError(groqErrorMessage(status, data, raw), {
+    status,
+    retryAfterMs: parseRetryAfter(headers, raw)
+  });
 }
 
 async function testConnection(apiKey: string, signal?: AbortSignal): Promise<TestResult> {
@@ -76,12 +86,7 @@ async function generateForImage(args: GenerateArgs): Promise<ParsedMetadata> {
     }
 
     const { data, raw } = await readBody(res);
-    if (!res.ok) {
-      throw new ProviderError(groqErrorMessage(res.status, data, raw), {
-        status: res.status,
-        retryAfterMs: parseRetryAfter(res.headers, raw)
-      });
-    }
+    if (!res.ok) throw groqHttpError(res.status, data, raw, res.headers);
     if (!data) throw new ProviderError('JSON tidak valid', { retryable: true, maxRetries: MODEL_RETRY_MAX });
 
     const choice = (data as { choices?: { message?: { content?: unknown } }[] }).choices?.[0];

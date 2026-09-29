@@ -7,10 +7,11 @@ import { fileStore } from '../lib/fileStore';
 import { prepareImage } from '../lib/image';
 import { defaultMetadata, hasContent } from '../lib/metadata';
 import { getProvider } from '../lib/providers';
+import { generateWithFallback } from '../lib/providers/fallback';
 import { readBatchDelay, writeBatchDelay } from '../lib/storage';
 import { BATCH_DELAY_DEFAULT_SEC } from '../lib/limits';
-import type { Platform } from '../lib/types';
-import type { useProvider } from './useProvider';
+import type { Platform, ProviderId } from '../lib/types';
+import { PROVIDER_LABELS, type useProvider } from './useProvider';
 import type { useSession } from './useSession';
 
 type Session = ReturnType<typeof useSession>;
@@ -45,11 +46,9 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
   // batch yang masih jalan dibatalkan saat komponen dilepas (mis. sesi baru dipaksa)
   useEffect(() => () => { abortRef.current?.abort(); }, []);
 
-  // wajib tes dulu; Gemini juga wajib punya model hasil tes (Groq modelnya tetap)
+  // wajib tes dulu; model provider tetap (satu model per provider) sehingga tak perlu dicek
   function providerReady(): boolean {
-    if (provider.isSoon || provider.status !== 'ok') return false;
-    if (provider.provider === 'gemini' && !provider.model) return false;
-    return true;
+    return !provider.isSoon && provider.status === 'ok';
   }
 
   async function run(ids: number[], platform: Platform) {
@@ -66,10 +65,11 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
 
     // input di-snapshot saat mulai: platform & API key terkunci sampai batch selesai
     const apiKey = provider.key.trim();
-    const model = provider.model;
-    const adapter = getProvider(provider.provider);
+    const activeProvider: ProviderId = provider.provider;
     const delayMs = opts?.delayMs ?? delaySec * 1000;
     let limitHit = false;
+    // provider yang akhirnya memproses frame terakhir (fallback antar provider) → tampil di catatan
+    let usedVia = '';
 
     try {
       const result = await runBatch({
@@ -81,16 +81,18 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
           const file = fileStore.get(_id);
           if (!file) throw new Error(MISSING_FILE_MSG);
           const image = await prepareImage(file);
-          if (!adapter) throw new Error('Provider tidak tersedia');
-          return adapter.generateForImage({
+          if (!getProvider(activeProvider)) throw new Error('Provider tidak tersedia');
+          const out = await generateWithFallback({
+            provider: activeProvider,
             apiKey,
-            model,
             image,
             platform: args.platform,
             theme: args.theme,
             signal: args.signal,
             onWait: args.onWait
           });
+          usedVia = out.usedFallback ? PROVIDER_LABELS[out.provider] : '';
+          return out.meta;
         },
         getImage: (id) => fileStore.get(id),
         getTheme: (id) => {
@@ -115,7 +117,7 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
         },
         onSuccess: (id, meta) => {
           session.applyGenerated(id, platform, meta);
-          session.setNote(id, '');
+          session.setNote(id, usedVia ? `Diproses via ${usedVia} (fallback)` : '');
           setProgress((p) => ({ ...p, done: p.done + 1 }));
         },
         onError: (id, message) => {

@@ -15,6 +15,7 @@ export const SESS_KEY = 'stockmeta_session';
 export const THEME_KEY = 'stockmeta_theme';
 export const BATCH_DELAY_KEY = 'stockmeta_batch_delay';
 export const PROVIDER_KEY = 'stockmeta_provider';
+export const FALLBACK_KEY = 'stockmeta_fallback';
 
 function ls(): Storage | null {
   try { return typeof localStorage === 'undefined' ? null : localStorage; }
@@ -48,6 +49,16 @@ export function readProvider(): ProviderId | null {
 
 export function writeProvider(provider: ProviderId): void {
   try { ls()?.setItem(PROVIDER_KEY, provider); } catch { /* diabaikan */ }
+}
+
+/* ---------------- fallback antar provider (toggle panel, default: aktif) ---------------- */
+
+export function readFallback(): boolean {
+  try { return ls()?.getItem(FALLBACK_KEY) !== '0'; } catch { return true; }
+}
+
+export function writeFallback(enabled: boolean): void {
+  try { ls()?.setItem(FALLBACK_KEY, enabled ? '1' : '0'); } catch { /* diabaikan */ }
 }
 
 /* ---------------- riwayat sesi ---------------- */

@@ -1,34 +1,16 @@
 // Gemini live — port dari legacy/js/providers-gemini.js (endpoint, format request,
-// pickGeminiModel, pemetaan error dari BODY respons). Key hanya dikirim sebagai query param ke
-// API resmi Google dan TIDAK PERNAH dicetak ke log.
+// pemetaan error dari BODY respons). SATU model (gemini-3.5-flash-lite, lihat models.ts):
+// tanpa deteksi otomatis, tanpa daftar model. 429 dibedakan: limit per menit → di-retry,
+// kuota harian (RESOURCE_EXHAUSTED) → gagal cepat tanpa retry.
+// Key hanya dikirim sebagai query param ke API resmi Google dan TIDAK PERNAH dicetak ke log.
 import { buildMetadataPrompt, parseMetadataResponse } from '../prompt';
 import type { ParsedMetadata } from '../prompt';
 import { readBody } from './http';
-import { MODEL_RETRY_MAX, ProviderError, parseRetryAfter, withRetry } from './retry';
+import { GEMINI_MODEL } from './models';
+import { MODEL_RETRY_MAX, ProviderError, dailyQuotaError, isDailyQuota, parseRetryAfter, withRetry } from './retry';
 import type { GenerateArgs, ProviderAdapter, TestResult } from './types';
 
 export const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
-
-// model pertama di daftar ini yang tersedia di /models key-nya menang
-export const GEMINI_MODEL_PREFS = ['gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-3.7-flash',
-  'gemini-3-flash-preview', 'gemini-3.1-flash-lite', 'gemini-3.5-flash-lite',
-  'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'] as const;
-
-const FALLBACK_MODEL = 'gemini-2.5-flash';
-
-export interface GeminiModel {
-  name?: string;
-  supportedGenerationMethods?: string[];
-}
-
-export function pickGeminiModel(models?: readonly GeminiModel[]): string {
-  const ok = (models ?? [])
-    .filter((m) => !m.supportedGenerationMethods || m.supportedGenerationMethods.includes('generateContent'))
-    .map((m) => String(m.name ?? '').replace(/^models\//, ''));
-  for (const p of GEMINI_MODEL_PREFS) if (ok.includes(p)) return p;
-  const flash = ok.find((id) => /flash/.test(id) && !/image|audio|live|tts|transcribe|robotics/i.test(id));
-  return flash || FALLBACK_MODEL;
-}
 
 function geminiError(data: unknown): { message: string; blob: string } {
   const err = data && typeof data === 'object' && 'error' in data
@@ -49,31 +31,40 @@ function geminiErrorMessage(status: number, data: unknown): string {
   return 'Koneksi gagal.';
 }
 
+/** Respons gagal → ProviderError; 429 kuota harian TIDAK di-retry (pesan jelas + fallback). */
+function geminiHttpError(status: number, data: unknown, raw: string, headers: Headers): ProviderError {
+  if (isDailyQuota(status, raw)) return dailyQuotaError('Gemini', 'Groq');
+  return new ProviderError(geminiErrorMessage(status, data), {
+    status,
+    retryAfterMs: parseRetryAfter(headers, raw)
+  });
+}
+
 async function testConnection(apiKey: string, signal?: AbortSignal): Promise<TestResult> {
+  // GET /models/{model}: sekalian membuktikan key valid DAN model tunggal tersedia.
   let res: Response;
   try {
-    res = await fetch(GEMINI_BASE + '/models?key=' + encodeURIComponent(apiKey), { signal });
+    res = await fetch(GEMINI_BASE + '/models/' + GEMINI_MODEL + '?key=' + encodeURIComponent(apiKey), { signal });
   } catch {
     return { ok: false, message: 'Tidak ada koneksi ke server Gemini.' };
   }
   const { data } = await readBody(res);
+  if (res.status === 404) {
+    // nama model ditolak API → JANGAN diam-diam pindah model; laporkan apa adanya
+    return { ok: false, message: `Model ${GEMINI_MODEL} ditolak Gemini (404) — laporkan ke pengembang nama model yang valid.` };
+  }
   if (!res.ok) return { ok: false, message: geminiErrorMessage(res.status, data) };
-  const models = data && typeof data === 'object' && Array.isArray((data as { models?: unknown }).models)
-    ? (data as { models: GeminiModel[] }).models
-    : [];
-  if (!models.length) return { ok: false, message: 'Key diterima, tapi tidak ada model yang bisa dipakai.' };
-  return { ok: true, model: pickGeminiModel(models) };
+  return { ok: true };
 }
 
 async function generateForImage(args: GenerateArgs): Promise<ParsedMetadata> {
   const { apiKey, image, platform, theme, signal, onWait } = args;
-  const model = args.model ?? FALLBACK_MODEL;
   const prompt = buildMetadataPrompt({ platform, theme });
 
   return withRetry(async () => {
     let res: Response;
     try {
-      res = await fetch(GEMINI_BASE + '/models/' + model + ':generateContent?key=' + encodeURIComponent(apiKey), {
+      res = await fetch(GEMINI_BASE + '/models/' + GEMINI_MODEL + ':generateContent?key=' + encodeURIComponent(apiKey), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -88,12 +79,7 @@ async function generateForImage(args: GenerateArgs): Promise<ParsedMetadata> {
     }
 
     const { data, raw } = await readBody(res);
-    if (!res.ok) {
-      throw new ProviderError(geminiErrorMessage(res.status, data), {
-        status: res.status,
-        retryAfterMs: parseRetryAfter(res.headers, raw)
-      });
-    }
+    if (!res.ok) throw geminiHttpError(res.status, data, raw, res.headers);
 
     const body = data && typeof data === 'object' ? data as {
       promptFeedback?: { blockReason?: string };
