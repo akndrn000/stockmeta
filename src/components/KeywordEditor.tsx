@@ -39,7 +39,7 @@ export function KeywordEditor({ keywords, min, onChange, disabled }: {
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between gap-2">
-        <label htmlFor="kw-input" className="text-meta font-semibold leading-none tracking-[0.01em] text-ink-3">
+        <label htmlFor="kw-input" className="text-meta font-semibold leading-none tracking-[0.01em] text-text-muted">
           Kata kunci
         </label>
         <CopyButton text={plain} label="daftar kata kunci" disabled={disabled} />
@@ -57,7 +57,7 @@ export function KeywordEditor({ keywords, min, onChange, disabled }: {
           {keywords.map((k, i) => (
             <li
               key={`${k.toLowerCase()}-${i}`}
-              className="inline-flex max-w-full items-center gap-1 rounded border border-line bg-well pl-2 pr-1 py-0.5 text-small text-ink"
+              className="inline-flex max-w-full items-center gap-1 rounded border border-border bg-surface-elevated py-1 pl-2 pr-1 text-small text-text"
             >
               <span className="min-w-0 truncate" title={k}>{k}</span>
               <button
@@ -65,7 +65,7 @@ export function KeywordEditor({ keywords, min, onChange, disabled }: {
                 onClick={() => onChange(removeKeyword(keywords, i))}
                 aria-label={`Hapus kata kunci ${k}`}
                 title={`Hapus kata kunci ${k}`}
-                className="btn-compact relative grid h-5 w-5 place-items-center rounded text-ink-3 transition-colors hover:bg-wash hover:text-fail before:absolute before:-inset-2.5 before:content-['']"
+                className="btn-compact relative grid h-5 w-5 place-items-center rounded text-text-muted transition-colors hover:bg-accent-tint hover:text-error before:absolute before:-inset-2.5 before:content-['']"
               >
                 <svg width="9" height="9" viewBox="0 0 10 10" fill="none" aria-hidden="true">
                   <path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -105,16 +105,16 @@ export function KeywordEditor({ keywords, min, onChange, disabled }: {
           placeholder={full ? 'Penuh — hapus salah satu dulu' : 'Ketik kata kunci, pisahkan koma atau Enter'}
           spellCheck={false}
           autoCapitalize="none"
-          className="w-full rounded border border-line bg-well px-3 py-2 pr-24 text-body text-ink placeholder:text-ink-3 disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-10 w-full rounded border border-border-control bg-surface-elevated px-3 py-2 pr-24 text-body text-text transition-colors placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
         />
         {/* M16: badge meta kecil (penghitung, min, penuh) = teks polos tanpa kotak —
             hanya badge STATUS (berwarna aktif) yang memakai garis 2px. */}
         <span className="pointer-events-none absolute bottom-1 right-3 flex items-center gap-1.5">
-          <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-ink-3">
+          <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-text-muted">
             {n}/{MAX_KEYWORDS}
           </span>
           {n < min && (
-            <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-ink-3">
+            <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-warning">
               min {min}
             </span>
           )}
@@ -126,7 +126,7 @@ export function KeywordEditor({ keywords, min, onChange, disabled }: {
         </span>
       </div>
 
-      <p role="status" aria-live="polite" className="min-h-4 text-small font-medium text-ink-2">
+      <p role="status" aria-live="polite" className="min-h-4 text-small font-medium text-text-secondary">
         {skip}
       </p>
     </div>

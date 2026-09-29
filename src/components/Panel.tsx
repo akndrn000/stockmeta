@@ -28,21 +28,21 @@ export function Panel({
   return (
     <section
       id={id}
-      className={`flex flex-col overflow-hidden rounded-md border border-line bg-surface ${className}`}
+      className={`flex min-w-0 flex-col overflow-hidden rounded-md border border-border bg-surface ${className}`}
     >
-      <div className="flex items-center gap-3 border-b border-line px-4 py-3">
+      <div className="flex items-center gap-3 border-b border-border px-4 py-3">
         <div className="flex min-w-0 items-baseline gap-3">
-          <h2 className="truncate text-title font-bold tracking-[-0.015em] text-ink">
+          <h2 className="truncate text-title font-bold tracking-[-0.015em] text-text">
             {title}
           </h2>
-          <span className="shrink-0 font-mono text-meta font-bold uppercase tracking-[0.08em] text-ink-3">
+          <span className="shrink-0 font-mono text-meta font-bold uppercase tracking-[0.08em] text-text-muted">
             {meta}
           </span>
         </div>
         {actions && <div className="ml-auto shrink-0">{actions}</div>}
       </div>
       <div className="grow p-4">{children}</div>
-      {footer && <div className="border-t border-line px-4 py-3">{footer}</div>}
+      {footer && <div className="border-t border-border px-4 py-3">{footer}</div>}
     </section>
   );
 }

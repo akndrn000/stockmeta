@@ -1,111 +1,105 @@
 @import "tailwindcss";
 
-/* Token "Phosphor" — tema terminal hijau-hitam, dua mode (M15).
-   Kanvas nyaris hitam, SATU aksen hijau fosfor untuk elemen aktif/fokus/tombol utama,
-   amber hanya untuk status positif, merah hanya untuk status gagal.
-   Semua komponen memakai token ini lewat utilitas Tailwind (bg-surface, text-ink, …)
+/* Token "Phosphor" — palet M17 (sumber kebenaran baru, menggantikan token M15/M16).
+   Arah: "Modern professional SaaS dashboard, terminal-inspired" — latar hijau-gelap,
+   satu aksen hijau untuk elemen aktif/interaktif, border tipis hijau gelap, mono di
+   seluruh halaman. Turunkan glow: HANYA tombol utama (M17 — jawaban desain).
+   Semua komponen memakai token ini lewat utilitas Tailwind (bg-surface, text-text, …)
    sehingga pergantian data-theme mengganti seluruh halaman sekaligus. */
 :root,
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #050805;
-  --surface: #070b07;
-  --raised: #0b120c;
-  --well: #0a100a;
-  --line: rgba(57, 255, 122, 0.22);
-  --line-soft: rgba(57, 255, 122, 0.11);
-  --wash: rgba(57, 255, 122, 0.07);
-  --ink: #eafff1;
-  --ink-2: #86a890;
-  --ink-3: #5f8d68;
-  --accent: #39ff7a;
-  --accent-hover: #5cff93;
-  --accent-text: #39ff7a;
-  --accent-dim: #2bbf5c;
-  --accent-faint: #1c7a3c;
-  --accent-wash: rgba(57, 255, 122, 0.13);
-  --on-accent: #050805;
-  --success: #ffd24a;
-  --success-wash: rgba(255, 210, 74, 0.13);
-  --fail: #ff6a55;
-  --fail-wash: rgba(255, 106, 85, 0.14);
-  --on-fail: #140604;
-  --wait: #86a890;
-  --focus: #39ff7a;
-  --plate: #39ff7a;
-  --plate-ink: #050805;
-  /* Glow tipis (hanya mode malam; mode siang = none) — statis, bukan animasi */
-  --glow: 0 0 0 1px rgba(57, 255, 122, 0.35), 0 0 14px rgba(57, 255, 122, 0.28);
-  --glow-soft: 0 0 8px rgba(57, 255, 122, 0.2);
-  --glow-text: 0 0 8px rgba(57, 255, 122, 0.45);
-  --glow-input: 0 0 12px rgba(57, 255, 122, 0.18);
-  --glow-ok: 0 0 10px rgba(255, 210, 74, 0.28);
+  /* Palet inti (diberikan brief M17) */
+  --bg: #050907;
+  --bg-secondary: #090f0b;
+  --surface: #0b120d;
+  --surface-elevated: #101a13;
+  --border: #1b3d28;
+  --border-strong: #244b32;
+  /* M17b: BATAS KONTROL — hanya untuk elemen interaktif (input/textarea/select/button).
+     ≥3:1 terhadap semua permukaan tempat kontrol duduk (bg, bg-secondary, surface,
+     surface-elevated) agar batas komponen identifiable (SC 1.4.11); --border yang redup
+     tetap untuk garis pembatas struktural non-interaktif sesuai brief. */
+  --border-control: #3a7c51;
+  --accent: #20e875;
+  --accent-hover: #35f58a;
+  --text: #e8f2eb;
+  --text-secondary: #a0b5a6;
+  --text-muted: #718578;
+  --warning: #f4c84b;
+  --error: #f06464;
+  --success: #35d98a;
+  /* Turunan keluarga aksen (satu aksen, tanpa aksen kedua) */
+  --accent-text: #20e875;
+  --accent-faint: rgba(32, 232, 117, 0.3);
+  --accent-tint: rgba(32, 232, 117, 0.1);
+  --accent-contrast: #04120a;
+  /* Turunan status */
+  --success-tint: rgba(53, 217, 138, 0.12);
+  --warning-tint: rgba(244, 200, 75, 0.12);
+  --error-tint: rgba(240, 100, 100, 0.14);
+  --error-contrast: #140606;
+  --focus: #20e875;
+  /* Glow HANYA untuk tombol utama — statis, bukan animasi (M17) */
+  --glow: 0 0 16px rgba(32, 232, 117, 0.2);
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #f3f2ea;
-  --surface: #fbfaf6;
-  --raised: #edece3;
-  --well: #ffffff;
-  --line: rgba(23, 79, 47, 0.3);
-  --line-soft: rgba(23, 79, 47, 0.16);
-  --wash: rgba(13, 107, 52, 0.07);
-  --ink: #0f1a13;
-  --ink-2: #33513f;
-  --ink-3: #4d6857;
-  --accent: #0d6b34;
-  --accent-hover: #0a5528;
-  --accent-text: #0b6b33;
-  --accent-dim: #1c7a3c;
-  --accent-faint: #5f8d68;
-  --accent-wash: rgba(13, 107, 52, 0.1);
-  --on-accent: #f7fff9;
-  --success: #8a5a00;
-  --success-wash: rgba(255, 210, 74, 0.2);
-  --fail: #b3261e;
-  --fail-wash: rgba(179, 38, 30, 0.1);
-  --on-fail: #ffffff;
-  --wait: #4d6857;
+  /* Mode terang = turunan dari palet yang sama: latar terang, teks gelap, aksen hijau
+     versi jenuh tanpa glow. Teks isi memakai --text/--text-secondary, bukan hijau. */
+  --bg: #f0f3f1;
+  --bg-secondary: #e7ece9;
+  --surface: #fafcfb;
+  --surface-elevated: #ffffff;
+  --border: #c7d3cb;
+  --border-strong: #a3b4aa;
+  --border-control: #718380;
+  --accent: #0b7a41;
+  --accent-hover: #095f34;
+  --text: #0e1a13;
+  --text-secondary: #3b4c43;
+  --text-muted: #5a6c61;
+  --warning: #8a5a00;
+  --error: #b3261e;
+  --success: #0b6b3f;
+  --accent-text: #0a6633;
+  --accent-faint: rgba(11, 122, 65, 0.28);
+  --accent-tint: rgba(11, 122, 65, 0.08);
+  --accent-contrast: #ffffff;
+  --success-tint: rgba(11, 107, 63, 0.1);
+  --warning-tint: rgba(138, 90, 0, 0.1);
+  --error-tint: rgba(179, 38, 30, 0.08);
+  --error-contrast: #ffffff;
   --focus: #0b6b33;
-  --plate: #0d6b34;
-  --plate-ink: #f7fff9;
   --glow: none;
-  --glow-soft: none;
-  --glow-text: none;
-  /* `0 0 0 0 transparent`, bukan `none` — nilai ini digabung dengan ring inset fokus
-     dalam satu deklarasi box-shadow; `none` di tengah daftar membatalkan seluruh deklarasi */
-  --glow-input: 0 0 0 0 transparent;
-  --glow-ok: none;
 }
 
 @theme inline {
   --color-bg: var(--bg);
+  --color-bg-secondary: var(--bg-secondary);
   --color-surface: var(--surface);
-  --color-raised: var(--raised);
-  --color-well: var(--well);
-  --color-line: var(--line);
-  --color-line-soft: var(--line-soft);
-  --color-wash: var(--wash);
-  --color-ink: var(--ink);
-  --color-ink-2: var(--ink-2);
-  --color-ink-3: var(--ink-3);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-border-control: var(--border-control);
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-text: var(--accent-text);
-  --color-accent-dim: var(--accent-dim);
   --color-accent-faint: var(--accent-faint);
-  --color-accent-wash: var(--accent-wash);
-  --color-on-accent: var(--on-accent);
-  --color-on-fail: var(--on-fail);
+  --color-accent-tint: var(--accent-tint);
+  --color-accent-contrast: var(--accent-contrast);
+  --color-text: var(--text);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
   --color-success: var(--success);
-  --color-success-wash: var(--success-wash);
-  --color-fail: var(--fail);
-  --color-fail-wash: var(--fail-wash);
-  --color-wait: var(--wait);
+  --color-success-tint: var(--success-tint);
+  --color-warning: var(--warning);
+  --color-warning-tint: var(--warning-tint);
+  --color-error: var(--error);
+  --color-error-tint: var(--error-tint);
+  --color-error-contrast: var(--error-contrast);
   --color-focus: var(--focus);
-  --color-plate: var(--plate);
-  --color-plate-ink: var(--plate-ink);
   /* M16: SKALA UKURAN FONT — lima tingkat saja, dipakai seluruh halaman. Nama token =
      peran, bukan angka, supaya komponen baru memakai peran yang benar.
      meta 11 (label/counter/badge/readout) · small 13 (hint, nama file, chip, pesan pendukung)
@@ -131,13 +125,13 @@
   body {
     font-family: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
     background-color: var(--bg);
-    color: var(--ink);
+    color: var(--text);
   }
 
   /* Seleksi & kursor mengikuti aksen (safelight) */
   ::selection {
     background-color: var(--accent);
-    color: var(--on-accent);
+    color: var(--accent-contrast);
   }
 
   /* Focus ring terlihat di semua kontrol keyboard, di kedua mode (M9b — tidak dikorbankan) */
@@ -149,28 +143,20 @@
   /* M16 — ketebalan border hanya punya DUA nilai: 1px (biasa) dan 2px (menyala).
      Isian dapat garis 2px saat fokus: 1px border + 1px ring inset, bukan menaikkan
      border-width — input ber-height auto akan bertambah tinggi 1–2px dan menggeser
-     konten di bawahnya setiap pindah field. Warna aksen + ring tetap terbaca jelas. */
+     konten di bawahnya setiap pindah field. Warna aksen + ring tetap terbaca jelas;
+     glow isian dihapus di M17 (fokus = garis aksen yang bersih). */
   input:focus-visible,
   textarea:focus-visible,
   select:focus-visible {
     border-color: var(--accent);
-    box-shadow: inset 0 0 0 1px var(--accent), var(--glow-input);
+    box-shadow: inset 0 0 0 1px var(--accent);
   }
 }
 
-/* Glow statis — dipakai elemen aktif saja (tombol utama, pelat platform, tile terpilih,
-   brand). Tidak berdenyut jadi aman bagi prefers-reduced-motion (yang mematikan animasi). */
+/* Glow statis HANYA untuk tombol utama "Buat metadata" (M17) — elemen lain memakai
+   border/latar aksen yang bersih. Tidak berdenyut jadi aman bagi prefers-reduced-motion. */
 .glow {
   box-shadow: var(--glow);
-}
-.glow-soft {
-  box-shadow: var(--glow-soft);
-}
-.glow-ok {
-  box-shadow: var(--glow-ok);
-}
-.glow-text {
-  text-shadow: var(--glow-text);
 }
 
 /* Badge status bergaya bracket terminal (M15): "[ AKTIF ]" — teks asli tetap di DOM
@@ -205,17 +191,17 @@
 .spinner {
   width: 12px;
   height: 12px;
-  border: 2px solid var(--line);
-  border-top-color: var(--accent-text);
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spinner-rotate 0.7s linear infinite;
 }
 
-/* Spinner di atas tombol aksen: memakai warna teks di atas aksen (--on-accent),
+/* Spinner di atas tombol aksen: memakai warna teks di atas aksen (--accent-contrast),
    kontras di mode siang & malam */
 .spinner-on-accent {
-  border-color: color-mix(in srgb, var(--on-accent) 35%, transparent);
-  border-top-color: var(--on-accent);
+  border-color: color-mix(in srgb, var(--accent-contrast) 35%, transparent);
+  border-top-color: var(--accent-contrast);
 }
 
 /* Hormati prefers-reduced-motion: semua animasi dimatikan (spinner statis tapi tetap
@@ -253,7 +239,7 @@
    SATU-satunya elemen dengan scroll internal (pengecualian terdokumentasi di MIGRATION). */
 .scroll-slim {
   scrollbar-width: thin;
-  scrollbar-color: var(--line) transparent;
+  scrollbar-color: var(--border-strong) transparent;
 }
 .scroll-slim::-webkit-scrollbar {
   width: 6px;
@@ -263,10 +249,10 @@
   background: transparent;
 }
 .scroll-slim::-webkit-scrollbar-thumb {
-  background: var(--line);
+  background: var(--border-strong);
   /* pengecualian radius 2-tingkat: elemen non-teks kecil, sama seperti dot brand (3px) */
   border-radius: 3px;
 }
 .scroll-slim::-webkit-scrollbar-thumb:hover {
-  background: var(--ink-3);
+  background: var(--text-muted);
 }

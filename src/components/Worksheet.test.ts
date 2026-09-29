@@ -274,13 +274,13 @@ describe('ikon "buat ulang" di tile (M13)', () => {
     expect(regenBtn('f1.jpg')).not.toBeNull();
     expect(regenBtn('f0.jpg')!.getAttribute('aria-label')).toBe('Buat ulang metadata untuk f0.jpg');
     expect(api().s.frames.find((f) => f.id === ids[0])!.status.adobe).toBe('menunggu');
-    expect(regenBtn('f0.jpg')!.className).not.toContain('text-fail');  // netral, bukan status gagal
+    expect(regenBtn('f0.jpg')!.className).not.toContain('text-error');  // netral, bukan status gagal
   });
 
   it('frame gagal → ikon memakai aksen merah (aksi yang disarankan)', () => {
     const ids = addFrames(1);
     act(() => api().s.failFrame(ids[0], 'adobe', 'HTTP 500'));
-    expect(regenBtn('f0.jpg')!.className).toContain('text-fail');
+    expect(regenBtn('f0.jpg')!.className).toContain('text-error');
   });
 
   it('aria-disabled + alasan di title: provider belum siap, file hilang, batch berjalan', async () => {

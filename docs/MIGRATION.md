@@ -502,6 +502,107 @@ styling + token CSS. Tiga skala resmi ditulis ke `docs/DESIGN.md` ("Skala M16").
 Verifikasi M16: `vitest` **185/185**, `tsc --noEmit` **0**, `eslint` **0**, `next build` sukses,
 `impeccable detect --json src` → **`[]`** (exit 0).
 
+## Perbaikan pasca-M16 (M17) - bukan tahap migrasi baru
+
+Penggantian seluruh palet warna + penajaman UI per area. Kontrak perilaku, endpoint API,
+hook, dan fitur **tidak berubah** (lihat "Kontrak perilaku" di bawah — semua daftar tetap
+lengkap: platform Adobe/Shutterstock, provider Gemini/Groq/Coming Soon, tes koneksi, badge
+status, catatan rate-limit, drag-drop, batch 20 frame, jeda antar foto, tema batch + tema per
+frame, ikon buat ulang per frame, chip kata kunci, kategori dropdown, salin per field,
+Export CSV, Mulai sesi baru, toggle siang/malam).
+
+### 1. Token warna diganti utuh (sumber kebenaran baru)
+
+Palet inti mode gelap persis seperti brief M17; token lama dihapus total — tidak ada dua
+sistem token berjalan bersama.
+
+| Token lama | Token baru |
+| --- | --- |
+| `--raised`, `--well` | `--surface-elevated` |
+| `--line`, `--line-soft` | `--border`, `--border-strong` |
+| `--wash`, `--accent-wash` | `--accent-tint` |
+| `--ink`, `--ink-2`, `--ink-3` | `--text`, `--text-secondary`, `--text-muted` |
+| `--fail`, `--fail-wash`, `--on-fail` | `--error`, `--error-tint`, `--error-contrast` |
+| `--success-wash` | `--success-tint` (warna `--success` **amber → hijau** `#35d98a`) |
+| `--plate`, `--plate-ink`, `--on-accent` | `--accent` + `--accent-contrast` |
+| `--accent-dim` | dihapus — hover isian `hover:border-accent/60`, panah select → `text-text-muted`, regen → `hover:border-accent hover:text-accent-text` |
+| `--wait` | dihapus (tidak pernah dipakai) |
+| `--bg-secondary` | dipertahankan (chrome band Header/ProviderPanel/dropzone) |
+
+Utilitas Tailwind baru di `@theme inline`: `bg-bg`, `bg-bg-secondary`, `bg-surface`,
+`bg-surface-elevated`, `border-border`, `border-border-strong`, `text-text`,
+`text-text-secondary`, `text-text-muted`, `text-success/warning/error`, `bg-*-tint`,
+`text-accent-contrast`, `text-error-contrast`. Class rename massal ke seluruh
+`src/components/*.tsx` (+ `Worksheet.test.ts`): `text-ink*`→`text-text*`,
+`border-line`→`border-border`, `bg-well/raised`→`bg-surface-elevated`, `bg-wash`→`bg-accent-tint`,
+`*-fail`→`*-error`, `on-accent`→`accent-contrast`, `plate`→`accent`.
+
+### 2. Glow diturunkan: hanya tombol utama
+
+`--glow-soft`, `--glow-text`, `--glow-input`, `--glow-ok` + kelasnya dihapus. Sisa glow:
+`.glow` pada tombol `Buat metadata` dan titik brand (statis, mode terang `none`). Segmen
+platform aktif, tile terpilih, wordmark, badge Aktif, dan fokus isian kini memakai
+isian/border aksen bersih. Fokus isian = garis aksen + ring inset (tanpa glow-input).
+
+### 3. Perbaikan UI per area (klasifikasi temuan)
+
+- **Header**: band `bg-bg-secondary`; wordmark tanpa glow; segmen platform pelat aktif
+  solid aksen + hover `bg-accent-tint` + `transition-colors`; readout dipecah jadi span
+  (pemisah `/` `aria-hidden`) dan **status diberi warna status** (aktif=`--success`,
+  gagal=`--error`, menguji=`--accent-text`, idle netral).
+- **ProviderPanel**: band `bg-bg-secondary`; select/API key/`Tes koneksi` `h-10` (tinggi
+  seragam 40px) + hover `border-accent/60`; badge status kehilangan glow dan mendapat
+  **titik indikator warna** (sukses/gagal/menguji/idle), badge idle tanpa tint;
+  catatan limit & nama model `text-text-muted` (lebih redup, pesan hasil tes tetap
+  `text-text-secondary`).
+- **Worksheet**: dropzone kosong mendapat **ikon unggah** + `bg-bg-secondary` +
+  `hover:border-accent/70`, sub-line `text-text-secondary` (AA saat drag-over mengubah
+  latarnya ke tint); **badge `MENUNGGU`** ditambahkan di tile (4 status kini terbaca);
+  tile terpilih tanpa glow (border 2px + tint); tombol utama `h-11` (44px, paling
+  menonjol); `Batalkan` & `Coba lagi` hover `bg-error`; ikon buat ulang hover
+  `border-accent`; input tema/jeda `h-10` + hover aksen.
+- **CaptionSheet**: counter isian punya **nada warna** (netral → `--warning` ≥60% kuota →
+  `--error` lewat batas) + `aria-describedby`; strip status netral
+  `border-border-strong`; select `h-10` + hover aksen; kotak saran tetap elevated; jumlah
+  baris di footer naik ke `text-text-secondary`.
+- **KeywordEditor**: chip lebih lega (`py-1`), input `h-10` + hover aksen, `min 5` →
+  `text-warning`.
+- **CopyButton**: state `Disalin` = `border-success bg-success-tint text-success`; hover
+  netral `border-border-strong` + `bg-accent-tint`.
+- **Micro-interaction**: `transition-colors` ditambahkan ke badge, tile, dropzone,
+  segmen; `prefers-reduced-motion` tetap mematikan animasi dan mempertahankan transisi
+  warna (umpan balik state).
+- **Responsif/tata letak**: tanpa perubahan geometri grid (M16 dipertahankan);
+  `Panel` ditambah `min-w-0` supaya kolom grid tidak bisa memaksa overflow horizontal.
+
+### 4. Verifikasi M17
+
+`vitest` **185/185**, `tsc --noEmit` **0**, `eslint` **0**, `next build` sukses,
+`impeccable detect --json src` → **`[]`** (exit 0). Kontras diukur skrip
+(gelap+terang, termasuk composite tint): semua teks ≥4,5:1; titik terketat
+`--text-muted` di atas `--surface-elevated` = 4,52:1.
+
+### 5. M17b — batas kontrol naik ke ≥3:1 (token `--border-control`)
+
+Perbaikan kecil pasca-M17 atas temuan "border vs permukaan hanya ≈1,6–2,2:1" (SC 1.4.11):
+
+- Token BARU `--border-control` (`#3a7c51` gelap, `#718380` terang) + utilitas
+  `border-border-control` di `@theme inline`. **`--border` global tidak diubah** —
+  tetap `#1b3d28`/`#c7d3cb` untuk garis pembatas struktural non-interaktif (pemisah
+  panel, hairline, kotak konfirmasi, chip, progress track) sesuai brief "tipis, redup".
+- Dipakai **hanya** di kelas `input`/`textarea`/`select`/`button` (23 titik): select &
+  input tema/jeda/API, textarea judul/deskripsi, input kata kunci, tombol Export CSV,
+  toggle detail mobile, Tes koneksi (state disabled), NewSession, Tambah frame,
+  dropzone, Buat ulang semua, ikon hapus/buat ulang, tombol popover, CopyButton,
+  ThemeToggle. Hover CopyButton menaik ke `hover:border-accent/70` (sebelumnya
+  `border-border-strong` yang justru lebih redup dari batas kontrol baru).
+- Dibiarkan `border-border`: Panel, header, divider strip, kotak saran, container
+  segmented, chip kata kunci (elemen non-interaktif), progress track, tile frame
+  (wadah; tombol di dalamnya tanpa border sendiri — statusnya dibaca dari border aksen
+  2px saat terpilih).
+- Kontras terukur skrip: gelap **3,78 / 3,55 / 3,85 / 3,99:1** dan terang
+  **3,87 / 3,99 / 3,34 / 3,57:1** (vs surface / elevated / bg-secondary / bg) — semua ≥3.
+
 ## Kontrak perilaku (WAJIB sama dengan legacy)
 
 Sumber: `legacy/docs/PROGRESS.md` + `legacy/js/*.js`. Tanda **[BARU]** = perilaku baru yang

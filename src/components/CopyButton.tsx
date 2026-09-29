@@ -57,8 +57,8 @@ export function CopyButton({ text, label, disabled = false }: {
         disabled={off}
         aria-label={`Salin ${label}`}
         title={copied ? 'Disalin' : `Salin ${label}`}
-        className={`inline-flex h-7 items-center gap-1 rounded border bg-well px-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
-          copied ? 'border-success text-success' : 'border-line text-ink-2 hover:border-accent-dim hover:text-ink'
+        className={`inline-flex h-7 items-center gap-1 rounded border bg-surface-elevated px-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+          copied ? 'border-success bg-success-tint text-success' : 'border-border-control text-text-secondary hover:border-accent/70 hover:bg-accent-tint hover:text-text'
         }`}
       >
         {copied ? (
