@@ -59,7 +59,7 @@ function NewSessionButton({ hasFrames, disabled, onConfirm }: {
         setArmed(false);
         onConfirm();
       }}
-      className={`rounded-lg border px-2.5 py-1.5 text-[12px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+      className={`rounded border px-2.5 py-1.5 text-[12px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
         armed ? 'border-fail text-fail' : 'border-line text-ink-2 hover:bg-wash hover:text-ink'
       }`}
     >
@@ -93,7 +93,11 @@ function GenerateButton({
           onClick={onGenerate}
           disabled={disabled || busy}
           aria-busy={busy}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-[13.5px] font-semibold text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-45"
+          // M15: tombol utama = hijau fosfor solid + glow tipis (hanya saat aktif; mode siang
+          // glow-nya none, teks memakai --on-accent supaya kontras AA di kedua mode)
+          className={`inline-flex w-full items-center justify-center gap-2 rounded bg-accent px-4 py-2.5 text-[13.5px] font-semibold text-on-accent transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-45 ${
+            disabled || busy ? '' : 'glow'
+          }`}
         >
           {busy && <span className="spinner spinner-on-accent" aria-hidden="true" />}
           {busy ? busyLabel : 'Buat metadata'}
@@ -102,7 +106,7 @@ function GenerateButton({
           <button
             type="button"
             onClick={onCancel}
-            className="shrink-0 rounded-lg border border-line px-4 py-2.5 text-[13.5px] font-semibold text-fail transition-colors hover:bg-wash hover:text-ink"
+            className="shrink-0 rounded border border-line px-4 py-2.5 text-[13.5px] font-semibold text-fail transition-colors hover:bg-wash hover:text-ink"
           >
             Batalkan
           </button>
@@ -142,10 +146,10 @@ function ProgressBar({
         aria-valuemax={total}
         aria-valuenow={processed}
         aria-label={label}
-        className="h-1.5 overflow-hidden rounded-full border border-line bg-well"
+        className="h-1.5 overflow-hidden rounded border border-line bg-well"
       >
         <div
-          className="h-full rounded-full bg-accent transition-[width]"
+          className="h-full rounded bg-accent transition-[width]"
           style={{ width: `${Math.round((processed / total) * 100)}%` }}
         />
       </div>
@@ -199,8 +203,8 @@ function FrameTile({
 
   return (
     <div
-      className={`relative overflow-hidden rounded-lg bg-surface ${
-        active ? 'border-2 border-accent bg-wash' : 'border border-line'
+      className={`relative overflow-hidden rounded-md bg-surface ${
+        active ? 'glow-soft border-2 border-accent bg-wash' : 'border border-line'
       }`}
     >
       <button
@@ -230,7 +234,7 @@ function FrameTile({
           {(st === 'siap' || st === 'gagal') && (
             <span
               title={st === 'gagal' && err ? err : undefined}
-              className={`absolute bottom-1.5 right-1.5 inline-flex -rotate-[1.4deg] items-center rounded border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.08em] ${
+              className={`badge-bracket absolute bottom-1.5 right-1.5 inline-flex items-center rounded border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.08em] ${
                 st === 'siap'
                   ? 'border-success bg-surface text-success'
                   : 'border-fail bg-surface text-fail'
@@ -253,7 +257,7 @@ function FrameTile({
           {needsUpload && (
             <span
               title="Perlu upload ulang untuk generate ulang"
-              className="inline-flex w-fit items-center gap-1 rounded border border-dashed border-line px-1 py-px font-mono text-[10px] text-ink-3"
+              className="inline-flex w-fit items-center gap-1 rounded border border-dashed border-accent-faint px-1 py-px font-mono text-[10px] text-ink-3"
             >
               <svg width="9" height="9" viewBox="0 0 10 10" fill="none" aria-hidden="true">
                 <path
@@ -283,14 +287,14 @@ function FrameTile({
         aria-disabled={regenDisabled || undefined}
         aria-label={`Buat ulang metadata untuk ${frame.name}`}
         title={regenHint || 'Buat ulang metadata frame ini'}
-        className={`btn-compact absolute right-12 top-1.5 z-10 grid h-7 w-7 place-items-center rounded-md border bg-surface/85 transition-colors before:absolute before:-inset-1.5 before:content-[''] ${
-          st === 'gagal' ? 'border-accent-text/70 text-accent-text' : 'border-line text-ink-2'
+        className={`btn-compact absolute right-12 top-1.5 z-10 grid h-7 w-7 place-items-center rounded border bg-surface/85 transition-colors before:absolute before:-inset-1.5 before:content-[''] ${
+          st === 'gagal' ? 'border-fail/70 text-fail' : 'border-line text-ink-2'
         } ${
           regenDisabled
             ? 'cursor-not-allowed opacity-45'
             : st === 'gagal'
-              ? 'hover:bg-accent-wash'
-              : 'hover:border-ink-3 hover:text-ink'
+              ? 'hover:bg-fail-wash'
+              : 'hover:border-accent-dim hover:text-accent-dim'
         }`}
       >
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -316,7 +320,7 @@ function FrameTile({
           M14: 42px → 2.625rem = top-1.5 (0.375rem) + h-7 (1.75rem) + jarak 0.5rem — persis
           mengikuti ikonnya, jadi tetap nempel di semua ukuran font root/zoom. */}
       {regenConfirm && (
-        <div className="absolute left-1.5 right-1.5 top-[2.625rem] z-10 flex flex-wrap items-center gap-2 rounded-lg border border-fail bg-surface p-2 shadow-panel">
+        <div className="absolute left-1.5 right-1.5 top-[2.625rem] z-10 flex flex-wrap items-center gap-2 rounded-md border border-fail bg-raised p-2">
           <span className="text-[13px] font-semibold leading-snug text-ink">
             Timpa hasil yang ada?
           </span>
@@ -324,14 +328,14 @@ function FrameTile({
             <button
               type="button"
               onClick={onRegen}
-              className="rounded-md border border-fail px-2.5 py-1 text-[13px] font-semibold text-fail transition-colors hover:bg-fail hover:text-white"
+              className="rounded border border-fail px-2.5 py-1 text-[13px] font-semibold text-fail transition-colors hover:bg-fail hover:text-on-fail"
             >
               Ya, timpa
             </button>
             <button
               type="button"
               onClick={onDismissRegen}
-              className="rounded-md border border-line px-2.5 py-1 text-[13px] font-semibold text-ink-2 transition-colors hover:bg-wash hover:text-ink"
+              className="rounded border border-line px-2.5 py-1 text-[13px] font-semibold text-ink-2 transition-colors hover:bg-wash hover:text-ink"
             >
               Batal
             </button>
@@ -345,7 +349,7 @@ function FrameTile({
         disabled={removeDisabled}
         aria-label={`Hapus frame ${frame.name}`}
         title={removeDisabled ? 'Tunggu batch selesai' : 'Hapus frame'}
-        className="btn-compact absolute right-1.5 top-1.5 z-10 grid h-7 w-7 place-items-center rounded-md border border-line bg-surface/85 text-ink-2 transition-colors hover:border-fail hover:text-fail disabled:cursor-not-allowed disabled:opacity-45 before:absolute before:-inset-1.5 before:content-['']"
+        className="btn-compact absolute right-1.5 top-1.5 z-10 grid h-7 w-7 place-items-center rounded border border-line bg-surface/85 text-ink-2 transition-colors hover:border-fail hover:text-fail disabled:cursor-not-allowed disabled:opacity-45 before:absolute before:-inset-1.5 before:content-['']"
       >
         <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
           <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
@@ -490,8 +494,8 @@ export function Worksheet({ session, provider, batch }: {
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              className={`flex min-h-44 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors ${
-                dragOver ? 'border-accent bg-accent-wash' : 'border-line hover:border-ink-3'
+              className={`flex min-h-44 flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed px-6 py-8 text-center transition-colors ${
+                dragOver ? 'border-accent bg-accent-wash' : 'border-line hover:border-accent-dim'
               }`}
             >
               <span className="text-[15px] font-semibold text-ink">
@@ -507,7 +511,7 @@ export function Worksheet({ session, provider, batch }: {
               disabled={full || busy}
               title={busy ? 'Tunggu batch selesai' : full ? 'Batch penuh' : undefined}
               onClick={() => inputRef.current?.click()}
-              className={`w-full rounded-lg border px-3 py-2 text-[13px] font-semibold transition-colors ${
+              className={`w-full rounded border px-3 py-2 text-[13px] font-semibold transition-colors ${
                 full || busy
                   ? 'cursor-not-allowed border-line text-ink-3 opacity-60'
                   : dragOver
@@ -527,9 +531,17 @@ export function Worksheet({ session, provider, batch }: {
         </div>
 
         {/* M14: min-150px → 9.375rem (sama persis di root 16px) supaya kolom ikut membesar
-            saat ukuran font root naik, bukan dikunci piksel tetap. */}
+            saat ukuran font root naik, bukan dikunci piksel tetap.
+            M15: grid dikunci TEPAT 5 kolom mulai ≥1120px — bukan lg (1024px). Pada V ≥1024
+            lebar tile = 0,12V − 20,56px (gap 10px), jadi di 1024px tile hanya ≈102px: badge
+            nomor berakhir di 28px dari kiri (left-1.5 6px + lebar 22px), sementara bayangan
+            klik ikon regen mulai di 82px dari kanan (`right-12` + `before:-inset-1.5`) —
+            keduanya baru aman saat lebar dalam ≥110px, yaitu V ≈1105px. Ambang 1120px
+            menyisakan sisa ≈1,9px, sehingga di seluruh rentang 1024–1920px tidak ada tumpang
+            tindih; di bawah 1120px tetap auto-fill (2–4 kolom mengikuti lebar), dan di ≥1120px
+            20 frame pas menjadi 4 baris x 5 kolom penuh. */}
         {frames.length > 0 && (
-          <ul className="grid grid-cols-[repeat(auto-fill,minmax(9.375rem,1fr))] gap-2.5">
+          <ul className="grid grid-cols-[repeat(auto-fill,minmax(9.375rem,1fr))] gap-2.5 min-[1120px]:grid-cols-5">
             {frames.map((frame, i) => {
               const hasFile = fileStore.has(frame.id);
               return (
@@ -578,7 +590,7 @@ export function Worksheet({ session, provider, batch }: {
             value={tema}
             onChange={(e) => setTema(e.target.value)}
             placeholder="Halloween / Christmas / New Year / St. Patrick's Day"
-            className="w-full rounded-lg border border-line bg-well px-3 py-2 text-[13.5px] text-ink placeholder:text-ink-3"
+            className="w-full rounded border border-line bg-well px-3 py-2 text-[13.5px] text-ink placeholder:text-ink-3"
           />
         </div>
 
@@ -595,7 +607,7 @@ export function Worksheet({ session, provider, batch }: {
             disabled={busy}
             title={busy ? 'Tunggu batch selesai' : undefined}
             onChange={(e) => batch.setDelay(Number(e.target.value))}
-            className="w-full appearance-none rounded-lg border border-line bg-well px-3 py-2 text-[13.5px] font-semibold text-ink transition-colors hover:border-ink-3 disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full appearance-none rounded border border-line bg-well px-3 py-2 text-[13.5px] font-semibold text-ink transition-colors hover:border-accent-dim disabled:cursor-not-allowed disabled:opacity-50"
           >
             {BATCH_DELAY_OPTIONS_SEC.map((s) => (
               <option key={s} value={s}>{s} detik</option>
@@ -617,20 +629,20 @@ export function Worksheet({ session, provider, batch }: {
         {frames.some((f) => f.status[platform] === 'siap' || f.status[platform] === 'gagal') && (
           <div className="flex flex-col gap-1.5">
             {batch.regenAllConfirm === platform ? (
-              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-well p-3">
+              <div className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-well p-3">
                 <span className="text-[13px] font-semibold text-ink">Ganti semua hasil yang sudah ada?</span>
                 <button
                   type="button"
                   onClick={batch.regenerateAll}
                   disabled={busy}
-                  className="rounded-lg border border-fail px-3 py-1.5 text-[13px] font-semibold text-fail transition-colors hover:bg-fail hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+                  className="rounded border border-fail px-3 py-1.5 text-[13px] font-semibold text-fail transition-colors hover:bg-fail hover:text-on-fail disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   Ya, ganti semua
                 </button>
                 <button
                   type="button"
                   onClick={batch.dismissRegenAll}
-                  className="rounded-lg border border-line px-3 py-1.5 text-[13px] font-semibold text-ink-2 transition-colors hover:bg-wash hover:text-ink"
+                  className="rounded border border-line px-3 py-1.5 text-[13px] font-semibold text-ink-2 transition-colors hover:bg-wash hover:text-ink"
                 >
                   Batal
                 </button>
@@ -647,7 +659,7 @@ export function Worksheet({ session, provider, batch }: {
                       ? generateHint
                       : 'Generate ulang SEMUA frame platform ini, menimpa hasil yang sudah ada'
                 }
-                className="w-full rounded-lg border border-line px-4 py-2.5 text-[13.5px] font-semibold text-ink-2 transition-colors hover:bg-wash hover:text-ink disabled:cursor-not-allowed disabled:opacity-45"
+                className="w-full rounded border border-line px-4 py-2.5 text-[13.5px] font-semibold text-ink-2 transition-colors hover:bg-wash hover:text-ink disabled:cursor-not-allowed disabled:opacity-45"
               >
                 Buat ulang semua
               </button>
@@ -659,7 +671,7 @@ export function Worksheet({ session, provider, batch }: {
           <button
             type="button"
             onClick={batch.startBatch}
-            className="w-full rounded-lg border border-fail px-4 py-2 text-[13px] font-semibold text-fail transition-colors hover:bg-accent-wash"
+            className="w-full rounded border border-fail px-4 py-2 text-[13px] font-semibold text-fail transition-colors hover:bg-fail-wash"
           >
             Coba lagi frame gagal
           </button>

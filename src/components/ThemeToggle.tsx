@@ -15,7 +15,7 @@ export function ThemeToggle() {
       aria-label={label}
       title={label}
       suppressHydrationWarning
-      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line text-ink-2 transition-colors hover:bg-wash hover:text-ink"
+      className="inline-flex h-9 w-9 items-center justify-center rounded border border-line text-ink-2 transition-colors hover:bg-wash hover:text-ink"
     >
       <span className="theme-icon-moon inline-flex" aria-hidden="true">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">

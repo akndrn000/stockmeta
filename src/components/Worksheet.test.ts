@@ -256,11 +256,14 @@ describe('keterangan bantu dihapus (M14)', () => {
     expect(host.textContent).not.toContain('Naikkan jika sering muncul');
   });
 
-  it('grid thumbnail tetap auto-fill minmax (unit relatif, M14)', () => {
+  it('grid thumbnail: auto-fill minmax di layar sempit + tepat 5 kolom di ≥1120px (M15)', () => {
     addFrames(2);
     const grid = host.querySelector('ul.grid');
     expect(grid).not.toBeNull();
     expect(grid!.className).toContain('minmax(9.375rem,1fr)');   // 150px piksel-tetap diganti rem
+    // ≥1120px (bukan lg): di 1024–1119px tile terlalu sempit untuk 5 kolom tanpa tabrakan
+    expect(grid!.className).toContain('min-[1120px]:grid-cols-5');
+    expect(grid!.className).not.toContain('lg:grid-cols-5');
   });
 });
 
@@ -271,13 +274,13 @@ describe('ikon "buat ulang" di tile (M13)', () => {
     expect(regenBtn('f1.jpg')).not.toBeNull();
     expect(regenBtn('f0.jpg')!.getAttribute('aria-label')).toBe('Buat ulang metadata untuk f0.jpg');
     expect(api().s.frames.find((f) => f.id === ids[0])!.status.adobe).toBe('menunggu');
-    expect(regenBtn('f0.jpg')!.className).not.toContain('text-accent-text');  // netral, bukan aksen
+    expect(regenBtn('f0.jpg')!.className).not.toContain('text-fail');  // netral, bukan status gagal
   });
 
   it('frame gagal → ikon memakai aksen merah (aksi yang disarankan)', () => {
     const ids = addFrames(1);
     act(() => api().s.failFrame(ids[0], 'adobe', 'HTTP 500'));
-    expect(regenBtn('f0.jpg')!.className).toContain('text-accent-text');
+    expect(regenBtn('f0.jpg')!.className).toContain('text-fail');
   });
 
   it('aria-disabled + alasan di title: provider belum siap, file hilang, batch berjalan', async () => {

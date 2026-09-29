@@ -59,11 +59,11 @@ function Field({ id, label, copyText, hint, disabled, children }: {
 }
 
 const selectCls =
-  'w-full appearance-none rounded-lg border border-line bg-well px-3 py-2 pr-8 text-[13.5px] font-semibold text-ink transition-colors hover:border-ink-3 disabled:cursor-not-allowed disabled:opacity-50';
+  'w-full appearance-none rounded border border-line bg-well px-3 py-2 pr-8 text-[13.5px] font-semibold text-ink transition-colors hover:border-accent-dim disabled:cursor-not-allowed disabled:opacity-50';
 
 function SelectArrow() {
   return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-3">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-accent-dim">
       <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
@@ -148,7 +148,7 @@ export function CaptionSheet({ session }: {
                   ? 'Belum ada frame — upload gambar dulu di lembar kerja.'
                   : 'Belum ada metadata — jalankan Buat metadata dulu.'
             }
-            className={`rounded-lg border border-line px-3 py-1.5 text-[13px] font-semibold text-ink transition-colors hover:bg-wash ${
+            className={`rounded border border-line px-3 py-1.5 text-[13px] font-semibold text-ink transition-colors hover:bg-wash ${
               canExport ? '' : 'cursor-not-allowed opacity-45'
             }`}
           >
@@ -172,7 +172,7 @@ export function CaptionSheet({ session }: {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-controls="caption-body"
-        className="mb-3 w-full items-center justify-between gap-2 rounded-lg border border-line px-3 py-2 text-[13px] font-semibold text-ink-2 transition-colors hover:bg-wash lg:hidden"
+        className="mb-3 w-full items-center justify-between gap-2 rounded border border-line px-3 py-2 text-[13px] font-semibold text-ink-2 transition-colors hover:bg-wash lg:hidden"
       >
         <span className="inline-flex items-center gap-2">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" className={`transition-transform ${open ? '' : '-rotate-90'}`}>
@@ -195,7 +195,7 @@ export function CaptionSheet({ session }: {
               {frame.name}
             </span>
             <span
-              className={`shrink-0 font-mono text-[11px] font-bold uppercase tracking-[0.08em] ${
+              className={`badge-bracket shrink-0 font-mono text-[11px] font-bold uppercase tracking-[0.08em] ${
                 st === 'siap' ? 'text-success' : st === 'gagal' ? 'text-fail' : 'text-ink-2'
               }`}
             >
@@ -207,7 +207,7 @@ export function CaptionSheet({ session }: {
         {/* M13: hanya pesan error — tombol & konfirmasi "Timpa hasil yang ada?" pindah
             ke ikon buat ulang di tile Worksheet (showError = ada frame + status gagal) */}
         {showError && (
-          <div role="alert" className="rounded-lg border border-fail bg-accent-wash p-3">
+          <div role="alert" className="rounded-md border border-fail bg-fail-wash p-3">
             <p className="text-[13px] font-semibold leading-snug text-fail">{err}</p>
           </div>
         )}
@@ -227,7 +227,7 @@ export function CaptionSheet({ session }: {
                   onChange={(e) => patchAdobe({ title: e.target.value })}
                   placeholder="Judul menjual, spesifik, tanpa frasa generik"
                   disabled={!frame}
-                  className="w-full resize-none rounded-lg border border-line bg-well px-3 pb-6 pt-2 text-[13.5px] leading-relaxed text-ink placeholder:text-ink-3 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="w-full resize-none rounded border border-line bg-well px-3 pb-6 pt-2 text-[13.5px] leading-relaxed text-ink placeholder:text-ink-3 disabled:cursor-not-allowed disabled:opacity-50"
                 />
                 <InFieldNote text={`${title.length}/${MAX_TITLE_CSV} · tanpa koma`} />
               </div>
@@ -270,7 +270,7 @@ export function CaptionSheet({ session }: {
                   onChange={(e) => patchShutter({ description: e.target.value })}
                   placeholder="Satu dua kalimat yang menggambarkan subjek, gaya, dan suasana"
                   disabled={!frame}
-                  className="w-full resize-none rounded-lg border border-line bg-well px-3 pb-6 pt-2 text-[13.5px] leading-relaxed text-ink placeholder:text-ink-3 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="w-full resize-none rounded border border-line bg-well px-3 pb-6 pt-2 text-[13.5px] leading-relaxed text-ink placeholder:text-ink-3 disabled:cursor-not-allowed disabled:opacity-50"
                 />
                 <InFieldNote text={`${desc.length}/${MAX_DESCRIPTION}`} />
               </div>
@@ -338,13 +338,13 @@ export function CaptionSheet({ session }: {
             }}
             placeholder={tema || 'ikuti tema batch'}
             disabled={!frame}
-            className="w-full rounded-lg border border-line bg-well px-3 py-2 text-[13.5px] text-ink placeholder:text-ink-3 disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full rounded border border-line bg-well px-3 py-2 text-[13.5px] text-ink placeholder:text-ink-3 disabled:cursor-not-allowed disabled:opacity-50"
           />
         </Field>
 
         {/* Saran hanya relevan saat ada frame + slot berisi — selain itu tidak dirender */}
         {notes.length > 0 && (
-          <div className="rounded-lg border border-line bg-well p-3">
+          <div className="rounded-md border border-line bg-well p-3">
             <p className="mb-1.5 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3">
               Saran perbaikan
             </p>

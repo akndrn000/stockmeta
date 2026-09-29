@@ -15,11 +15,13 @@ describe('filterIncomingFiles', () => {
   });
 
   it('sisa slot = MAX_FRAMES - existingCount; kelebihan dilewati dengan urutan dipertahankan', () => {
-    const files = Array.from({ length: 12 }, (_, i) => jpg(`${i}.jpg`));
+    const files = Array.from({ length: MAX_FRAMES + 5 }, (_, i) => jpg(`${i}.jpg`));
     const r = filterIncomingFiles(files, 3);
     expect(r.accepted).toHaveLength(MAX_FRAMES - 3);
-    expect(r.accepted.map((x) => x.name)).toEqual(['0.jpg', '1.jpg', '2.jpg', '3.jpg', '4.jpg', '5.jpg', '6.jpg']);
-    expect(r.skippedOverLimit).toHaveLength(5);
+    expect(r.accepted.map((x) => x.name)).toEqual(
+      Array.from({ length: MAX_FRAMES - 3 }, (_, i) => `${i}.jpg`)
+    );
+    expect(r.skippedOverLimit).toHaveLength(8);
   });
 
   it('batch penuh → semua file valid dilewati, tipe salah tetap ditolak', () => {
@@ -38,9 +40,10 @@ describe('filterIncomingFiles', () => {
 
 describe('buildLimitMessage', () => {
   it('contoh: dilewati karena batas', () => {
-    const r = filterIncomingFiles(Array.from({ length: 10 }, (_, i) => jpg(`${i}.jpg`)), 3);
+    const files = Array.from({ length: MAX_FRAMES + 2 }, (_, i) => jpg(`${i}.jpg`));
+    const r = filterIncomingFiles(files, 3);      // slot sisa MAX_FRAMES - 3 → 5 dilewati
     expect(buildLimitMessage(r)).toBe(
-      `Dipertahankan 7, dilewati 3 — satu batch maksimal ${MAX_FRAMES} frame.`
+      `Dipertahankan ${MAX_FRAMES - 3}, dilewati 5 — satu batch maksimal ${MAX_FRAMES} frame.`
     );
   });
 
@@ -51,9 +54,9 @@ describe('buildLimitMessage', () => {
 
   it('gabungan keduanya dipisah spasi', () => {
     const files = [...Array.from({ length: 7 }, (_, i) => jpg(`${i}.jpg`)), f('x.gif', 'image/gif')];
-    const r = filterIncomingFiles(files, 4);   // slot sisa 6 → 6 diterima, 1 kelebihan, 1 tipe salah
+    const r = filterIncomingFiles(files, MAX_FRAMES - 5);   // slot sisa 5 → 5 diterima, 2 kelebihan, 1 tipe salah
     expect(buildLimitMessage(r)).toBe(
-      `Dipertahankan 6, dilewati 1 — satu batch maksimal ${MAX_FRAMES} frame. 1 file dilewati: hanya JPG, PNG, dan WEBP.`
+      `Dipertahankan 5, dilewati 2 — satu batch maksimal ${MAX_FRAMES} frame. 1 file dilewati: hanya JPG, PNG, dan WEBP.`
     );
   });
 

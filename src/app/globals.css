@@ -1,59 +1,80 @@
 @import "tailwindcss";
 
-/* Token "Darkroom" — satu skema warna untuk seluruh halaman, dua mode.
+/* Token "Phosphor" — tema terminal hijau-hitam, dua mode (M15).
+   Kanvas nyaris hitam, SATU aksen hijau fosfor untuk elemen aktif/fokus/tombol utama,
+   amber hanya untuk status positif, merah hanya untuk status gagal.
    Semua komponen memakai token ini lewat utilitas Tailwind (bg-surface, text-ink, …)
    sehingga pergantian data-theme mengganti seluruh halaman sekaligus. */
 :root,
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0f1116;
-  --surface: #171a21;
-  --raised: #1c202a;
-  --well: #12151b;
-  --line: rgba(255, 255, 255, 0.14);
-  --line-soft: rgba(255, 255, 255, 0.08);
-  --wash: rgba(255, 255, 255, 0.08);
-  --ink: #e9ebf0;
-  --ink-2: #9aa2b1;
-  --ink-3: #838b9b;
-  --accent: #d93a22;
-  --accent-hover: #c1321c;
-  --accent-text: #ff6a4f;
-  --accent-wash: rgba(217, 58, 34, 0.16);
-  --success: #5cd79a;
-  --success-wash: rgba(67, 198, 127, 0.14);
-  --fail: #ff6a4f;
-  --wait: #9aa2b1;
-  --focus: #ff6a4f;
-  --plate: #ffffff;
-  --plate-ink: #16181c;
-  --panel-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 24px 46px -30px rgba(0, 0, 0, 0.9);
+  --bg: #050805;
+  --surface: #070b07;
+  --raised: #0b120c;
+  --well: #0a100a;
+  --line: rgba(57, 255, 122, 0.22);
+  --line-soft: rgba(57, 255, 122, 0.11);
+  --wash: rgba(57, 255, 122, 0.07);
+  --ink: #eafff1;
+  --ink-2: #86a890;
+  --ink-3: #5f8d68;
+  --accent: #39ff7a;
+  --accent-hover: #5cff93;
+  --accent-text: #39ff7a;
+  --accent-dim: #2bbf5c;
+  --accent-faint: #1c7a3c;
+  --accent-wash: rgba(57, 255, 122, 0.13);
+  --on-accent: #050805;
+  --success: #ffd24a;
+  --success-wash: rgba(255, 210, 74, 0.13);
+  --fail: #ff6a55;
+  --fail-wash: rgba(255, 106, 85, 0.14);
+  --on-fail: #140604;
+  --wait: #86a890;
+  --focus: #39ff7a;
+  --plate: #39ff7a;
+  --plate-ink: #050805;
+  /* Glow tipis (hanya mode malam; mode siang = none) — statis, bukan animasi */
+  --glow: 0 0 0 1px rgba(57, 255, 122, 0.35), 0 0 14px rgba(57, 255, 122, 0.28);
+  --glow-soft: 0 0 8px rgba(57, 255, 122, 0.2);
+  --glow-text: 0 0 8px rgba(57, 255, 122, 0.45);
+  --glow-input: 0 0 12px rgba(57, 255, 122, 0.18);
+  --glow-ok: 0 0 10px rgba(255, 210, 74, 0.28);
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #f1f0ec;
-  --surface: #fcfcfa;
-  --raised: #f4f3ef;
+  --bg: #f3f2ea;
+  --surface: #fbfaf6;
+  --raised: #edece3;
   --well: #ffffff;
-  --line: rgba(0, 0, 0, 0.17);
-  --line-soft: rgba(0, 0, 0, 0.1);
-  --wash: rgba(0, 0, 0, 0.05);
-  --ink: #16181c;
-  --ink-2: #5c6169;
-  --ink-3: #676b73;
-  --accent: #c1321c;
-  --accent-hover: #a82115;
-  --accent-text: #c0281a;
-  --accent-wash: rgba(193, 50, 28, 0.1);
-  --success: #12724a;
-  --success-wash: rgba(18, 114, 74, 0.12);
-  --fail: #c0281a;
-  --wait: #5c6169;
-  --focus: #c0281a;
-  --plate: #16181c;
-  --plate-ink: #fcfcfa;
-  --panel-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 18px 36px -28px rgba(0, 0, 0, 0.3);
+  --line: rgba(23, 79, 47, 0.3);
+  --line-soft: rgba(23, 79, 47, 0.16);
+  --wash: rgba(13, 107, 52, 0.07);
+  --ink: #0f1a13;
+  --ink-2: #33513f;
+  --ink-3: #4d6857;
+  --accent: #0d6b34;
+  --accent-hover: #0a5528;
+  --accent-text: #0b6b33;
+  --accent-dim: #1c7a3c;
+  --accent-faint: #5f8d68;
+  --accent-wash: rgba(13, 107, 52, 0.1);
+  --on-accent: #f7fff9;
+  --success: #8a5a00;
+  --success-wash: rgba(255, 210, 74, 0.2);
+  --fail: #b3261e;
+  --fail-wash: rgba(179, 38, 30, 0.1);
+  --on-fail: #ffffff;
+  --wait: #4d6857;
+  --focus: #0b6b33;
+  --plate: #0d6b34;
+  --plate-ink: #f7fff9;
+  --glow: none;
+  --glow-soft: none;
+  --glow-text: none;
+  --glow-input: none;
+  --glow-ok: none;
 }
 
 @theme inline {
@@ -70,21 +91,28 @@
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-text: var(--accent-text);
+  --color-accent-dim: var(--accent-dim);
+  --color-accent-faint: var(--accent-faint);
   --color-accent-wash: var(--accent-wash);
+  --color-on-accent: var(--on-accent);
+  --color-on-fail: var(--on-fail);
   --color-success: var(--success);
   --color-success-wash: var(--success-wash);
   --color-fail: var(--fail);
+  --color-fail-wash: var(--fail-wash);
   --color-wait: var(--wait);
   --color-focus: var(--focus);
   --color-plate: var(--plate);
   --color-plate-ink: var(--plate-ink);
-  --shadow-panel: var(--panel-shadow);
-  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-courier), ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* M15: satu font monospace untuk seluruh halaman (body & heading) — hierarki dari
+     ukuran/kepala, bukan dari font kedua. */
+  --font-sans: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 @layer base {
   body {
+    font-family: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
     background-color: var(--bg);
     color: var(--ink);
   }
@@ -92,14 +120,47 @@
   /* Seleksi & kursor mengikuti aksen (safelight) */
   ::selection {
     background-color: var(--accent);
-    color: #ffffff;
+    color: var(--on-accent);
   }
 
-  /* Focus ring terlihat di semua kontrol keyboard, di kedua mode */
+  /* Focus ring terlihat di semua kontrol keyboard, di kedua mode (M9b — tidak dikorbankan) */
   :focus-visible {
     outline: 2px solid var(--focus);
     outline-offset: 2px;
   }
+
+  /* Glow tipis hanya saat fokus isian (elemen aktif), mode siang = none */
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    box-shadow: var(--glow-input);
+  }
+}
+
+/* Glow statis — dipakai elemen aktif saja (tombol utama, pelat platform, tile terpilih,
+   brand). Tidak berdenyut jadi aman bagi prefers-reduced-motion (yang mematikan animasi). */
+.glow {
+  box-shadow: var(--glow);
+}
+.glow-soft {
+  box-shadow: var(--glow-soft);
+}
+.glow-ok {
+  box-shadow: var(--glow-ok);
+}
+.glow-text {
+  text-shadow: var(--glow-text);
+}
+
+/* Badge status bergaya bracket terminal (M15): "[ AKTIF ]" — teks asli tetap di DOM
+   (pembaca layar & tes membaca label-nya), bracket ditambahkan pseudo-element. */
+.badge-bracket::before {
+  content: "[";
+  margin-right: 0.35em;
+}
+.badge-bracket::after {
+  content: "]";
+  margin-left: 0.35em;
 }
 
 /* Ikon tema: kedua ikon selalu ada di DOM — CSS memilih yang tampil dari data-theme,
@@ -129,11 +190,11 @@
   animation: spinner-rotate 0.7s linear infinite;
 }
 
-/* Spinner di atas tombol aksen merah: putih solid — kontras di mode siang & malam
-   (--line/--accent-text nyaris tak terlihat di atas --accent) */
+/* Spinner di atas tombol aksen: memakai warna teks di atas aksen (--on-accent),
+   kontras di mode siang & malam */
 .spinner-on-accent {
-  border-color: rgba(255, 255, 255, 0.4);
-  border-top-color: #fff;
+  border-color: color-mix(in srgb, var(--on-accent) 35%, transparent);
+  border-top-color: var(--on-accent);
 }
 
 /* Hormati prefers-reduced-motion: semua animasi dimatikan (spinner statis tapi tetap

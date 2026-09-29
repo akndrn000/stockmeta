@@ -9,6 +9,7 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSession } from '../hooks/useSession';
+import { MAX_FRAMES } from '../lib/limits';
 import type { Frame } from '../lib/types';
 import { CaptionSheet } from './CaptionSheet';
 
@@ -69,7 +70,7 @@ describe('CaptionSheet — meta header', () => {
     const [id] = addFrames(3);
     act(() => api().s.select(id));
     expect(text()).toContain('Frame 01 / 03');
-    expect(text()).not.toContain('/ 10');
+    expect(text()).not.toContain(`/ ${MAX_FRAMES}`);
   });
 
   it('belum ada frame terpilih → Frame -- / total sesi', () => {

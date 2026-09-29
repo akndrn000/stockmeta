@@ -26,26 +26,28 @@ export function Header({
   const { platform, frames, setPlatform } = session;
 
   return (
+    // M15: header bergaya title bar terminal — dua garis tipis di bawah (hairline aksen pudar
+    // + border), label mono kecil bergaya prompt, brand dengan glow fosfor tipis.
     <header className="border-b border-line bg-surface">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5 px-4 pt-3">
-        {/* Brand: satu-satunya pemakaian merah sebagai identitas di luar tombol commit */}
+        {/* Brand: indikator fosfor + wordmark hijau — satu-satunya aksen utama (M15) */}
         <div className="flex items-center gap-2.5">
           <span
             aria-hidden="true"
-            className="h-3.5 w-3.5 rounded-[0.1875rem] bg-accent ring-2 ring-accent-wash"
+            className="glow h-3.5 w-3.5 rounded-[0.1875rem] bg-accent"
           />
-          <h1 className="text-lg font-extrabold tracking-[-0.03em] text-accent-text">
+          <h1 className="glow-text text-lg font-extrabold tracking-[-0.03em] text-accent-text">
             StockMeta
           </h1>
         </div>
 
         <div className="ml-auto flex items-center gap-2.5">
-          {/* Segmented platform: pelat aktif dibalik per mode (dark: putih, light: gelap) */}
+          {/* Segmented platform: pelat aktif = aksen fosfor dengan glow tipis (mode siang: solid) */}
           <div
             role="group"
             aria-label="Platform"
             title={disabled ? 'Batch berjalan — ganti platform setelah selesai' : undefined}
-            className="inline-flex items-center gap-0.5 rounded-full border border-line bg-well p-1"
+            className="inline-flex items-center gap-0.5 rounded-md border border-line bg-well p-1"
           >
             {PLATFORM_IDS.map((p) => (
               <button
@@ -54,9 +56,9 @@ export function Header({
                 aria-pressed={platform === p}
                 disabled={disabled}
                 onClick={() => setPlatform(p)}
-                className={`rounded-full px-3 py-1.5 text-[12px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                className={`rounded px-3 py-1.5 text-[12px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                   platform === p
-                    ? 'bg-plate text-plate-ink'
+                    ? 'glow-soft bg-plate text-plate-ink'
                     : 'text-ink-2 hover:text-ink'
                 }`}
               >
@@ -68,11 +70,18 @@ export function Header({
         </div>
       </div>
 
-      {/* Readout mesin gaya legacy: pemisah slash, mono, uppercase, di bawah brand */}
+      {/* Readout mesin gaya terminal: prompt ❯, pemisah slash, mono, uppercase */}
       <p className="px-4 pb-2.5 pt-2 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3">
+        <span aria-hidden="true" className="text-accent-dim">
+          {'\u276F\u00A0'}
+        </span>
         {pad2(frames.length)} frame / {PLATFORM_LABELS[platform]} /{' '}
         {PROVIDER_LABELS[provider]} / {STATUS_LABELS[status]}
       </p>
+
+      {/* M15: garis tipis kedua tepat di bawah header — meniru tepi title bar terminal
+          (tanpa titik traffic-light: tiga warna dot akan menambah aksen di luar palet) */}
+      <div aria-hidden="true" className="h-px bg-accent-faint" />
     </header>
   );
 }

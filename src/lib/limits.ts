@@ -1,5 +1,6 @@
-// Batas batch — SATU sumber angka untuk logika dan teks UI (jangan tulis 10 literal di copy).
-export const MAX_FRAMES = 10;
+// Batas batch — SATU sumber angka untuk logika dan teks UI (jangan tulis 20 literal di copy).
+// M15: kembali ke 20 (legacy) — grid thumbnail di ≥1024px kini tepat 5 kolom → 4 baris penuh.
+export const MAX_FRAMES = 20;
 
 // Jeda antar foto saat batch (detik) — pilihan select "Jeda antar foto", disimpan ke localStorage.
 export const BATCH_DELAY_OPTIONS_SEC = [3, 6, 12, 20] as const;

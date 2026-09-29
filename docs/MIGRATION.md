@@ -24,7 +24,7 @@ mengimpor React; provider tidak mengimpor komponen.
   (sistem → override manual terpersisten).
 - [x] **M5 — Layout + ProviderPanel + tema siang/malam**: kerangka tiga panel, pilih provider,
   tes koneksi, toggle mode dengan satu skema warna.
-- [x] **M6 — Worksheet**: upload/drop frame (maks 10), grid thumbnail, pilih/hapus frame,
+- [x] **M6 — Worksheet**: upload/drop frame (maks 10 saat itu; **M15 menaikkan ke 20**), grid thumbnail, pilih/hapus frame,
   tema batch, tombol generate.
 - [x] **M7 — CaptionSheet**: field editable per platform, keyword chip + kotak teks,
   tombol salin per field, tema per-foto, saran validasi, ekspor CSV sesuai platform.
@@ -380,6 +380,75 @@ Hasil audit komponen (poin 4, rentang uji 360px → >1920px dan zoom 50–150%, 
   semua ukuran layar. Dua baris hint Worksheet yang dihapus (poin 1) tidak mengubah ritme:
   blok `Tema utama` & `Jeda antar foto` tetap `flex-col gap-1.5` seperti grup lainnya.
 
+## Perbaikan pasca-M14 (M15) - bukan tahap migrasi baru
+
+Tiga pekerjaan dalam satu batch, tanpa e2e dan tanpa menjalankan server. Verifikasi:
+`npm run test` (185 tes), `npx tsc --noEmit`, `npm run lint`, `npm run build` — lolos semua;
+`impeccable detect src` → 0 temuan.
+
+### 1. Grid thumbnail 5 kolom + batas frame kembali 20
+
+- `src/lib/limits.ts`: `MAX_FRAMES = 10` → **`20`** — mengembalikan batas legacy (kontrak
+  "Upload & frame" di bawah ikut diperbarui; M6 sempat menurunkannya ke 10).
+- `src/components/Worksheet.tsx`: grid `<ul>` kini `grid-cols-[repeat(auto-fill,minmax(9.375rem,1fr))]`
+  **`min-[1120px]:grid-cols-5`** — di ≥1120px thumbnail dikunci 5 kolom sehingga 20 frame jadi
+  4 baris × 5 kolom penuh; di bawah itu tetap `auto-fill` 2–4 kolom.
+- Ambang 1120px (bukan `lg`/1024px) menggantikan keputusan awal "overlap diterima": pada
+  V ≥1024 lebar tile = `0,12V − 20,56px`, badge nomor berakhir di 28px dari kiri
+  (`left-1.5` 6px + lebar `px-1`/border/2 digit ≈22px), bayangan klik ikon regen mulai di
+  82px dari kanan (`right-12` 48px + `before:-inset-1.5` 6px + lebar tombol 28px) → keduanya
+  baru bebas tabrakan saat lebar dalam ≥110px, yaitu **V ≈1105px**. Ambang 1120px menyisakan
+  sisa ≈1,9px, jadi di seluruh rentang **1024–1920px tidak ada tumpang tindih** (dihitung di
+  titik tersempit dan melebar terus seiring lebar layar).
+- Tes: `frames.test.ts` & `CaptionSheet.test.ts` dibuat relatif terhadap `MAX_FRAMES`
+  (tidak lagi mematok angka 10/20 literal), `Worksheet.test.ts` kini meng-assert
+  `minmax(9.375rem,1fr)` **dan** `min-[1120px]:grid-cols-5` (plus tidak ada lagi
+  `lg:grid-cols-5`), `README.md` dua teks "10 frame" → "20 frame".
+
+### 2. Scroll horizontal di daftar chip kata kunci (bug CSS)
+
+- Akar masalah: pada CSS, `overflow-y: auto` **tanpa** `overflow-x` membuat `overflow-x`
+  terhitung `auto`; pemicunya pseudo-element `before:-inset-2.5` tombol hapus chip yang melebar
+  6px ke kanan kotak. (`flex-wrap` sudah ada — chip memang membungkus.)
+- `src/components/KeywordEditor.tsx`: `<ul>` chip diberi **`overflow-x-hidden`** eksplisit
+  (scroll vertikal + `overscroll-contain` tetap), komentar penjelas ditambahkan di tempat.
+
+### 3. Rombak visual: tema terminal/CRT hijau-hitam dua mode ("Phosphor")
+
+- `src/app/globals.css`: token baru diganti total — kanvas `#050805`, garis hairline hijau,
+  **aksen tunggal hijau fosfor** `#39ff7a`; `--success` jadi **amber** (sinyal status, bukan
+  aksen), `--fail` tetap merah; token baru `--accent-dim`, `--accent-faint`, `--on-accent`,
+  `--on-fail`, `--fail-wash`, `--glow*`; token `--panel-shadow`/`shadow-panel` **dihapus**.
+  Mode terang memakai pasangan hijau-daun di latar kertas (`#f3f2ea`) dengan semua glow `none`.
+  Ditambah: glow statis (`.glow`, `.glow-soft`, `.glow-ok`, `.glow-text`), badge bracket
+  (`.badge-bracket::before/::after` → `[` `]`, teks asli tetap di DOM), seleksi/fokus gaya
+  terminal, spinner di atas tombol aksen memakai `--on-accent`.
+- `src/app/layout.tsx`: **Archivo + Courier Prime dibuang**, satu font `JetBrains_Mono`
+  (`--font-jetbrains`) untuk body & heading — `--font-sans` & `--font-mono` menunjuk font sama.
+- Radius diseragamkan dua tingkat di semua komponen: **kontrol 4px (`rounded`)**,
+  **kontainer 6px (`rounded-md`)**; `rounded-lg`/`rounded-xl`/`rounded-full` sisa dari tema lama
+  dihapus (dropzone kini 6px, progress bar & semua tombol 4px).
+- `Header.tsx`: brand memakai indikator fosfor + wordmark `glow-text`, pelat platform aktif
+  `glow-soft`, readout status diberi glyph prompt `❯`, header ditutup garis tipis
+  `bg-accent-faint` (title bar) — **titik traffic-light sengaja tidak dipakai** (menambah dua
+  warna status di luar palet pada baris brand).
+- `ProviderPanel.tsx`: `Tes koneksi` jadi outline aksen hijau, badge status memakai
+  `.badge-bracket` tanpa rotasi (dulu `-rotate-[1.4deg]`), ikon panah select `--accent-dim`.
+- `Worksheet.tsx`: tombol `Buat metadata` = isian aksen + glow (teks `--on-accent`, bukan
+  `text-white`), tile terpilih `border-accent` + `glow-soft`, ikon regen frame gagal memakai
+  `--fail` (bukan aksen), popover konfirmasi `bg-raised` tanpa `shadow-panel`, kotak error &
+  pesan limit tetap `--fail` dengan wash `--fail-wash`, dropzone/`+ Tambah frame` hover
+  `--accent-dim`.
+- `CaptionSheet.tsx`: strip status memakai `.badge-bracket`, kotak error `bg-fail-wash`
+  (dulu `bg-accent-wash`), ikon select `--accent-dim`.
+- `KeywordEditor.tsx`/`CopyButton.tsx`/`ThemeToggle.tsx`/`Panel.tsx`: radius & hover ikut
+  token baru; `Panel` tanpa bayangan lembut.
+- Aksesibilitas tidak dikorbankan: kontras teks ≥4.5:1 dihitung ulang untuk dua mode, focus
+  ring `2px` tetap, target sentuh ≥40px tetap, glow **statis** (bukan animasi) jadi aman bagi
+  `prefers-reduced-motion`, bracket badge tidak mengubah teks yang dibaca pembaca layar.
+- Tes terdampak: `Worksheet.test.ts` — asersi ikon regen gagal berubah dari
+  `text-accent-text` → `text-fail` (mengikuti keputusan warna di atas).
+
 ## Kontrak perilaku (WAJIB sama dengan legacy)
 
 Sumber: `legacy/docs/PROGRESS.md` + `legacy/js/*.js`. Tanda **[BARU]** = perilaku baru yang
@@ -387,8 +456,9 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
 
 ### Upload & frame
 
-- Upload **JPG / PNG / WEBP** (dropzone + tombol pilih file), **maksimal 10 frame** per batch.
-  **[BARU: sebelumnya 20]** — batch penuh → frame dilewati + pesan.
+- Upload **JPG / PNG / WEBP** (dropzone + tombol pilih file), **maksimal 20 frame** per batch
+  **[BARU: M6 sempat mematok 10; M15 mengembalikan 20 — sama dengan legacy]** — batch penuh →
+  frame dilewati + pesan.
 - Hapus **per frame**; frame terpilih di-highlight.
 - Setelah sesi di-restore, file asli hilang (hanya thumbnail) → upload ulang dengan nama sama
   menyambung kembali frame lama (metadata/status dipertahankan).

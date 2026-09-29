@@ -1,17 +1,13 @@
 import type { Metadata } from "next";
-import { Archivo, Courier_Prime } from "next/font/google";
+import { JetBrains_Mono } from "next/font/google";
 import { InlineScript } from "../components/InlineScript";
 import "./globals.css";
 
-const archivo = Archivo({
-  variable: "--font-archivo",
+// M15: SATU font monospace untuk seluruh halaman (body & heading) — hierarki dibentuk dari
+// ukuran dan ketebalan, bukan dari font kedua (Archivo & Courier Prime dibuang).
+const jetbrains = JetBrains_Mono({
+  variable: "--font-jetbrains",
   subsets: ["latin"],
-});
-
-const courier = Courier_Prime({
-  variable: "--font-courier",
-  subsets: ["latin"],
-  weight: ["400", "700"],
 });
 
 export const metadata: Metadata = {
@@ -32,7 +28,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="id"
       data-theme="dark"
       suppressHydrationWarning
-      className={`${archivo.variable} ${courier.variable} antialiased`}
+      className={`${jetbrains.variable} antialiased`}
     >
       <head>
         <InlineScript html={THEME_SCRIPT} />

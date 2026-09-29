@@ -38,7 +38,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
               value={api.provider}
               onChange={(e) => api.setProvider(e.target.value as ProviderId)}
               disabled={testing || busy}
-              className="w-full appearance-none rounded-lg border border-line bg-well px-3 py-2 pr-8 text-[13.5px] font-semibold text-ink transition-colors hover:border-ink-3 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full appearance-none rounded border border-line bg-well px-3 py-2 pr-8 text-[13.5px] font-semibold text-ink transition-colors hover:border-accent-dim disabled:cursor-not-allowed disabled:opacity-50"
             >
               {PROVIDER_ORDER.map((p) => (
                 <option key={p} value={p}>
@@ -52,7 +52,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
               viewBox="0 0 16 16"
               fill="none"
               aria-hidden="true"
-              className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-3"
+              className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-accent-dim"
             >
               <path
                 d="M4 6l4 4 4-4"
@@ -86,7 +86,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
               autoComplete="off"
               spellCheck={false}
               autoCapitalize="none"
-              className="w-full rounded-lg border border-line bg-well px-3 py-2 pr-10 font-mono text-[13px] text-ink placeholder:text-ink-3 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full rounded border border-line bg-well px-3 py-2 pr-10 font-mono text-[13px] text-ink placeholder:text-ink-3 disabled:cursor-not-allowed disabled:opacity-50"
             />
             <button
               type="button"
@@ -94,7 +94,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
               disabled={api.isSoon}
               aria-label={showKey ? 'Sembunyikan API key' : 'Tampilkan API key'}
               title={showKey ? 'Sembunyikan API key' : 'Tampilkan API key'}
-              className="absolute inset-y-0 right-0 grid w-10 place-items-center text-ink-3 transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+              className="absolute inset-y-0 right-0 grid w-10 place-items-center text-accent-dim transition-colors hover:text-accent-text disabled:cursor-not-allowed disabled:opacity-50"
             >
               {showKey ? (
                 <svg
@@ -140,21 +140,23 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
             onClick={api.test}
             disabled={api.isSoon || testing || busy}
             aria-busy={testing}
-            className="inline-flex items-center gap-2 rounded-lg border border-line px-4 py-2 text-[13.5px] font-semibold text-ink transition-colors hover:bg-wash disabled:cursor-not-allowed disabled:opacity-45"
+            className="inline-flex items-center gap-2 rounded border border-accent px-4 py-2 text-[13.5px] font-semibold text-accent-text transition-colors hover:bg-accent-wash disabled:cursor-not-allowed disabled:border-line disabled:opacity-45 disabled:hover:bg-transparent"
           >
             {testing && <span className="spinner" aria-hidden="true" />}
             {testing ? 'Menguji…' : 'Tes koneksi'}
           </button>
+          {/* Badge status bergaya bracket terminal (M15) — teks asli tetap untuk pembaca layar;
+              amber glow hanya untuk status Aktif (elemen aktif), tanpa rotasi supaya segaris. */}
           <span
             role="status"
             aria-live="polite"
-            className={`inline-flex -rotate-[1.4deg] items-center rounded-md border px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.08em] ${
+            className={`badge-bracket inline-flex items-center rounded border px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.08em] ${
               api.status === 'ok'
-                ? 'border-success bg-success-wash text-success'
+                ? 'glow-ok border-success bg-success-wash text-success'
                 : api.status === 'fail'
-                  ? 'border-fail bg-accent-wash text-fail'
+                  ? 'border-fail bg-fail-wash text-fail'
                   : api.status === 'testing'
-                    ? 'border-accent-text bg-accent-wash text-accent-text'
+                    ? 'border-accent bg-accent-wash text-accent-text'
                     : 'border-dashed border-ink-2 bg-wash text-ink-2'
             }`}
           >
@@ -169,7 +171,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
             {api.note}
           </p>
           {api.status === 'ok' && api.model && (
-            <span className="w-fit rounded-md border border-line bg-well px-2 py-1 font-mono text-[11px] text-ink-2">
+            <span className="w-fit rounded border border-line bg-well px-2 py-1 font-mono text-[11px] text-ink-2">
               Model: <span className="font-bold text-ink">{api.model}</span>
             </span>
           )}

@@ -47,13 +47,17 @@ export function KeywordEditor({ keywords, min, onChange, disabled }: {
 
       {/* M13: SATU-satunya pengecualian "tanpa scroll internal" (M12) — daftar bisa 50 chip,
           jadi dibatasi 12.5rem (200px di root 16px, ikut membesar bila font root naik — M14);
-          hanya daftar chip ini, input & panel lain tetap mengalir. */}
+          hanya daftar chip ini, input & panel lain tetap mengalir.
+          M15: chip MEMBUNGKUS ke baris baru (flex-wrap) dan scroll hanya VERTIKAL —
+          overflow-x dinyatakan hidden: mengisi overflow-y:auto saja membuat overflow-x
+          terhitung "auto" oleh CSS (pelebaran klik pseudo-element tombol hapus), sehingga
+          muncul scrollbar horizontal di daftar chip. */}
       {n > 0 && (
-        <ul className="scroll-slim flex max-h-[12.5rem] flex-wrap gap-1.5 overflow-y-auto overscroll-contain">
+        <ul className="scroll-slim flex max-h-[12.5rem] flex-wrap gap-1.5 overflow-y-auto overflow-x-hidden overscroll-contain">
           {keywords.map((k, i) => (
             <li
               key={`${k.toLowerCase()}-${i}`}
-              className="inline-flex max-w-full items-center gap-1 rounded-md border border-line bg-well pl-2 pr-1 py-0.5 text-[12px] text-ink"
+              className="inline-flex max-w-full items-center gap-1 rounded border border-line bg-well pl-2 pr-1 py-0.5 text-[12px] text-ink"
             >
               <span className="min-w-0 truncate" title={k}>{k}</span>
               <button
@@ -101,19 +105,19 @@ export function KeywordEditor({ keywords, min, onChange, disabled }: {
           placeholder={full ? 'Penuh — hapus salah satu dulu' : 'Ketik kata kunci, pisahkan koma atau Enter'}
           spellCheck={false}
           autoCapitalize="none"
-          className="w-full rounded-lg border border-line bg-well px-3 py-2 pr-24 text-[13.5px] text-ink placeholder:text-ink-3 disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full rounded border border-line bg-well px-3 py-2 pr-24 text-[13.5px] text-ink placeholder:text-ink-3 disabled:cursor-not-allowed disabled:opacity-50"
         />
         <span className="pointer-events-none absolute bottom-1 right-2.5 flex items-center gap-1.5">
           <span className="font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-ink-3">
             {n}/{MAX_KEYWORDS}
           </span>
           {n < min && (
-            <span className="rounded border border-dashed border-line px-1.5 py-px font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-ink-3">
+            <span className="rounded border border-dashed border-accent-faint px-1.5 py-px font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-ink-3">
               min {min}
             </span>
           )}
           {full && (
-            <span className="rounded border border-accent-text bg-accent-wash px-1.5 py-px font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-accent-text">
+            <span className="rounded border border-accent bg-accent-wash px-1.5 py-px font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-accent-text">
               penuh
             </span>
           )}

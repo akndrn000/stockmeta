@@ -7,7 +7,7 @@ menyentuh server aplikasi ini.
 
 ## Fitur
 
-- Upload sampai **10 frame** per batch (JPG/PNG/WEBP) lewat drag-drop atau tombol pilih file.
+- Upload sampai **20 frame** per batch (JPG/PNG/WEBP) lewat drag-drop atau tombol pilih file.
 - Dua platform dalam satu sesi: **Adobe Stock** dan **Shutterstock** — ganti platform tanpa
   kehilangan hasil (metadata tersimpan per platform).
 - Generate metadata batch: berurutan, bisa dibatalkan, retry sabar saat kena limit, dan
@@ -90,7 +90,7 @@ Atau hubungkan repo ini ke Vercel Dashboard. Build default: `npm run build`.
 - **Next.js 16** (App Router) + **React 19** + **TypeScript** (strict)
 - **Tailwind CSS v4** (token warna lewat `@theme`)
 - **Vitest** + jsdom untuk unit test, **ESLint** untuk lint
-- Font: Archivo (teks) & Courier Prime (readout mono) via `next/font`
+- Font: **JetBrains Mono** (satu font untuk teks & readout) via `next/font`
 
 ## Struktur folder
 
@@ -106,7 +106,7 @@ docs/           DESIGN.md (sistem desain), MIGRATION.md (riwayat migrasi)
 
 ## Batasan yang diketahui
 
-- **Maksimal 10 frame per batch.**
+- **Maksimal 20 frame per batch.**
 - **File asli tidak disimpan setelah refresh** — sesi menyimpan thumbnail + metadata saja;
   untuk generate ulang, upload ulang gambar dengan nama yang sama.
 - **Hasil AI tetap perlu ditinjau manual**: subjek bisa salah baca, kata kunci perlu

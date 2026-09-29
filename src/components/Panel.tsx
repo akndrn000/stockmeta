@@ -3,6 +3,8 @@
 // (mis. tombol Export CSV). overflow tetap dipertahankan hanya untuk merapikan sudut membulat.
 // M14: body `grow` — saat grid menaikkan tinggi panel (lg:items-stretch di page.tsx), panel
 // yang lebih pendek terisi rapi: konten tetap di atas, footer menempel di bawah, tanpa scroll.
+// M15: radius 6px + border hairline hijau, TANPA bayangan lembut gaya SaaS — glow hanya di
+// elemen aktif (bukan di wadah panel).
 // Dipakai Worksheet (M6) dan CaptionSheet (M7).
 import type { ReactNode } from 'react';
 
@@ -26,7 +28,7 @@ export function Panel({
   return (
     <section
       id={id}
-      className={`flex flex-col overflow-hidden rounded-[0.875rem] border border-line bg-surface shadow-panel ${className}`}
+      className={`flex flex-col overflow-hidden rounded-md border border-line bg-surface ${className}`}
     >
       <div className="flex items-center gap-3 border-b border-line px-4 py-3">
         <div className="flex min-w-0 items-baseline gap-3">
