@@ -760,6 +760,20 @@ server. Verifikasi akhir: `npm run test` **203/203 tes**, `npx tsc --noEmit` 0 e
   `npm run build` sukses; aturan CSS baru diverifikasi ikut ter-compile
   (`.min-h-15`, `@media (max-width:1119px){…min-h-[4.3125rem]}`, `@media (pointer:coarse){…}`).
 
+## Perbaikan pasca-M19 (M20–M21) — bukan tahap migrasi baru
+
+- **M20 — README diperbarui jadi format profesional GitHub, konten teknis tidak berubah.**
+  `README.md` kini punya header + badge (shields.io), placeholder screenshot, tautan cepat,
+  daftar isi dengan anchor, heading ber-emoji, serta bagian penutup **Lisensi** & **Dibuat
+  dengan**; `LICENSE` (MIT) ditambahkan sesuai konfirmasi. Hanya `README.md` + `LICENSE` +
+  catatan ini yang disentuh — `docs/DESIGN.md` tidak diubah.
+- **M21 — screenshot aplikasi ditambahkan ke README (diambil otomatis via Playwright/CDP).**
+  `docs/screenshot.png` (PNG 1440×900, mode gelap, halaman awal kosong tanpa upload/generate)
+  diambil lewat Chrome headless + CDP (`Emulation.setDeviceMetricsOverride` +
+  `Emulation.setEmulatedMedia` `prefers-color-scheme: dark`); badge indikator dev Next.js
+  disembunyikan saat capture, lalu placeholder komentar README diganti
+  `![Screenshot StockMeta](./docs/screenshot.png)`.
+
 ## Kontrak perilaku (WAJIB sama dengan legacy)
 
 Sumber: `legacy/docs/PROGRESS.md` + `legacy/js/*.js`. Tanda **[BARU]** = perilaku baru yang

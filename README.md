@@ -1,11 +1,44 @@
 # StockMeta
 
-**Metadata AI untuk Adobe Stock & Shutterstock.** Upload foto, biarkan Groq atau Gemini
-menulis judul/deskripsi, kata kunci, dan kategori secara batch — lalu sunting, salin, atau
-ekspor CSV sesuai format portal. Berjalan sepenuhnya di browser Anda: API key tidak pernah
-menyentuh server aplikasi ini.
+*Metadata AI untuk Adobe Stock & Shutterstock — upload foto, biarkan AI menulis judul, deskripsi, kata kunci, dan kategori secara batch, lalu ekspor CSV sesuai format portal.*
 
-## Fitur
+![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=next.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?logo=tailwindcss&logoColor=white)
+![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+![Build](https://img.shields.io/badge/build-passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-passing-brightgreen)
+
+![Screenshot StockMeta](./docs/screenshot.png)
+
+**[Demo Live](https://stockmeta-one.vercel.app)** • [Laporkan Bug](https://github.com/akndrn000/stockmeta/issues) • [Struktur Folder](#-struktur-folder)
+
+## 📑 Daftar Isi
+
+- [💡 Kenapa StockMeta?](#-kenapa-stockmeta)
+- [✨ Fitur](#-fitur)
+- [🚀 Cara pakai](#-cara-pakai)
+- [🤖 Provider gratis](#-provider-gratis)
+- [📋 Format CSV](#-format-csv)
+- [🔐 Keamanan](#-keamanan)
+- [💻 Menjalankan lokal](#-menjalankan-lokal)
+- [🌐 Deploy ke Vercel](#-deploy-ke-vercel)
+- [🧰 Tech stack](#-tech-stack)
+- [📁 Struktur folder](#-struktur-folder)
+- [⚠ Batasan yang diketahui](#-batasan-yang-diketahui)
+- [📄 Lisensi](#-lisensi)
+- [🙏 Dibuat dengan](#-dibuat-dengan)
+
+## 💡 Kenapa StockMeta?
+
+Kontributor stock photo perlu metadata yang cepat dan akurat untuk Adobe Stock dan Shutterstock:
+judul, deskripsi, kata kunci, dan kategori harus tersedia untuk setiap foto. StockMeta
+mengerjakannya secara batch: upload
+foto, biarkan Groq atau Gemini menulis metadatanya, lalu sunting, salin, atau ekspor CSV sesuai
+format portal. Berjalan sepenuhnya di browser Anda: API key tidak pernah menyentuh server
+aplikasi ini.
+
+## ✨ Fitur
 
 - Upload sampai **20 frame** per batch (JPG/PNG/WEBP) lewat drag-drop atau tombol pilih file.
 - Dua platform dalam satu sesi: **Adobe Stock** dan **Shutterstock** — ganti platform tanpa
@@ -20,7 +53,7 @@ menyentuh server aplikasi ini.
 - Jeda antar foto dapat diatur (3/6/12/20 detik, default 6) untuk menghindari limit.
 - Mode siang/malam (mengikuti sistem, bisa di-override), sesi tersimpan otomatis di browser.
 
-## Cara pakai
+## 🚀 Cara pakai
 
 1. **Upload** foto ke Lembar kerja (drag-drop atau klik area upload).
 2. **Pilih platform** (Adobe Stock / Shutterstock) di header.
@@ -31,7 +64,7 @@ menyentuh server aplikasi ini.
 7. **Edit** hasilnya di Lembar caption (judul/deskripsi, kata kunci, kategori).
 8. **Salin** per field, atau klik **Export CSV** untuk unduh file CSV.
 
-## Provider gratis
+## 🤖 Provider gratis
 
 | Provider | Model | Catatan limit gratis |
 | --- | --- | --- |
@@ -51,7 +84,7 @@ foto** (misalnya 12 atau 20 detik) di Lembar kerja. Retry berjalan otomatis (mak
 percobaan: tunggu limit per menit, backoff untuk `503`, tanpa retry untuk kuota harian);
 frame yang tetap gagal bisa diproses ulang lewat tombol **Coba lagi frame gagal**.
 
-## Format CSV
+## 📋 Format CSV
 
 Impor CSV mengikuti template resmi masing-masing portal:
 
@@ -66,7 +99,7 @@ Catatan: hanya baris yang sudah punya isi untuk platform tersebut yang diekspor.
 impor CSV hasil unduhan ke portal masing-masing sekali dulu** untuk memastikan formatnya
 diterima sebelum dipakai untuk banyak file.
 
-## Keamanan
+## 🔐 Keamanan
 
 - API key disimpan di **localStorage browser Anda** dan dikirim **langsung ke server
   Gemini/Groq** dari browser — **tidak pernah lewat server aplikasi ini**.
@@ -76,7 +109,7 @@ diterima sebelum dipakai untuk banyak file.
   yang sama bisa melihat key tersimpan (Ada tombol lihat/sembunyikan key dan Anda bisa
   menghapusnya dari field).
 
-## Menjalankan lokal
+## 💻 Menjalankan lokal
 
 ```bash
 npm install
@@ -86,7 +119,7 @@ npm run typecheck
 npm run lint
 ```
 
-## Deploy ke Vercel
+## 🌐 Deploy ke Vercel
 
 Tidak ada environment variable yang dibutuhkan — semua key diisi pengguna di browser:
 
@@ -96,16 +129,16 @@ vercel deploy
 
 Atau hubungkan repo ini ke Vercel Dashboard. Build default: `npm run build`.
 
-## Tech stack
+## 🧰 Tech stack
 
 - **Next.js 16** (App Router) + **React 19** + **TypeScript** (strict)
 - **Tailwind CSS v4** (token warna lewat `@theme`)
 - **Vitest** + jsdom untuk unit test, **ESLint** untuk lint
 - Font: **JetBrains Mono** (satu font untuk teks & readout) via `next/font`
 
-## Struktur folder
+## 📁 Struktur folder
 
-```
+```text
 src/
   app/          layout, halaman, globals.css (token warna), icon.svg
   components/   Header, ProviderPanel, Worksheet, CaptionSheet, KeywordEditor, …
@@ -115,7 +148,7 @@ scripts/        live-test.ts (tes provider manual, tidak ikut build)
 docs/           DESIGN.md (sistem desain), MIGRATION.md (riwayat migrasi)
 ```
 
-## Batasan yang diketahui
+## ⚠ Batasan yang diketahui
 
 - **Maksimal 20 frame per batch.**
 - **File asli tidak disimpan setelah refresh** — sesi menyimpan thumbnail + metadata saja;
@@ -123,3 +156,11 @@ docs/           DESIGN.md (sistem desain), MIGRATION.md (riwayat migrasi)
 - **Hasil AI tetap perlu ditinjau manual**: subjek bisa salah baca, kata kunci perlu
   dikurasi, dan batas portal (misalnya judul Adobe 70 karakter) hanya disarankan, tidak
   dipotong diam-diam.
+
+## 📄 Lisensi
+
+Dilisensikan di bawah **MIT** — lihat file [LICENSE](./LICENSE) untuk teks lengkapnya.
+
+## 🙏 Dibuat dengan
+
+Next.js • React • TypeScript • Tailwind CSS • Vitest — diproses di browser Anda, tanpa server backend.
