@@ -1,5 +1,6 @@
 'use client';
 import { CaptionSheet } from '../components/CaptionSheet';
+import { Footer } from '../components/Footer';
 import { Header } from '../components/Header';
 import { ProviderPanel } from '../components/ProviderPanel';
 import { Worksheet } from '../components/Worksheet';
@@ -40,6 +41,8 @@ export default function Home() {
           <CaptionSheet session={session} />
         </div>
       </main>
+
+      <Footer />
     </div>
   );
 }

@@ -774,6 +774,19 @@ server. Verifikasi akhir: `npm run test` **203/203 tes**, `npx tsc --noEmit` 0 e
   disembunyikan saat capture, lalu placeholder komentar README diganti
   `![Screenshot StockMeta](./docs/screenshot.png)`.
 
+## Perbaikan pasca-M21 (M22) — footer baru, bukan tahap migrasi baru
+
+- **M22 — Footer baru (`src/components/Footer.tsx`, dirender di `src/app/page.tsx`
+  setelah `main`).** Struktur meniru RigForge (3 kolom desktop, stack 1 kolom mobile)
+  dengan palet Phosphor yang sudah ada — tanpa warna/e2e/server baru: latar chrome
+  `bg-bg-secondary`, garis atas tegas `border-t-2 border-accent`, kolom kiri brand
+  `StockMeta` (`text-accent-text`) + tagline, kolom tengah disclaimer independen
+  (tidak berafiliasi dengan Adobe/Shutterstock), kolom kanan catatan privasi
+  (API key & gambar browser → provider langsung, tanpa analytics), baris bawah
+  `border-t border-border` berisi `© 2026 StockMeta` + readout mono
+  `diproses lokal di browser`. Tipografi ikut skala M16 (`text-title`/`text-small`/
+  `text-meta` mono), spasi ikut skala (`gap-4`, `py-4`, `mt-4`/`pt-3`/`gap-2`/`gap-1`).
+
 ## Kontrak perilaku (WAJIB sama dengan legacy)
 
 Sumber: `legacy/docs/PROGRESS.md` + `legacy/js/*.js`. Tanda **[BARU]** = perilaku baru yang
