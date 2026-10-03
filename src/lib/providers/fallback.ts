@@ -2,6 +2,7 @@
 // ATAU 503 setelah retry habis → frame diproses lewat provider lain yang key-nya tersimpan.
 // Tiap provider tetap memakai SATU model (lihat models.ts). Tanpa key lain / toggle mati →
 // gagal dengan pesan asli provider aktif (jangan fallback diam-diam).
+import type { AnalysisResult } from '../types';
 import type { ParsedMetadata } from '../prompt';
 import { readFallback, readKey } from '../storage';
 import type { Platform, ProviderId } from '../types';
@@ -50,11 +51,7 @@ export async function generateWithFallback(
   opts: FallbackGenerateArgs,
   deps: FallbackDeps = {}
 ): Promise<FallbackResult> {
-  const getAdapter = deps.getAdapter ?? getProvider;
-  const getKey = deps.getKey ?? readKey;
-  const enabled = (deps.isEnabled ?? readFallback)();
-
-  const run = (adapter: ProviderAdapter, apiKey: string): Promise<ParsedMetadata> =>
+  const r = await withFallback(opts, deps, (adapter, apiKey) =>
     adapter.generateForImage({
       apiKey,
       image: opts.image,
@@ -62,14 +59,62 @@ export async function generateWithFallback(
       theme: opts.theme,
       signal: opts.signal,
       onWait: opts.onWait
-    });
+    }));
+  return { meta: r.value, provider: r.provider, usedFallback: r.usedFallback };
+}
+
+// M29: fallback untuk analisis — mesin yang sama, hanya panggilan adapter yang beda.
+export interface FallbackAnalyzeArgs {
+  /** provider aktif pilihan user */
+  provider: ProviderId;
+  /** API key provider aktif (dari panel, sudah lewat tes koneksi) */
+  apiKey: string;
+  image: ImageInput;
+  platform: Platform;
+  signal?: AbortSignal;
+  onWait?: (info: WaitInfo) => void;
+}
+
+export interface FallbackAnalyzeResult {
+  analysis: AnalysisResult;
+  /** provider yang akhirnya memproses frame */
+  provider: ProviderId;
+  /** true bila provider cadangan yang dipakai */
+  usedFallback: boolean;
+}
+
+export async function analyzeWithFallback(
+  opts: FallbackAnalyzeArgs,
+  deps: FallbackDeps = {}
+): Promise<FallbackAnalyzeResult> {
+  const r = await withFallback(opts, deps, (adapter, apiKey) =>
+    adapter.analyzeImage({
+      apiKey,
+      image: opts.image,
+      platform: opts.platform,
+      signal: opts.signal,
+      onWait: opts.onWait
+    }));
+  return { analysis: r.value, provider: r.provider, usedFallback: r.usedFallback };
+}
+
+// M29: mesin fallback generik — generate metadata & analisis memakai jalur yang sama:
+// provider aktif dulu, gagal layak-fallback (kuota harian/503) → coba cadangan ber-key.
+async function withFallback<T>(
+  opts: { provider: ProviderId; apiKey: string; signal?: AbortSignal },
+  deps: FallbackDeps,
+  call: (adapter: ProviderAdapter, apiKey: string) => Promise<T>
+): Promise<{ value: T; provider: ProviderId; usedFallback: boolean }> {
+  const getAdapter = deps.getAdapter ?? getProvider;
+  const getKey = deps.getKey ?? readKey;
+  const enabled = (deps.isEnabled ?? readFallback)();
 
   const active = getAdapter(opts.provider);
   if (!active) throw new ProviderError('Provider tidak tersedia', { retryable: false });
 
   try {
-    const meta = await run(active, opts.apiKey);
-    return { meta, provider: opts.provider, usedFallback: false };
+    const value = await call(active, opts.apiKey);
+    return { value, provider: opts.provider, usedFallback: false };
   } catch (err) {
     if (!enabled || opts.signal?.aborted || !canFallback(err)) throw err;
     for (const id of FALLBACK_ORDER) {
@@ -79,8 +124,8 @@ export async function generateWithFallback(
       const adapter = getAdapter(id);
       if (!adapter) continue;
       try {
-        const meta = await run(adapter, key);
-        return { meta, provider: id, usedFallback: true };
+        const value = await call(adapter, key);
+        return { value, provider: id, usedFallback: true };
       } catch { /* provider cadangan juga gagal → coba berikutnya */ }
     }
     throw err;   // tak ada key lain / semua cadangan gagal → pesan jelas dari provider aktif

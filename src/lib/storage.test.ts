@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BATCH_DELAY_DEFAULT_SEC } from './limits';
-import { loadSession, readBatchDelay, readKey, readProvider, readTheme, removeSession, saveSession, writeBatchDelay, writeKey, writeProvider, writeTheme } from './storage';
+import { loadSession, readBatchDelay, readKey, readMode, readProvider, readTheme, removeSession, saveSession, writeBatchDelay, writeKey, writeMode, writeProvider, writeTheme } from './storage';
 import type { StoredSession } from './storage';
 import type { Frame } from './types';
 
@@ -69,6 +69,21 @@ describe('pilihan provider (M11)', () => {
     expect(readProvider()).toBe('coming-soon');
     store.setItem('stockmeta_provider', 'nvidia');
     expect(readProvider()).toBeNull();
+  });
+});
+
+describe('mode aplikasi Analisis/Metadata (M29)', () => {
+  it('belum pernah memilih → null (pemanggil memakai default metadata)', () => {
+    expect(readMode()).toBeNull();
+  });
+
+  it('roundtrip nilai valid; nilai tak sah → null', () => {
+    writeMode('analisis');
+    expect(readMode()).toBe('analisis');
+    writeMode('metadata');
+    expect(readMode()).toBe('metadata');
+    store.setItem('stockmeta_mode', 'review');
+    expect(readMode()).toBeNull();
   });
 });
 
@@ -171,6 +186,41 @@ describe('loadSession — format baru (slot per platform)', () => {
       }]
     }));
     expect(loadSession()?.imgs[0].metadata.adobe?.categoryAuto).toBe(true);
+  });
+
+  it('M29: slot analisis valid terbaca utuh; sesi lama tanpa slot → undefined', () => {
+    store.setItem('stockmeta_session', JSON.stringify({
+      v: 1, platform: 'adobe', sel: null, seq: 2, tema: '',
+      imgs: [
+        {
+          id: 1, name: 'a.jpg', thumb: '',
+          analysis: { adobe: { verdict: 'layak', issues: [], summary: 'OK' } },
+          analysisStatus: { adobe: 'siap' },
+          analysisError: { adobe: '' }
+        },
+        { id: 2, name: 'b.jpg', thumb: '' }
+      ]
+    }));
+    const s = loadSession();
+    expect(s?.imgs[0].analysis?.adobe).toEqual({ verdict: 'layak', issues: [], summary: 'OK' });
+    expect(s?.imgs[0].analysisStatus?.adobe).toBe('siap');
+    expect(s?.imgs[1].analysis).toBeUndefined();
+    expect(s?.imgs[1].analysisStatus).toBeUndefined();
+  });
+
+  it('M29: slot analisis rusak dibuang (bukan sesi dibuang); memproses → menunggu', () => {
+    store.setItem('stockmeta_session', JSON.stringify({
+      v: 1, platform: 'adobe', sel: null, seq: 1, tema: '',
+      imgs: [{
+        id: 1, name: 'a.jpg', thumb: '',
+        analysis: { adobe: { verdict: 'bagus-sekali', issues: 'bukan-array' } },
+        analysisStatus: { adobe: 'memproses' }
+      }]
+    }));
+    const s = loadSession();
+    expect(s).not.toBeNull();
+    expect(s?.imgs[0].analysis).toBeUndefined();
+    expect(s?.imgs[0].analysisStatus?.adobe).toBe('menunggu');
   });
 
   it('slot ada tapi kosong isinya + status siap → dinormalkan ke menunggu (audit A1)', () => {

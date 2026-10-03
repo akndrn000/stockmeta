@@ -33,6 +33,7 @@ let calls = 0;
 const fakeAdapter: ProviderAdapter = {
   id: 'gemini',
   testConnection: async () => ({ ok: true }),
+  analyzeImage: async () => ({ verdict: 'layak', issues: [], summary: '' }),
   generateForImage: async (args) => {
     const step = script[Math.min(calls, Math.max(script.length - 1, 0))] ?? {};
     calls++;
@@ -71,7 +72,9 @@ const blank = (name: string): Omit<Frame, 'id'> => ({
   tema: '',
   status: { adobe: 'menunggu', shutterstock: 'menunggu' },
   error: { adobe: '', shutterstock: '' },
-  metadata: {}
+  metadata: {},
+  // M29: frame tes dianggap sudah dianalisis supaya lolos gerbang metadata
+  analysisStatus: { adobe: 'siap', shutterstock: 'siap' }
 });
 
 const RETRY = 'Coba lagi frame gagal';

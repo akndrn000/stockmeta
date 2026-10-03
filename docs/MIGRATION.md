@@ -1061,7 +1061,48 @@ akurat — mengalahkan semua artikel web): field Description bertuliskan
   masa lalu); yang berlaku kini hanya angka M28 ini + kontrak CaptionSheet di bawah.
 - Verifikasi: `npm run test`, `npx tsc --noEmit`, `npm run lint`, `npm run build` — lolos.
 
->>>>>>> c00d4ea (M27: audit responsif menyeluruh 18 kombinasi, perbaiki touch target <40px, koreksi dokumentasi breakpoint)
+## Perbaikan pasca-M28 (M29) — Mode Analisis, bukan tahap migrasi baru
+
+> **Catatan penomoran**: brief awal meminta label "M28 — Mode Analisis", tetapi M28 sudah
+> dipakai koreksi 2048 di atas — fitur ini dicatat sebagai **M29** agar tidak tabrakan.
+
+Fitur besar pertama di luar migrasi: **Mode Analisis** berdampingan dengan **Mode Metadata**.
+Aturan keras: **logika Mode Metadata tidak berubah** — upload, generate, edit, salin,
+export CSV berfungsi identik saat mode metadata aktif; M29 hanya MENAMBAH.
+
+- **Alur**: Analisis dulu (Mode Analisis → `Jalankan Analisis`) → baru generate metadata
+  (Mode Metadata → `Buat metadata`). Generate metadata BARU digerbang: frame yang
+  `analysisStatus` platform aktifnya bukan `siap` DILEWATI dengan pesan
+  `Jalankan Analisis dulu di Mode Analisis` (status metadata jadi `gagal` + pesan itu,
+  isi slot TIDAK diubah). Data lama tetap boleh diedit manual — gerbang hanya berlaku
+  saat MEMULAI generate, bukan mengunci data yang sudah ada.
+- **Mode** (`AppMode = 'analisis' | 'metadata'`, default metadata) disimpan page.tsx,
+  persist `localStorage` kunci `stockmeta_mode` (`readMode`/`writeMode` di `storage.ts`).
+
+| Baru / ubah | Isi | File |
+| --- | --- | --- |
+| Tipe: `AppMode`, `AnalysisVerdict` (`layak`/`berpotensi-ditolak`/`perlu-tinjau`), `AnalysisIssueCategory` (8 kategori), `AnalysisIssue`, `AnalysisResult`, `Frame.analysis` / `analysisStatus` / `analysisError` (slot per platform, opsional — sesi lama tetap terbaca) | `src/lib/types.ts` |
+| `buildAnalysisPrompt({platform})` — AI sebagai REVIEWER kelayakan upload (kriteria: kualitas teknis, konten generik→`perlu-tinjau`, watermark/logo/merek, properti/model-release disebut eksplisit, komposisi, nilai komersial; larangan mengarang masalah) + `parseAnalysisResponse` (fence-strip, verdict/kategori tak dikenal → error kind `json` supaya di-retry) | `src/lib/analysisPrompt.ts` (**baru**) |
+| `ProviderAdapter.analyzeImage` + `AnalyzeArgs` (tanpa theme; `model?` diterima tapi diabaikan — satu model per provider) | `src/lib/providers/types.ts` |
+| HTTP tidak diduplikasi: tiap provider mengekstrak helper `postChat` internal (endpoint/retry/error mapping identik), `generateForImage` & `analyzeImage` hanya beda prompt + parser | `gemini.ts`, `groq.ts`, `openrouter.ts` |
+| `analyzeWithFallback` — mesin fallback generik yang sama (`withFallback<T>`) | `src/lib/providers/fallback.ts` |
+| `runBatch<T = ParsedMetadata>` generik (jalur metadata memakai default → perilaku identik) | `src/lib/batch.ts` |
+| `applyAnalysis` / `failAnalysis` (cermin `applyGenerated`/`failFrame`) | `src/hooks/useSession.ts` |
+| `useAnalysisBatch` (**baru**, cermin `useBatch`): `startAnalysis` (hanya analysisStatus menunggu/gagal), jeda via `readBatchDelay`, retry sabar, progress, cancel, `regenerateAnalysisFrame` + konfirmasi | `src/hooks/useAnalysisBatch.ts` |
+| Gerbang di `startBatch`/`regenerateAll`/`regenerateFrame` (`NEED_ANALYSIS_MSG`) | `src/hooks/useBatch.ts` |
+| `ModeToggle` (**baru**, segmented Analisis/Metadata segaya toggle platform, di Header, terkunci saat batch jalan) | `src/components/ModeToggle.tsx` |
+| `AnalysisPanel` (**baru**, pengganti CaptionSheet saat mode analisis): badge verdict besar (warna + ikon + teks, tak hanya warna), daftar issues (label kategori Indonesia + deskripsi), ringkasan, state `Belum dianalisis`/gagal/kosong; `id="lembar-caption"` dipertahankan supaya scroll mobile dari tile tetap tiba | `src/components/AnalysisPanel.tsx` |
+| Prop opsional `mode` (default metadata) + `analysis`; tombol utama `Jalankan Analisis` vs `Buat metadata`; tile & progress & coba-lagi mengikuti status mode aktif; blok `Buat ulang semua` khusus metadata; guard struktural mengunci bila batch mana pun berjalan | `src/components/Worksheet.tsx` |
+| Prop `mode`/`onModeChange` + `ModeToggle` berdampingan toggle platform; `busy` = batch mana pun | `src/components/Header.tsx` |
+| Render kondisional (satu panel kanan saja) + instance `useAnalysisBatch` | `src/app/page.tsx` |
+| Persist `stockmeta_mode`; `coerceFrame` membawa slot analisis (rusak → dibuang, `memproses` → `menunggu`) | `src/lib/storage.ts` |
+| Tes: `analysisPrompt` (9), `AnalysisPanel` (8), `useAnalysisBatch` (6), `WorksheetAnalysis` (4), gerbang `useBatch` (5), `useSession` analisis (3), `storage` mode + coerce (4), `analyzeWithFallback` (2), `groq.analyzeImage` (1); fake adapter 4 file tes dilengkapi `analyzeImage`; `blank()` `useBatch`/`Worksheet` diset analysis-siap supaya alur metadata lama teruji identik | `*.test.ts` |
+
+- Bagian historis M1–M28 di dokumen ini **sengaja tidak ditulis ulang**.
+- Verifikasi: `npm run test` **265/265**, `npx tsc --noEmit` 0, `npm run lint` 0,
+  `npm run build` sukses. Bukti screenshot: `docs/screenshots-m29/mode-analisis.png` &
+  `mode-metadata.png` (halaman awal kosong, mode gelap).
+
 ## Kontrak perilaku (WAJIB sama dengan legacy)
 
 Sumber: `legacy/docs/PROGRESS.md` + `legacy/js/*.js`. Tanda **[BARU]** = perilaku baru yang
@@ -1204,6 +1245,22 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
   untuk platform aktif — tampil di dekat tombol `Export CSV` bila > 0, **tidak memblokir
   ekspor**. Footer **`N baris`** = jumlah baris yang **benar-benar diekspor** (slot berisi),
   bukan jumlah frame **[audit F2]**.
+
+### Mode Analisis [M29 — BARU, di luar legacy]
+
+- **Sakelar mode** di Header (`ModeToggle`: segmented `Analisis | Metadata`, segaya toggle
+  platform, terkunci saat batch berjalan), persist `stockmeta_mode`, default `metadata`.
+- **Mode Analisis**: Worksheet tombol utama `Jalankan Analisis` (batch: hanya analysisStatus
+  menunggu/gagal, jeda/retry/progress/batal sama seperti metadata; ikon tile
+  `Analisis ulang untuk <nama>` + konfirmasi `Jalankan analisis ulang?`; `Buat ulang semua`
+  disembunyikan); panel kanan = `AnalysisPanel` (badge verdict warna+ikon+teks, issues +
+  ringkasan, state `Belum dianalisis`/gagal/kosong).
+- **Mode Metadata** (perilaku lama identik): tombol `Buat metadata`/`Buat ulang semua`/ikon
+  `Buat ulang metadata` tidak berubah — **kecuali gerbang**: generate BARU hanya untuk frame
+  yang analysisStatus-nya `siap` (`Jalankan Analisis dulu di Mode Analisis` bila belum);
+  edit manual & data lama tidak dikunci.
+- Hasil + status + error analisis tersimpan **per platform** (`analysis`/`analysisStatus`/
+  `analysisError`), slot metadata tidak tersentuh batch analisis dan sebaliknya.
 
 ### CSV
 

@@ -1,6 +1,8 @@
 // Orkestrasi batch generate (M8): berurutan per frame, jeda antar frame, gagal-lanjut,
 // batal via AbortSignal. Murni tanpa React & tanpa akses store — semua dependensi
 // diinjeksi (lihat useBatch.ts untuk pemanggilan nyatanya).
+// M29: generik atas hasil per frame (T = ParsedMetadata metadata, AnalysisResult analisis)
+// — jalur metadata memakai default sehingga perilakunya identik seperti sebelumnya.
 import type { ParsedMetadata } from './prompt';
 import { BATCH_DELAY_MS, type WaitInfo } from './providers/retry';
 import type { Platform } from './types';
@@ -27,17 +29,17 @@ export interface BatchSummary {
   total: number;
 }
 
-export interface BatchOptions {
+export interface BatchOptions<T = ParsedMetadata> {
   frameIds: number[];
   platform: Platform;
-  generate: (id: number, args: GenerateFrameArgs) => Promise<ParsedMetadata>;
+  generate: (id: number, args: GenerateFrameArgs) => Promise<T>;
   getImage: (id: number) => File | undefined;
   getTheme: (id: number) => string;
   onStart?: (id: number) => void;
   /** frame yang sedang diproses saat batch dibatalkan — UI mengembalikannya ke 'menunggu' */
   onCancel?: (id: number) => void;
   onWait?: (id: number, info: WaitInfo) => void;
-  onSuccess: (id: number, meta: ParsedMetadata) => void;
+  onSuccess: (id: number, result: T) => void;
   onError: (id: number, message: string) => void;
   signal?: AbortSignal;
   /** jeda antar frame; hanya dihitung bila frame sebelumnya benar-benar memanggil API */
@@ -45,7 +47,7 @@ export interface BatchOptions {
   sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
 }
 
-type Outcome = { ok: ParsedMetadata } | { error: unknown } | { stopped: true };
+type Outcome<T> = { ok: T } | { error: unknown } | { stopped: true };
 
 // Jeda tidur yang ikut terbangun saat signal dibatalkan (tidak pernah reject) — batch
 // mengecek `signal.aborted` sesudahnya, jadi pembatalan tetap memutus di titik itu.
@@ -73,7 +75,7 @@ function errMessage(err: unknown): string {
   return err instanceof Error && err.message ? err.message : 'Gagal diproses';
 }
 
-export async function runBatch(opts: BatchOptions): Promise<BatchSummary> {
+export async function runBatch<T = ParsedMetadata>(opts: BatchOptions<T>): Promise<BatchSummary> {
   const { frameIds, platform, generate, getImage, getTheme, onSuccess, onError, signal } = opts;
   const delayMs = opts.delayMs ?? BATCH_DELAY_MS;
   const sleep = opts.sleep ?? abortableSleep;
@@ -105,7 +107,7 @@ export async function runBatch(opts: BatchOptions): Promise<BatchSummary> {
 
     opts.onStart?.(id);
     pace = true;
-    const settled: Promise<Outcome> = generate(id, {
+    const settled: Promise<Outcome<T>> = generate(id, {
       platform,
       theme: getTheme(id),
       signal,
@@ -116,8 +118,8 @@ export async function runBatch(opts: BatchOptions): Promise<BatchSummary> {
       (meta) => ({ ok: meta }),
       (error) => ({ error })
     );
-    const stop: Promise<Outcome> = abortSignal(signal).then(() => ({ stopped: true as const }));
-    const outcome = await Promise.race<Outcome>([settled, stop]);
+    const stop: Promise<Outcome<T>> = abortSignal(signal).then(() => ({ stopped: true as const }));
+    const outcome = await Promise.race<Outcome<T>>([settled, stop]);
     if ('stopped' in outcome || (signal?.aborted && 'error' in outcome)) {
       // batal di tengah frame berjalan: frame ini kembali 'menunggu', sisa tak disentuh
       summary.cancelled = true;

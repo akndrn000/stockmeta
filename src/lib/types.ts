@@ -45,4 +45,39 @@ export interface Frame {
   status: Record<Platform, FrameStatus>;   // mengikuti slot platform aktif; default 'menunggu'
   error: Record<Platform, string>;         // pesan gagal per platform
   metadata: MetadataSlots;
+  // M29 (Mode Analisis): hasil + status/error analisis per platform — pola sama seperti
+  // metadata/status/error di atas (per platform, tidak saling menimpa). Opsional supaya
+  // sesi lama yang di-restore tetap terbaca (undefined = belum pernah dianalisis).
+  analysis?: Partial<Record<Platform, AnalysisResult>>;
+  analysisStatus?: Partial<Record<Platform, FrameStatus>>;
+  analysisError?: Partial<Record<Platform, string>>;
+}
+
+// M29 — Mode Analisis (berdampingan dengan Mode Metadata, bukan pengganti).
+
+/** Mode aplikasi: 'analisis' = nilai kelayakan upload, 'metadata' = buat metadata (default). */
+export type AppMode = 'analisis' | 'metadata';
+
+/** Hasil penilaian kelayakan upload satu frame untuk satu platform. */
+export type AnalysisVerdict = 'layak' | 'berpotensi-ditolak' | 'perlu-tinjau';
+
+export type AnalysisIssueCategory =
+  | 'kualitas-gambar'
+  | 'konten-serupa'
+  | 'watermark-logo'
+  | 'hak-cipta-merek'
+  | 'properti-model-release'
+  | 'komposisi'
+  | 'nilai-komersial'
+  | 'lainnya';
+
+export interface AnalysisIssue {
+  category: AnalysisIssueCategory;
+  description: string;
+}
+
+export interface AnalysisResult {
+  verdict: AnalysisVerdict;
+  issues: AnalysisIssue[];
+  summary: string;
 }

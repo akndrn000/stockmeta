@@ -18,7 +18,8 @@ const testConnection = vi.fn(async (): Promise<TestResult> => ({ ok: true }));
 const fakeAdapter: ProviderAdapter = {
   id: 'groq',
   testConnection,
-  generateForImage: async () => ({})
+  generateForImage: async () => ({}),
+  analyzeImage: async () => ({ verdict: 'layak', issues: [], summary: '' })
 };
 
 const holderRef: { current?: ReturnType<typeof useProvider> } = {};

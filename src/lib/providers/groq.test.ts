@@ -78,3 +78,35 @@ describe('groq.generateForImage', () => {
     expect(out).toEqual({ ok: false, message: 'Respons tidak terbaca dari Groq (HTTP 502).' });
   });
 });
+
+describe('groq.analyzeImage (M29)', () => {
+  it('memakai prompt reviewer + parser analisis, endpoint & retry sama', async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes({ choices: [{ message: { content: JSON.stringify({
+      verdict: 'berpotensi-ditolak',
+      issues: [{ category: 'watermark-logo', description: 'Logo di pojok.' }],
+      summary: 'Ada logo.'
+    }) } }] }));
+
+    const out = await groq.analyzeImage({
+      apiKey: 'RAHASIA',
+      image: { base64: 'QUFBQQ==', mimeType: 'image/jpeg' },
+      platform: 'adobe'
+    });
+
+    expect(out).toEqual({
+      verdict: 'berpotensi-ditolak',
+      issues: [{ category: 'watermark-logo', description: 'Logo di pojok.' }],
+      summary: 'Ada logo.'
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.groq.com/openai/v1/chat/completions');
+    const body = JSON.parse(String(init.body));
+    expect(body.model).toBe('qwen/qwen3.8-27b');   // model & endpoint sama seperti generate
+    expect(body.messages[0].content[0]).toEqual({
+      type: 'text',
+      text: expect.stringContaining('REVIEWER STOCK PHOTO')
+    });
+    expect(body.messages[0].content[0].text).not.toContain('Tema utama dari kontributor');
+  });
+});

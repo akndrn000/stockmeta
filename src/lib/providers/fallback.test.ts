@@ -3,8 +3,8 @@
 // dengan pesan asli. Adapter & key disuntikkan lewat deps (tanpa jaringan, tanpa localStorage).
 import { describe, expect, it, vi } from 'vitest';
 import type { ParsedMetadata } from '../prompt';
-import type { ProviderId } from '../types';
-import { FALLBACK_ORDER, canFallback, generateWithFallback } from './fallback';
+import type { AnalysisResult, ProviderId } from '../types';
+import { FALLBACK_ORDER, analyzeWithFallback, canFallback, generateWithFallback } from './fallback';
 import { ProviderError, dailyQuotaError } from './retry';
 import type { ProviderAdapter, TestResult } from './types';
 
@@ -19,7 +19,12 @@ const ARGS = {
 type Id = 'groq' | 'gemini' | 'openrouter';
 
 function fakeAdapter(id: Id, impl: () => Promise<ParsedMetadata>): ProviderAdapter {
-  return { id, testConnection: async (): Promise<TestResult> => ({ ok: true }), generateForImage: impl };
+  return {
+    id,
+    testConnection: async (): Promise<TestResult> => ({ ok: true }),
+    generateForImage: impl,
+    analyzeImage: async () => ({ verdict: 'layak', issues: [], summary: '' })
+  };
 }
 
 function setup(opts: {
@@ -141,5 +146,48 @@ describe('FALLBACK_ORDER', () => {
     expect([...FALLBACK_ORDER]).toEqual(['groq', 'gemini', 'openrouter']);
     expect(new Set(FALLBACK_ORDER).size).toBe(FALLBACK_ORDER.length);
     expect(FALLBACK_ORDER).not.toContain('coming-soon');
+  });
+});
+
+describe('analyzeWithFallback (M29)', () => {
+  const OK: AnalysisResult = { verdict: 'layak', issues: [], summary: 'OK' };
+  const AARGS = {
+    provider: 'groq' as const,
+    apiKey: 'k-groq',
+    image: { base64: 'QUFBQQ==', mimeType: 'image/jpeg' },
+    platform: 'adobe' as const
+  };
+
+  function setupAnalysis(primary: () => Promise<AnalysisResult>, other?: () => Promise<AnalysisResult>) {
+    const mk = (id: Id, analyzeImage: () => Promise<AnalysisResult>): ProviderAdapter => ({
+      id,
+      testConnection: async (): Promise<TestResult> => ({ ok: true }),
+      generateForImage: async () => ({}),
+      analyzeImage
+    });
+    const getAdapter = vi.fn((id: ProviderId): ProviderAdapter | undefined => {
+      if (id === 'groq') return mk('groq', primary);
+      if (id === 'gemini' && other) return mk('gemini', other);
+      return undefined;
+    });
+    const getKey = vi.fn((id: ProviderId): string => ({ groq: 'k-groq', gemini: 'k-gemini', openrouter: '' })[id as Id] ?? '');
+    const isEnabled = vi.fn(() => true);
+    return { getAdapter, getKey, isEnabled, deps: { getAdapter, getKey, isEnabled } };
+  }
+
+  it('aktif sukses → tanpa sentuh provider lain', async () => {
+    const s = setupAnalysis(async () => OK);
+    const out = await analyzeWithFallback(AARGS, s.deps);
+    expect(out).toEqual({ analysis: OK, provider: 'groq', usedFallback: false });
+    expect(s.getAdapter).toHaveBeenCalledTimes(1);
+  });
+
+  it('kuota harian habis → analisis jalan via cadangan', async () => {
+    const s = setupAnalysis(
+      async () => { throw dailyQuotaError('Groq', 'Gemini'); },
+      async () => OK
+    );
+    const out = await analyzeWithFallback(AARGS, s.deps);
+    expect(out).toMatchObject({ provider: 'gemini', usedFallback: true, analysis: OK });
   });
 });

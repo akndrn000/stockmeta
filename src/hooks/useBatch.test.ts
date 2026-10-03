@@ -13,7 +13,7 @@ import type { ProviderAdapter } from '../lib/providers/types';
 import type { ParsedMetadata } from '../lib/prompt';
 import type { WaitInfo } from '../lib/providers/retry';
 import type { Frame } from '../lib/types';
-import { ALL_DONE_MSG, LIMIT_TIP_MSG, NEED_TEST_MSG, useBatch } from './useBatch';
+import { ALL_DONE_MSG, LIMIT_TIP_MSG, NEED_ANALYSIS_MSG, NEED_TEST_MSG, useBatch } from './useBatch';
 import { useProvider } from './useProvider';
 import { useSession } from './useSession';
 
@@ -32,6 +32,7 @@ let calls = 0;
 const fakeAdapter: ProviderAdapter = {
   id: 'gemini',
   testConnection: async () => ({ ok: true }),
+  analyzeImage: async () => ({ verdict: 'layak', issues: [], summary: '' }),
   generateForImage: async (args) => {
     const step = script[Math.min(calls, Math.max(script.length - 1, 0))] ?? {};
     calls++;
@@ -72,7 +73,10 @@ const blank = (name: string): Omit<Frame, 'id'> => ({
   tema: '',
   status: { adobe: 'menunggu', shutterstock: 'menunggu' },
   error: { adobe: '', shutterstock: '' },
-  metadata: {}
+  metadata: {},
+  // M29: frame tes dianggap sudah dianalisis supaya lolos gerbang metadata
+  // (kasus belum-dianalisis diuji eksplisit di describe gerbang)
+  analysisStatus: { adobe: 'siap', shutterstock: 'siap' }
 });
 
 const flush = () => act(async () => { await new Promise((r) => setTimeout(r, 0)); });
@@ -378,5 +382,84 @@ describe('useBatch — buat ulang semua (M11)', () => {
     expect(api().b.notice).toBe(NEED_TEST_MSG);
     expect(api().b.regenAllConfirm).toBeNull();
     expect(calls).toBe(0);
+  });
+});
+
+describe('useBatch — gerbang analisis (M29)', () => {
+  const LAYAK = { verdict: 'layak' as const, issues: [], summary: 'OK' };
+
+  it('startBatch: frame tanpa analisis-siap dilewati + pesan jelas, slot tak diubah', async () => {
+    addFrames(2);
+    await ready();
+    act(() => {
+      // frame 0 sudah dianalisis (blank() siap), frame 1 belum → hapus statusnya
+      api().s.updateFrame(1, { analysisStatus: {} });
+    });
+    script = [{ meta: { title: 'baru' } }];
+
+    act(() => api().b.startBatch());
+    await flush();
+
+    expect(calls).toBe(1);   // hanya frame 0 yang dijalankan
+    expect(api().s.frames[0].status.adobe).toBe('siap');
+    expect(api().s.frames[1].status.adobe).toBe('gagal');
+    expect(api().s.frames[1].error.adobe).toBe(NEED_ANALYSIS_MSG);
+    expect(api().s.frames[1].metadata.adobe).toBeUndefined();   // slot tak tersentuh
+  });
+
+  it('startBatch: semua belum dianalisis → notice, tanpa panggilan', async () => {
+    addFrames(1);
+    await ready();
+    act(() => api().s.updateFrame(0, { analysisStatus: {} }));
+
+    act(() => api().b.startBatch());
+    await flush();
+
+    expect(calls).toBe(0);
+    expect(api().b.notice).toBe(NEED_ANALYSIS_MSG);
+    expect(api().s.frames[0].error.adobe).toBe(NEED_ANALYSIS_MSG);
+  });
+
+  it('regenerateFrame tanpa analisis → ditolak + pesan, tanpa panggilan', async () => {
+    addFrames(1);
+    await ready();
+    act(() => api().s.updateFrame(0, { analysisStatus: {} }));
+    script = [{ meta: { title: 'baru' } }];
+
+    act(() => api().b.regenerateFrame(0));
+    await flush();
+
+    expect(calls).toBe(0);
+    expect(api().s.frames[0].error.adobe).toBe(NEED_ANALYSIS_MSG);
+  });
+
+  it('regenerateAll tanpa satu pun analisis-siap → notice, konfirmasi tidak dipancing', async () => {
+    addFrames(1);
+    await ready();
+    act(() => api().s.updateFrame(0, { analysisStatus: {} }));
+
+    act(() => api().b.regenerateAll());
+    await flush();
+
+    expect(api().b.regenAllConfirm).toBeNull();
+    expect(api().b.notice).toBe(NEED_ANALYSIS_MSG);
+    expect(calls).toBe(0);
+  });
+
+  it('setelah dianalisis, gerbang terbuka — generate jalan normal', async () => {
+    addFrames(1);
+    await ready();
+    act(() => {
+      api().s.updateFrame(0, { analysisStatus: {} });
+      api().s.applyAnalysis(0, 'adobe', LAYAK);
+    });
+    script = [{ meta: { title: 'baru' } }];
+
+    act(() => api().b.startBatch());
+    await flush();
+
+    expect(calls).toBe(1);
+    expect(api().s.frames[0].status.adobe).toBe('siap');
+    expect(api().s.frames[0].metadata.adobe?.title).toBe('baru');
   });
 });

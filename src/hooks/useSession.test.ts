@@ -300,3 +300,41 @@ describe('useSession — hasil generate (M8)', () => {
     expect(api().snapshot().sel).toBe(1);     // frame terpilih (0) dihapus → pindah ke tetangganya
   });
 });
+
+describe('useSession — hasil analisis (M29)', () => {
+  it('applyAnalysis: slot terisi + status siap + error dibersihkan, metadata tak tersentuh', () => {
+    let id = -1;
+    act(() => { id = api().addFrame(blank('a')); });
+    act(() => api().failAnalysis(id, 'adobe', 'HTTP 429'));
+
+    act(() => api().applyAnalysis(id, 'adobe', { verdict: 'layak', issues: [], summary: 'Bagus.' }));
+    const f = api().frames[0];
+    expect(f.analysis?.adobe).toEqual({ verdict: 'layak', issues: [], summary: 'Bagus.' });
+    expect(f.analysisStatus?.adobe).toBe('siap');
+    expect(f.analysisError?.adobe).toBe('');
+    // slot metadata & platform lain tak tersentuh
+    expect(f.metadata.adobe).toBeUndefined();
+    expect(f.status.adobe).toBe('menunggu');
+    expect(f.analysis?.shutterstock).toBeUndefined();
+  });
+
+  it('failAnalysis: status gagal + pesan untuk platform itu saja, slot tidak diubah', () => {
+    let id = -1;
+    act(() => { id = api().addFrame(blank('a')); });
+    act(() => api().applyAnalysis(id, 'adobe', { verdict: 'layak', issues: [], summary: 'Bagus.' }));
+
+    act(() => api().failAnalysis(id, 'shutterstock', 'Tidak ada koneksi.'));
+    const f = api().frames[0];
+    expect(f.analysisStatus).toMatchObject({ adobe: 'siap', shutterstock: 'gagal' });
+    expect(f.analysisError?.shutterstock).toBe('Tidak ada koneksi.');
+    expect(f.analysis?.adobe?.verdict).toBe('layak');
+
+    act(() => api().failAnalysis(99, 'adobe', 'id tak ada'));   // id tak ada → diabaikan
+    expect(api().frames[0].analysisStatus?.adobe).toBe('siap');
+  });
+
+  it('applyAnalysis ke id tak ada → diabaikan', () => {
+    act(() => api().applyAnalysis(99, 'adobe', { verdict: 'layak', issues: [], summary: '' }));
+    expect(api().frames).toEqual([]);
+  });
+});

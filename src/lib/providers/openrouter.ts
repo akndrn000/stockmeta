@@ -3,12 +3,14 @@
 // (lihat models.ts) — tanpa daftar model atau pemilihan model dinamis di sisi aplikasi.
 // Tes koneksi = GET /api/v1/models (ringan, tanpa biaya token); generate = POST /chat/completions.
 // Key dikirim lewat header Authorization dan TIDAK PERNAH dicetak ke log.
+import { buildAnalysisPrompt, parseAnalysisResponse } from '../analysisPrompt';
+import type { AnalysisResult } from '../types';
 import { buildMetadataPrompt, parseMetadataResponse } from '../prompt';
 import type { ParsedMetadata } from '../prompt';
 import { readBody } from './http';
 import { OPENROUTER_MODEL } from './models';
 import { MODEL_RETRY_MAX, ProviderError, dailyQuotaError, isDailyQuota, parseRetryAfter, withRetry } from './retry';
-import type { GenerateArgs, ProviderAdapter, TestResult } from './types';
+import type { AnalyzeArgs, GenerateArgs, ImageInput, ProviderAdapter, TestResult } from './types';
 
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
 
@@ -64,48 +66,65 @@ async function testConnection(apiKey: string, signal?: AbortSignal): Promise<Tes
   return { ok: true };
 }
 
+// M29: satu-satunya tempat HTTP chat — prompt diinjeksikan pemanggil (termasuk logika
+// ulangi-tanpa-response_format untuk model gratis yang menolaknya).
+async function postChat(opts: { apiKey: string; image: ImageInput; prompt: string; signal?: AbortSignal }): Promise<string> {
+  const { apiKey, image, prompt, signal } = opts;
+  // response_format diharapkan OpenAI-compatible; sebagian model gratis menolaknya (400/422)
+  // → ulangi sekali TANPA parameter itu, hasilnya tetap dibersihkan parser pemanggil.
+  for (let attempt = 0; ; attempt++) {
+    let res: Response;
+    try {
+      const body: Record<string, unknown> = {
+        model: OPENROUTER_MODEL,
+        messages: [{ role: 'user', content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: 'data:' + image.mimeType + ';base64,' + image.base64 } }
+        ] }]
+      };
+      if (attempt === 0) body.response_format = { type: 'json_object' };
+      res = await fetch(OPENROUTER_BASE + '/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+        body: JSON.stringify(body),
+        signal
+      });
+    } catch {
+      const aborted = Boolean(signal?.aborted);
+      throw new ProviderError(aborted ? 'Dibatalkan' : 'Tidak ada koneksi ke server OpenRouter.', { retryable: !aborted });
+    }
+
+    const { data, raw } = await readBody(res);
+    if (!res.ok && attempt === 0 && (res.status === 400 || res.status === 422)) continue;
+
+    if (!res.ok) throw openrouterHttpError(res.status, data, raw, res.headers);
+    if (!data) throw new ProviderError('JSON tidak valid', { retryable: true, maxRetries: MODEL_RETRY_MAX });
+
+    const choice = (data as { choices?: { message?: { content?: unknown } }[] }).choices?.[0];
+    const text = typeof choice?.message?.content === 'string' ? choice.message.content : '';
+    if (!text.trim()) throw new ProviderError('Respons kosong', { retryable: true, maxRetries: MODEL_RETRY_MAX });
+    return text;
+  }
+}
+
 async function generateForImage(args: GenerateArgs): Promise<ParsedMetadata> {
   const { apiKey, image, platform, theme, signal, onWait } = args;
   const prompt = buildMetadataPrompt({ platform, theme });
 
   return withRetry(async () => {
-    // response_format diharapkan OpenAI-compatible; sebagian model gratis menolaknya (400/422)
-    // → ulangi sekali TANPA parameter itu, hasilnya tetap dibersihkan parseMetadataResponse.
-    for (let attempt = 0; ; attempt++) {
-      let res: Response;
-      try {
-        const body: Record<string, unknown> = {
-          model: OPENROUTER_MODEL,
-          messages: [{ role: 'user', content: [
-            { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: 'data:' + image.mimeType + ';base64,' + image.base64 } }
-          ] }]
-        };
-        if (attempt === 0) body.response_format = { type: 'json_object' };
-        res = await fetch(OPENROUTER_BASE + '/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-          body: JSON.stringify(body),
-          signal
-        });
-      } catch {
-        const aborted = Boolean(signal?.aborted);
-        throw new ProviderError(aborted ? 'Dibatalkan' : 'Tidak ada koneksi ke server OpenRouter.', { retryable: !aborted });
-      }
-
-      const { data, raw } = await readBody(res);
-      if (!res.ok && attempt === 0 && (res.status === 400 || res.status === 422)) continue;
-
-      if (!res.ok) throw openrouterHttpError(res.status, data, raw, res.headers);
-      if (!data) throw new ProviderError('JSON tidak valid', { retryable: true, maxRetries: MODEL_RETRY_MAX });
-
-      const choice = (data as { choices?: { message?: { content?: unknown } }[] }).choices?.[0];
-      const text = typeof choice?.message?.content === 'string' ? choice.message.content : '';
-      if (!text.trim()) throw new ProviderError('Respons kosong', { retryable: true, maxRetries: MODEL_RETRY_MAX });
-
-      return parseMetadataResponse(text, platform);   // fence ```json ikut dibersihkan parser
-    }
+    const text = await postChat({ apiKey, image, prompt, signal });
+    return parseMetadataResponse(text, platform);   // fence ```json ikut dibersihkan parser
   }, { onWait, signal });
 }
 
-export const openrouter: ProviderAdapter = { id: 'openrouter', testConnection, generateForImage };
+async function analyzeImage(args: AnalyzeArgs): Promise<AnalysisResult> {
+  const { apiKey, image, platform, signal, onWait } = args;
+  const prompt = buildAnalysisPrompt({ platform });
+
+  return withRetry(async () => {
+    const text = await postChat({ apiKey, image, prompt, signal });
+    return parseAnalysisResponse(text);
+  }, { onWait, signal });
+}
+
+export const openrouter: ProviderAdapter = { id: 'openrouter', testConnection, generateForImage, analyzeImage };

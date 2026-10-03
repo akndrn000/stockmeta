@@ -1,7 +1,7 @@
 // localStorage: API key provider, riwayat sesi (thumbnail saja), mode siang/malam.
 // Port perilaku legacy/js/storage.js — semua operasi dibungkus try/catch (kuota penuh /
 // mode privasi tidak boleh menjatuhkan aplikasi); tanpa DOM, tanpa React.
-import type { AdobeMetadata, Frame, FrameStatus, MetadataSlots, Platform, ProviderId, ShutterstockMetadata } from './types';
+import type { AdobeMetadata, AnalysisIssue, AnalysisIssueCategory, AnalysisResult, AnalysisVerdict, AppMode, Frame, FrameStatus, MetadataSlots, Platform, ProviderId, ShutterstockMetadata } from './types';
 import { BATCH_DELAY_DEFAULT_SEC, BATCH_DELAY_OPTIONS_SEC } from './limits';
 import { hasContent } from './metadata';
 
@@ -16,6 +16,7 @@ export const THEME_KEY = 'stockmeta_theme';
 export const BATCH_DELAY_KEY = 'stockmeta_batch_delay';
 export const PROVIDER_KEY = 'stockmeta_provider';
 export const FALLBACK_KEY = 'stockmeta_fallback';
+export const MODE_KEY = 'stockmeta_mode';
 
 function ls(): Storage | null {
   try { return typeof localStorage === 'undefined' ? null : localStorage; }
@@ -59,6 +60,19 @@ export function readFallback(): boolean {
 
 export function writeFallback(enabled: boolean): void {
   try { ls()?.setItem(FALLBACK_KEY, enabled ? '1' : '0'); } catch { /* diabaikan */ }
+}
+
+/* ---------------- mode aplikasi Analisis/Metadata (M29, default: metadata) ---------------- */
+
+export function readMode(): AppMode | null {
+  try {
+    const v = ls()?.getItem(MODE_KEY);
+    return v === 'analisis' || v === 'metadata' ? v : null;
+  } catch { return null; }
+}
+
+export function writeMode(mode: AppMode): void {
+  try { ls()?.setItem(MODE_KEY, mode); } catch { /* diabaikan */ }
 }
 
 /* ---------------- riwayat sesi ---------------- */
@@ -118,6 +132,35 @@ function flatHasData(o: Record<string, unknown>): boolean {
   return false;
 }
 
+// M29: hasil analisis ikut tersimpan per frame — entri rusak dibuang, bukan sesi dibuang.
+const ANALYSIS_VERDICTS: readonly AnalysisVerdict[] = ['layak', 'berpotensi-ditolak', 'perlu-tinjau'];
+const ANALYSIS_CATEGORIES: readonly AnalysisIssueCategory[] = [
+  'kualitas-gambar', 'konten-serupa', 'watermark-logo', 'hak-cipta-merek',
+  'properti-model-release', 'komposisi', 'nilai-komersial', 'lainnya'
+];
+
+function coerceAnalysisIssue(v: unknown): AnalysisIssue | null {
+  if (typeof v !== 'object' || v === null) return null;
+  const o = v as Record<string, unknown>;
+  if (!ANALYSIS_CATEGORIES.includes(o.category as AnalysisIssueCategory)) return null;
+  if (typeof o.description !== 'string' || !o.description.trim()) return null;
+  return { category: o.category as AnalysisIssueCategory, description: o.description };
+}
+
+function coerceAnalysis(v: unknown): AnalysisResult | undefined {
+  if (typeof v !== 'object' || v === null) return undefined;
+  const o = v as Record<string, unknown>;
+  if (!ANALYSIS_VERDICTS.includes(o.verdict as AnalysisVerdict)) return undefined;
+  const issues: AnalysisIssue[] = Array.isArray(o.issues)
+    ? o.issues.map(coerceAnalysisIssue).filter((x): x is AnalysisIssue => x !== null)
+    : [];
+  return {
+    verdict: o.verdict as AnalysisVerdict,
+    issues,
+    summary: typeof o.summary === 'string' ? o.summary : ''
+  };
+}
+
 // Migrasi format lama → slot per platform. Format lama:
 //  (a) legacy: title/desc/keywords/cat + done/failed/err menempel di frame (tanpa metadata);
 //  (b) M4 awal: metadata flat + status/error string.
@@ -175,8 +218,43 @@ function coerceFrame(raw: unknown, platform: Platform): Frame | null {
     name: typeof o.name === 'string' && o.name ? o.name : 'frame',
     thumb: typeof o.thumb === 'string' ? o.thumb : '',
     tema: typeof o.tema === 'string' ? o.tema : '',
-    status, error, metadata
+    status, error, metadata,
+    // M29: slot analisis (sesi lama tidak punya → undefined = belum pernah dianalisis)
+    ...coerceAnalysisSlots(o)
   };
+}
+
+// Slot analisis per platform — 'memproses' tidak pernah bertahan setelah reload.
+function coerceAnalysisSlots(o: Record<string, unknown>): Pick<Frame, 'analysis' | 'analysisStatus' | 'analysisError'> {
+  const out: Pick<Frame, 'analysis' | 'analysisStatus' | 'analysisError'> = {};
+  if (typeof o.analysis === 'object' && o.analysis !== null) {
+    const a = o.analysis as Record<string, unknown>;
+    const adobe = coerceAnalysis(a.adobe);
+    const shutterstock = coerceAnalysis(a.shutterstock);
+    if (adobe || shutterstock) {
+      out.analysis = {};
+      if (adobe) out.analysis.adobe = adobe;
+      if (shutterstock) out.analysis.shutterstock = shutterstock;
+    }
+  }
+  if (typeof o.analysisStatus === 'object' && o.analysisStatus !== null) {
+    const st = o.analysisStatus as Record<string, unknown>;
+    const adobe = typeof st.adobe === 'string' ? coerceStatus(st.adobe) : undefined;
+    const shutter = typeof st.shutterstock === 'string' ? coerceStatus(st.shutterstock) : undefined;
+    if (adobe || shutter) {
+      out.analysisStatus = {};
+      // 'memproses' → 'menunggu' (batch analisis tak pernah jalan setelah reload)
+      if (adobe) out.analysisStatus.adobe = adobe === 'memproses' ? 'menunggu' : adobe;
+      if (shutter) out.analysisStatus.shutterstock = shutter === 'memproses' ? 'menunggu' : shutter;
+    }
+  }
+  if (typeof o.analysisError === 'object' && o.analysisError !== null) {
+    const er = o.analysisError as Record<string, unknown>;
+    const adobe = typeof er.adobe === 'string' ? er.adobe : '';
+    const shutter = typeof er.shutterstock === 'string' ? er.shutterstock : '';
+    if (adobe || shutter) out.analysisError = { adobe, shutterstock: shutter };
+  }
+  return out;
 }
 
 export function saveSession(sess: StoredSession): void {

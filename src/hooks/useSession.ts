@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fileStore } from '../lib/fileStore';
 import { defaultMetadata, hasContent, mergeGenerated } from '../lib/metadata';
+import type { AnalysisResult } from '../lib/types';
 import type { ParsedMetadata } from '../lib/prompt';
 import { loadSession, removeSession, saveSession } from '../lib/storage';
 import type { Frame, FrameStatus, MetadataFor, MetadataSlots, Platform } from '../lib/types';
@@ -189,6 +190,42 @@ export function useSession() {
     commit({ ...cur, frames }, true);
   }
 
+  // Aksi M29 — hasil analisis masuk: selalu ada verdict → analysisStatus 'siap';
+  // error analisis dibersihkan; persist langsung (sama seperti applyGenerated).
+  function applyAnalysis(id: number, platform: Platform, result: AnalysisResult) {
+    const cur = mirror.current;
+    let hit = false;
+    const frames = cur.frames.map((f) => {
+      if (f.id !== id) return f;
+      hit = true;
+      return {
+        ...f,
+        analysisStatus: { ...f.analysisStatus, [platform]: 'siap' as FrameStatus },
+        analysisError: { ...f.analysisError, [platform]: '' },
+        analysis: { ...f.analysis, [platform]: result }
+      };
+    });
+    if (!hit) return;
+    commit({ ...cur, frames }, true);
+  }
+
+  // Aksi M29 — analisis gagal: pesan error asli untuk platform itu; slot analisis tidak diubah.
+  function failAnalysis(id: number, platform: Platform, message: string) {
+    const cur = mirror.current;
+    let hit = false;
+    const frames = cur.frames.map((f) => {
+      if (f.id !== id) return f;
+      hit = true;
+      return {
+        ...f,
+        analysisStatus: { ...f.analysisStatus, [platform]: 'gagal' as FrameStatus },
+        analysisError: { ...f.analysisError, [platform]: message }
+      };
+    });
+    if (!hit) return;
+    commit({ ...cur, frames }, true);
+  }
+
   // Baca state terbaru dari dalam callback async batch — `frames` yang lewat lewat closure render
   // bisa basi di tengah batch; mirror selalu sinkron dengan state terakhir.
   function snapshot(): SessionState {
@@ -205,7 +242,7 @@ export function useSession() {
 
   return {
     ...state, notes, setPlatform, select, addFrame, removeFrame, updateFrame,
-    updateMetadata, setFrameTema, applyGenerated, failFrame, snapshot,
-    setNote, setTema, newSession
+    updateMetadata, setFrameTema, applyGenerated, failFrame, applyAnalysis, failAnalysis,
+    snapshot, setNote, setTema, newSession
   };
 }

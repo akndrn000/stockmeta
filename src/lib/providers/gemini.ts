@@ -3,12 +3,14 @@
 // tanpa deteksi otomatis, tanpa daftar model. 429 dibedakan: limit per menit → di-retry,
 // kuota harian (RESOURCE_EXHAUSTED) → gagal cepat tanpa retry.
 // Key hanya dikirim sebagai query param ke API resmi Google dan TIDAK PERNAH dicetak ke log.
+import { buildAnalysisPrompt, parseAnalysisResponse } from '../analysisPrompt';
+import type { AnalysisResult } from '../types';
 import { buildMetadataPrompt, parseMetadataResponse } from '../prompt';
 import type { ParsedMetadata } from '../prompt';
 import { readBody } from './http';
 import { GEMINI_MODEL } from './models';
 import { MODEL_RETRY_MAX, ProviderError, dailyQuotaError, isDailyQuota, parseRetryAfter, withRetry } from './retry';
-import type { GenerateArgs, ProviderAdapter, TestResult } from './types';
+import type { AnalyzeArgs, GenerateArgs, ImageInput, ProviderAdapter, TestResult } from './types';
 
 export const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
@@ -57,43 +59,59 @@ async function testConnection(apiKey: string, signal?: AbortSignal): Promise<Tes
   return { ok: true };
 }
 
+// M29: satu-satunya tempat HTTP generateContent — prompt & parser diinjeksikan pemanggil.
+async function postChat(opts: { apiKey: string; image: ImageInput; prompt: string; signal?: AbortSignal }): Promise<string> {
+  const { apiKey, image, prompt, signal } = opts;
+  let res: Response;
+  try {
+    res = await fetch(GEMINI_BASE + '/models/' + GEMINI_MODEL + ':generateContent?key=' + encodeURIComponent(apiKey), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: image.mimeType, data: image.base64 } }] }],
+        generationConfig: { responseMimeType: 'application/json' }
+      }),
+      signal
+    });
+  } catch {
+    const aborted = Boolean(signal?.aborted);
+    throw new ProviderError(aborted ? 'Dibatalkan' : 'Tidak ada koneksi ke server Gemini.', { retryable: !aborted });
+  }
+
+  const { data, raw } = await readBody(res);
+  if (!res.ok) throw geminiHttpError(res.status, data, raw, res.headers);
+
+  const body = data && typeof data === 'object' ? data as {
+    promptFeedback?: { blockReason?: string };
+    candidates?: { content?: { parts?: { text?: string }[] } }[];
+  } : null;
+  const block = body?.promptFeedback?.blockReason;
+  if (block) throw new ProviderError('Konten diblokir: ' + block, { retryable: false });
+
+  const parts = body?.candidates?.[0]?.content?.parts;
+  const text = Array.isArray(parts) ? parts.map((p) => p?.text ?? '').join('') : '';
+  if (!text.trim()) throw new ProviderError('Respons kosong', { retryable: true, maxRetries: MODEL_RETRY_MAX });
+  return text;
+}
+
 async function generateForImage(args: GenerateArgs): Promise<ParsedMetadata> {
   const { apiKey, image, platform, theme, signal, onWait } = args;
   const prompt = buildMetadataPrompt({ platform, theme });
 
   return withRetry(async () => {
-    let res: Response;
-    try {
-      res = await fetch(GEMINI_BASE + '/models/' + GEMINI_MODEL + ':generateContent?key=' + encodeURIComponent(apiKey), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: image.mimeType, data: image.base64 } }] }],
-          generationConfig: { responseMimeType: 'application/json' }
-        }),
-        signal
-      });
-    } catch {
-      const aborted = Boolean(signal?.aborted);
-      throw new ProviderError(aborted ? 'Dibatalkan' : 'Tidak ada koneksi ke server Gemini.', { retryable: !aborted });
-    }
-
-    const { data, raw } = await readBody(res);
-    if (!res.ok) throw geminiHttpError(res.status, data, raw, res.headers);
-
-    const body = data && typeof data === 'object' ? data as {
-      promptFeedback?: { blockReason?: string };
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
-    } : null;
-    const block = body?.promptFeedback?.blockReason;
-    if (block) throw new ProviderError('Konten diblokir: ' + block, { retryable: false });
-
-    const parts = body?.candidates?.[0]?.content?.parts;
-    const text = Array.isArray(parts) ? parts.map((p) => p?.text ?? '').join('') : '';
-    if (!text.trim()) throw new ProviderError('Respons kosong', { retryable: true, maxRetries: MODEL_RETRY_MAX });
-
+    const text = await postChat({ apiKey, image, prompt, signal });
     return parseMetadataResponse(text, platform);   // JSON rusak → Error kind 'json' → di-retry ≤2x
   }, { onWait, signal });
 }
 
-export const gemini: ProviderAdapter = { id: 'gemini', testConnection, generateForImage };
+async function analyzeImage(args: AnalyzeArgs): Promise<AnalysisResult> {
+  const { apiKey, image, platform, signal, onWait } = args;
+  const prompt = buildAnalysisPrompt({ platform });
+
+  return withRetry(async () => {
+    const text = await postChat({ apiKey, image, prompt, signal });
+    return parseAnalysisResponse(text);
+  }, { onWait, signal });
+}
+
+export const gemini: ProviderAdapter = { id: 'gemini', testConnection, generateForImage, analyzeImage };

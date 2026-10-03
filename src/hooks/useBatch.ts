@@ -21,6 +21,11 @@ export const ALL_DONE_MSG = 'Semua frame sudah selesai.';
 export const NEED_TEST_MSG = 'Tes koneksi dulu.';
 export const LIMIT_TIP_MSG =
   "Beberapa frame gagal — coba lagi sebentar lagi lewat 'Buat metadata', hanya frame yang gagal yang diproses ulang.";
+// M29 (gerbang Mode Analisis): generate metadata BARU hanya untuk frame yang analisisnya
+// sudah 'siap' di platform aktif. Frame lain DILEWATI dengan pesan ini (status metadata
+// jadi 'gagal' + pesan, isi slot TIDAK diubah). Berlaku HANYA saat memulai generate —
+// data lama tetap boleh diedit manual, dan frame metadata 'siap' tidak dikunci.
+export const NEED_ANALYSIS_MSG = 'Jalankan Analisis dulu di Mode Analisis';
 
 const LIMIT_RE = /429|kuota|limit/i;
 
@@ -49,6 +54,19 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
   // wajib tes dulu; model provider tetap (satu model per provider) sehingga tak perlu dicek
   function providerReady(): boolean {
     return !provider.isSoon && provider.status === 'ok';
+  }
+
+  // M29: pisahkan frame yang lolos gerbang analisis dari yang belum — yang belum langsung
+  // ditandai pesan jelas (bukan diam-diam dilewati) supaya user tahu harus ke Mode Analisis.
+  function partitionGated(ids: number[], platform: Platform): number[] {
+    const runnable: number[] = [];
+    for (const id of ids) {
+      const f = session.snapshot().frames.find((x) => x.id === id);
+      if (!f) continue;
+      if (f.analysisStatus?.[platform] === 'siap') runnable.push(id);
+      else session.failFrame(id, platform, NEED_ANALYSIS_MSG);
+    }
+    return runnable;
   }
 
   async function run(ids: number[], platform: Platform) {
@@ -153,7 +171,13 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
       setNotice(ALL_DONE_MSG);
       return;
     }
-    void run(ids, platform);
+    // M29: hanya frame yang analisisnya siap yang dijalankan
+    const runnable = partitionGated(ids, platform);
+    if (!runnable.length) {
+      setNotice(NEED_ANALYSIS_MSG);
+      return;
+    }
+    void run(runnable, platform);
   }
 
   function regenerateFrame(id: number) {
@@ -166,6 +190,12 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
     }
     const f = session.snapshot().frames.find((x) => x.id === id);
     if (!f) return;
+    // M29: gerbang analisis berlaku juga untuk buat-ulang satu frame
+    if (f.analysisStatus?.[platform] !== 'siap') {
+      setRegenConfirm(null);
+      session.failFrame(id, platform, NEED_ANALYSIS_MSG);
+      return;
+    }
     const filled = hasContent(platform, f.metadata[platform] ?? defaultMetadata(platform));
     if (filled && regenConfirm !== id) {
       setRegenConfirm(id);          // slot sudah berisi → minta konfirmasi "Timpa hasil yang ada?"
@@ -196,11 +226,23 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
       return;
     }
     if (regenAllConfirm !== platform) {
+      // M29: jangan pancing konfirmasi kalau tak ada satu pun yang lolos gerbang analisis
+      const anyRunnable = session.snapshot().frames.some((f) => f.analysisStatus?.[platform] === 'siap');
+      if (!anyRunnable) {
+        setNotice(NEED_ANALYSIS_MSG);
+        return;
+      }
       setRegenAllConfirm(platform);   // "Ganti semua hasil yang sudah ada?"
       return;
     }
     setRegenAllConfirm(null);
-    void run(ids, platform);
+    // M29: hanya frame yang analisisnya siap yang dijalankan ulang
+    const runnable = partitionGated(ids, platform);
+    if (!runnable.length) {
+      setNotice(NEED_ANALYSIS_MSG);
+      return;
+    }
+    void run(runnable, platform);
   }
 
   function dismissRegenAll() {

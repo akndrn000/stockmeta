@@ -6,6 +6,7 @@
 // "Timpa hasil yang ada?" yang menempel pada tile — menggantikan tombolnya di CaptionSheet.
 import { useEffect, useRef, useState } from 'react';
 import { SOON_NOTE } from '../hooks/useProvider';
+import type { useAnalysisBatch } from '../hooks/useAnalysisBatch';
 import type { useBatch } from '../hooks/useBatch';
 import type { useProvider } from '../hooks/useProvider';
 import type { useSession } from '../hooks/useSession';
@@ -13,12 +14,13 @@ import { fileStore } from '../lib/fileStore';
 import { buildLimitMessage, filterIncomingFiles } from '../lib/frames';
 import { makeThumbnail } from '../lib/image';
 import { ACCEPTED_TYPES, BATCH_DELAY_OPTIONS_SEC, MAX_FRAMES } from '../lib/limits';
-import type { Frame, FrameStatus, Platform } from '../lib/types';
+import type { AppMode, Frame, FrameStatus, Platform } from '../lib/types';
 import { Panel } from './Panel';
 
 type Session = ReturnType<typeof useSession>;
 type ProviderApi = ReturnType<typeof useProvider>;
 type BatchApi = ReturnType<typeof useBatch>;
+type AnalysisBatchApi = ReturnType<typeof useAnalysisBatch>;
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const THUMB_SIZE = 320;
@@ -77,6 +79,7 @@ function GenerateButton({
   busyLabel,
   notice,
   hint,
+  label,
   onGenerate,
   onCancel
 }: {
@@ -85,6 +88,8 @@ function GenerateButton({
   busyLabel?: string;
   notice?: string;
   hint?: string;
+  /** M29: teks tombol utama — default 'Buat metadata' (mode metadata tidak berubah) */
+  label?: string;
   onGenerate?: () => void;
   onCancel?: () => void;
 }) {
@@ -104,7 +109,7 @@ function GenerateButton({
           }`}
         >
           {busy && <span className="spinner spinner-on-accent" aria-hidden="true" />}
-          {busy ? busyLabel : 'Buat metadata'}
+          {busy ? busyLabel : (label ?? 'Buat metadata')}
         </button>
         {busy && (
           <button
@@ -181,6 +186,7 @@ function FrameTile({
   regenDisabled,
   regenHint,
   regenConfirm,
+  regenKind = 'metadata',
   onSelect,
   onRemove,
   onRegen,
@@ -197,6 +203,8 @@ function FrameTile({
   regenDisabled?: boolean;
   regenHint?: string;
   regenConfirm?: boolean;
+  /** M29: teks aksi tile mengikuti mode — default 'metadata' (perilaku lama identik) */
+  regenKind?: 'metadata' | 'analisis';
   onSelect: () => void;
   onRemove: () => void;
   onRegen: () => void;
@@ -297,8 +305,8 @@ function FrameTile({
           if (!regenDisabled) onRegen();
         }}
         aria-disabled={regenDisabled || undefined}
-        aria-label={`Buat ulang metadata untuk ${frame.name}`}
-        title={regenHint || 'Buat ulang metadata frame ini'}
+        aria-label={regenKind === 'analisis' ? `Analisis ulang untuk ${frame.name}` : `Buat ulang metadata untuk ${frame.name}`}
+        title={regenHint || (regenKind === 'analisis' ? 'Analisis ulang frame ini' : 'Buat ulang metadata frame ini')}
         className={`btn-compact absolute right-12 top-1.5 z-10 grid h-7 w-7 place-items-center rounded-md border bg-surface/85 transition-colors duration-150 before:absolute before:-inset-1.5 before:content-[''] ${
           st === 'gagal' ? 'border-error text-error' : 'border-border-control text-text-secondary'
         } ${
@@ -334,7 +342,7 @@ function FrameTile({
       {regenConfirm && (
         <div className="absolute left-1.5 right-1.5 top-[2.625rem] z-10 flex flex-wrap items-center gap-2 rounded-lg border border-error bg-surface-elevated p-2">
           <span className="text-small font-semibold leading-snug text-text sm:text-body">
-            Timpa hasil yang ada?
+            {regenKind === 'analisis' ? 'Jalankan analisis ulang?' : 'Timpa hasil yang ada?'}
           </span>
           <div className="ml-auto flex items-center gap-1.5">
             <button
@@ -342,7 +350,7 @@ function FrameTile({
               onClick={onRegen}
               className="rounded-md border border-error px-3 py-1 text-small font-semibold text-error transition-colors duration-150 hover:bg-error hover:text-error-contrast sm:text-body"
             >
-              Ya, timpa
+              {regenKind === 'analisis' ? 'Ya, jalankan' : 'Ya, timpa'}
             </button>
             <button
               type="button"
@@ -371,14 +379,24 @@ function FrameTile({
   );
 }
 
-export function Worksheet({ session, provider, batch }: {
+export function Worksheet({ session, provider, batch, mode = 'metadata', analysis }: {
   session: Session;
   provider: ProviderApi;
   batch: BatchApi;
+  /** M29: mode aktif — default 'metadata' (perilaku lama identik bila tak dioper) */
+  mode?: AppMode;
+  /** M29: hook batch analisis (wajib dioper saat mode='analisis') */
+  analysis?: AnalysisBatchApi;
 }) {
   const { frames, sel, tema, platform, notes, addFrame, removeFrame, updateFrame, select, setTema, newSession } =
     session;
-  const busy = batch.busy;
+  // M29: mode analisis memakai jalur batch-nya sendiri, TAPI guard struktural
+  // (upload/hapus/jeda/sesi baru) mengunci bila batch mana pun berjalan.
+  const isAnalysis = mode === 'analisis';
+  const anyBusy = batch.busy || (analysis?.busy ?? false);
+  const modeBusy = isAnalysis ? (analysis?.busy ?? false) : batch.busy;
+  const modeCurrentId = isAnalysis ? (analysis?.currentId ?? null) : batch.currentId;
+  const busy = modeBusy;
   const [dragOver, setDragOver] = useState(false);
   const [limitMsg, setLimitMsg] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -399,7 +417,7 @@ export function Worksheet({ session, provider, batch }: {
   }
 
   async function ingest(list: FileList | File[]) {
-    if (busy) return;                          // menambah frame di tengah batch mengubah daftar target
+    if (anyBusy) return;                          // menambah frame di tengah batch mengubah daftar target
     const result = filterIncomingFiles(Array.from(list), frames.length);
     const msg = buildLimitMessage(result);
     if (msg) showLimit(msg);                     // tidak pernah menelan file diam-diam
@@ -420,7 +438,7 @@ export function Worksheet({ session, provider, batch }: {
 
   const providerOk = !provider.isSoon && provider.status === 'ok';
   const generateDisabled =
-    frames.length === 0 || provider.isSoon || provider.status !== 'ok';
+    frames.length === 0 || provider.isSoon || provider.status !== 'ok' || (isAnalysis && !analysis);
   const generateHint =
     frames.length === 0
       ? 'Tambah minimal satu gambar untuk mengaktifkan pembuatan.'
@@ -434,7 +452,7 @@ export function Worksheet({ session, provider, batch }: {
   const regenHint = (hasFile: boolean): string =>
     !hasFile
       ? 'File asli hilang setelah sesi di-restore — upload ulang gambar ini dulu.'
-      : busy
+      : anyBusy
         ? 'Batch sedang berjalan — tunggu selesai.'
         : provider.isSoon
           ? SOON_NOTE
@@ -442,14 +460,19 @@ export function Worksheet({ session, provider, batch }: {
             ? 'Tes koneksi provider dulu.'
             : '';
 
-  const done = frames.filter((f) => f.status[platform] === 'siap').length;
-  const failed = frames.filter((f) => f.status[platform] === 'gagal').length;
+  // M29: hitungan siap/gagal + progress mengikuti STATUS MODE AKTIF (metadata vs analisis).
+  const viewStatus = (f: Frame): FrameStatus =>
+    isAnalysis ? (f.analysisStatus?.[platform] ?? 'menunggu') : f.status[platform];
+  const done = frames.filter((f) => viewStatus(f) === 'siap').length;
+  const failed = frames.filter((f) => viewStatus(f) === 'gagal').length;
 
   // label progress: saat jalan memakai hitungan batch, sesudahnya hasil batch terakhir,
-  // idle memakai hitungan sesi
-  const lastBatch = frames.length ? batch.summary : null;
-  const bar = busy
-    ? batch.progress
+  // idle memakai hitungan sesi — semuanya dari JALUR MODE AKTIF (M29).
+  const activeProgress = isAnalysis ? analysis?.progress : batch.progress;
+  const activeSummary = isAnalysis ? analysis?.summary : batch.summary;
+  const lastBatch = frames.length ? (activeSummary ?? null) : null;
+  const bar = modeBusy && activeProgress
+    ? activeProgress
     : lastBatch
       ? { done: lastBatch.done, failed: lastBatch.failed, total: lastBatch.total }
       : { done, failed, total: frames.length };
@@ -467,14 +490,14 @@ export function Worksheet({ session, provider, batch }: {
       title="Lembar kerja"
       meta={`${pad2(frames.length)} / ${MAX_FRAMES} frame`}
       actions={
-        <NewSessionButton hasFrames={frames.length > 0} disabled={busy} onConfirm={resetSession} />
+        <NewSessionButton hasFrames={frames.length > 0} disabled={anyBusy} onConfirm={resetSession} />
       }
     >
       <div
         className="flex flex-col gap-3 sm:gap-4"
         onDragOver={(e) => {
           e.preventDefault();
-          if (!full && !busy) setDragOver(true);
+          if (!full && !anyBusy) setDragOver(true);
         }}
         onDragLeave={(e) => {
           if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false);
@@ -482,7 +505,7 @@ export function Worksheet({ session, provider, batch }: {
         onDrop={(e) => {
           e.preventDefault();
           setDragOver(false);
-          if (busy) return;
+          if (anyBusy) return;
           if (e.dataTransfer.files.length) void ingest(e.dataTransfer.files);
         }}
       >
@@ -491,7 +514,7 @@ export function Worksheet({ session, provider, batch }: {
           type="file"
           accept={ACCEPTED_TYPES.join(',')}
           multiple
-          disabled={busy}
+          disabled={anyBusy}
           className="hidden"
           onChange={(e) => {
             if (e.target.files?.length) void ingest(e.target.files);
@@ -549,11 +572,11 @@ export function Worksheet({ session, provider, batch }: {
           ) : (
             <button
               type="button"
-              disabled={full || busy}
-              title={busy ? 'Tunggu batch selesai' : full ? 'Batch penuh' : undefined}
+              disabled={full || anyBusy}
+              title={anyBusy ? 'Tunggu batch selesai' : full ? 'Batch penuh' : undefined}
               onClick={() => inputRef.current?.click()}
               className={`w-full rounded-md border px-3 py-1.5 text-small font-semibold transition-colors duration-150 sm:py-2 sm:text-body ${
-                full || busy
+                full || anyBusy
                   ? 'cursor-not-allowed border-border-control text-text-muted opacity-60'
                   : dragOver
                     ? 'border-accent bg-accent-tint text-accent-text'
@@ -581,20 +604,30 @@ export function Worksheet({ session, provider, batch }: {
           <ul className="grid grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))] gap-2">
             {frames.map((frame, i) => {
               const hasFile = fileStore.has(frame.id);
+              // M29: di mode analisis tile menampilkan STATUS ANALISIS tanpa mengubah
+              // logika FrameTile (frame tampilan: status/error ditukar dari slot analisis).
+              const shown: Frame = !isAnalysis ? frame : (() => {
+                const status = { ...frame.status };
+                status[platform] = frame.analysisStatus?.[platform] ?? 'menunggu';
+                const error = { ...frame.error };
+                error[platform] = frame.analysisError?.[platform] ?? '';
+                return { ...frame, status, error };
+              })();
               return (
                 <li key={frame.id}>
                   <FrameTile
-                    frame={frame}
+                    frame={shown}
                     index={i}
                     platform={platform}
                     active={sel === frame.id}
                     note={notes[frame.id]}
                     needsUpload={!hasFile}
-                    processing={busy && batch.currentId === frame.id}
-                    removeDisabled={busy}
-                    regenDisabled={!hasFile || !providerOk || busy}
+                    processing={modeBusy && modeCurrentId === frame.id}
+                    removeDisabled={anyBusy}
+                    regenDisabled={!hasFile || !providerOk || anyBusy}
                     regenHint={regenHint(hasFile)}
-                    regenConfirm={batch.regenConfirm === frame.id}
+                    regenConfirm={isAnalysis ? analysis?.regenConfirm === frame.id : batch.regenConfirm === frame.id}
+                    regenKind={isAnalysis ? 'analisis' : 'metadata'}
                     // Pilih frame + gulir ke lembar caption hanya di layar kecil (di ≥1024px keduanya terlihat)
                     onSelect={() => {
                       select(frame.id);
@@ -605,8 +638,11 @@ export function Worksheet({ session, provider, batch }: {
                         ?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
                     }}
                     onRemove={() => removeFrame(frame.id)}
-                    onRegen={() => batch.regenerateFrame(frame.id)}
-                    onDismissRegen={batch.dismissRegen}
+                    onRegen={() => {
+                      if (isAnalysis) analysis?.regenerateAnalysisFrame(frame.id);
+                      else batch.regenerateFrame(frame.id);
+                    }}
+                    onDismissRegen={isAnalysis ? (analysis?.dismissRegen ?? batch.dismissRegen) : batch.dismissRegen}
                   />
                 </li>
               );
@@ -644,8 +680,8 @@ export function Worksheet({ session, provider, batch }: {
               <select
                 id="jeda-antar-foto"
                 value={batch.delaySec}
-                disabled={busy}
-                title={busy ? 'Tunggu batch selesai' : undefined}
+                disabled={anyBusy}
+                title={anyBusy ? 'Tunggu batch selesai' : undefined}
                 onChange={(e) => batch.setDelay(Number(e.target.value))}
                 className="h-10 w-full appearance-none rounded-md border border-border-control bg-surface-elevated px-3 py-2 pr-8 text-body font-semibold text-text transition-colors duration-150 hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -678,13 +714,14 @@ export function Worksheet({ session, provider, batch }: {
           hint={generateHint}
           busy={busy}
           busyLabel={label}
-          notice={batch.notice}
-          onGenerate={batch.startBatch}
-          onCancel={batch.cancel}
+          label={isAnalysis ? 'Jalankan Analisis' : undefined}
+          notice={isAnalysis ? (analysis?.notice ?? '') : batch.notice}
+          onGenerate={isAnalysis ? analysis?.startAnalysis : batch.startBatch}
+          onCancel={isAnalysis ? analysis?.cancel : batch.cancel}
         />
-        {/* M11: timpa semua hasil platform aktif — hanya bila ada minimal satu frame siap/gagal
-            (frame 'menunggu' saja sudah tercakup tombol "Buat metadata") */}
-        {frames.some((f) => f.status[platform] === 'siap' || f.status[platform] === 'gagal') && (
+        {/* M11: timpa semua hasil platform aktif — KHUSUS mode metadata (di mode analisis
+            disembunyikan; analisis ulang tercakup tombol utama + ikon tile) */}
+        {!isAnalysis && frames.some((f) => f.status[platform] === 'siap' || f.status[platform] === 'gagal') && (
           <div className="flex flex-col gap-1.5">
             {batch.regenAllConfirm === platform ? (
               <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-elevated p-2 sm:p-3">
@@ -728,7 +765,7 @@ export function Worksheet({ session, provider, batch }: {
         {!busy && failed > 0 && (
           <button
             type="button"
-            onClick={batch.startBatch}
+            onClick={isAnalysis ? analysis?.startAnalysis : batch.startBatch}
             className="w-full rounded-md border border-error px-3 py-1.5 text-small font-semibold text-error transition-colors duration-150 hover:bg-error-tint sm:px-4 sm:py-2 sm:text-body"
           >
             Coba lagi frame gagal
