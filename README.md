@@ -12,7 +12,7 @@
 [![Vitest](https://img.shields.io/badge/tested_with-Vitest-6E9F18?style=flat-square&logo=vitest&logoColor=white)](https://vitest.dev/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square)](./LICENSE)
 
-**[Demo Live](https://stockmeta-phi.vercel.app) · [Fitur](#fitur) · [Cara Pakai](#cara-pakai) · [Provider AI](#provider-ai) · [Format CSV](#format-csv) · [Keamanan](#keamanan-dan-privasi) · [Laporkan Bug](https://github.com/akndrn000/stockmeta/issues)**
+**[Demo Live](https://stockmeta-phi.vercel.app) · [Fitur](#fitur) · [Cara Pakai](#cara-pakai) · [Mode Analisis](#mode-analisis) · [Provider AI](#provider-ai) · [Format CSV](#format-csv) · [Keamanan](#keamanan-dan-privasi) · [Laporkan Bug](https://github.com/akndrn000/stockmeta/issues)**
 
 </div>
 
@@ -20,33 +20,15 @@
 
 > Cek **kelayakan upload** foto, biarkan AI menulis **judul, kata kunci, dan kategori** secara batch, sunting hasilnya, lalu ekspor **CSV** sesuai format Adobe Stock atau Shutterstock. Semua berjalan di browser, dengan API key milikmu sendiri.
 
-<br>
-
 <div align="center">
 
-<img src="./docs/screenshot-analisis.png" alt="Mode Analisis: hasil penilaian kelayakan upload dengan daftar masalah" width="100%">
+<a href="https://stockmeta-phi.vercel.app">
+  <img src="./docs/hero.png" alt="StockMeta: Mode Analisis (gelap), Mode Metadata (gelap dan terang), dan tampilan ponsel 390 px" width="100%">
+</a>
+
 <br>
-<sub><b>Mode Analisis</b>: menilai kelayakan upload</sub>
 
-<br><br>
-
-<img src="./docs/screenshot-dark.png" alt="Mode Metadata tema gelap dengan tiga frame yang sudah siap" width="100%">
-<br>
-<sub><b>Mode Metadata</b>: judul, kata kunci, dan kategori (tema gelap)</sub>
-
-<br><br>
-
-<img src="./docs/screenshot-light.png" alt="Mode Metadata tema terang" width="100%">
-<br>
-<sub>Tema terang</sub>
-
-<br><br>
-
-<img src="./docs/screenshot-mobile.png" alt="Tampilan StockMeta di layar ponsel" width="320">
-<br>
-<sub>Tampilan ponsel (390 px)</sub>
-
-<br><br>
+**2** mode &nbsp;·&nbsp; **3** provider AI &nbsp;·&nbsp; **2** platform stok &nbsp;·&nbsp; **20** frame per batch &nbsp;·&nbsp; **0** server perantara
 
 <sub>Gambar, hasil analisis, dan metadata pada tangkapan layar adalah data contoh untuk ilustrasi.</sub>
 
@@ -57,6 +39,16 @@
 ## Ringkasan
 
 Kontributor foto stok membutuhkan dua hal sebelum mengunggah: memastikan foto layak diterima, lalu menyiapkan metadata yang akurat (judul, kata kunci, dan kategori sesuai aturan tiap portal). StockMeta mengerjakan keduanya secara batch langsung di browser lewat dua mode: **Analisis** dan **Metadata**. API key milik pengguna (Groq, Gemini, atau OpenRouter) dikirim dari browser ke provider tanpa perantara server aplikasi, lalu hasilnya dapat disunting dan diekspor sebagai CSV siap impor.
+
+### Alur Kerja
+
+```mermaid
+flowchart LR
+    A([Upload foto]) --> B[Mode Analisis<br/>cek kelayakan upload]
+    B --> C[Mode Metadata<br/>judul, kata kunci, kategori]
+    C --> D[Edit manual<br/>+ saran validasi]
+    D --> E([Export CSV<br/>Adobe Stock / Shutterstock])
+```
 
 ## Fitur
 
