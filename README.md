@@ -23,15 +23,32 @@
 <br>
 
 <div align="center">
-<img src="./docs/screenshot-analisis.png" alt="Mode Analisis: hasil penilaian kelayakan upload dengan daftar masalah" width="49%">
-<img src="./docs/screenshot-dark.png" alt="Mode Metadata tema gelap dengan tiga frame yang sudah siap" width="49%">
-<br>
-<sub><b>Mode Analisis</b> (kiri) menilai kelayakan upload, <b>Mode Metadata</b> (kanan) membuat judul, kata kunci, dan kategori.</sub>
-<br><br>
-<img src="./docs/screenshot-light.png" alt="Mode Metadata tema terang" width="49%">
-<img src="./docs/screenshot-mobile.png" alt="Tampilan StockMeta di layar ponsel" width="22%">
-<br>
-<sub>Tema terang di desktop dan tampilan ponsel (390 px). Gambar, hasil analisis, dan metadata pada tangkapan layar adalah data contoh untuk ilustrasi.</sub>
+
+<table>
+  <tr>
+    <td width="50%" valign="top" align="center">
+      <img src="./docs/screenshot-analisis.png" alt="Mode Analisis: hasil penilaian kelayakan upload dengan daftar masalah" width="100%">
+      <br><sub><b>Mode Analisis</b>: menilai kelayakan upload</sub>
+    </td>
+    <td width="50%" valign="top" align="center">
+      <img src="./docs/screenshot-dark.png" alt="Mode Metadata tema gelap dengan tiga frame yang sudah siap" width="100%">
+      <br><sub><b>Mode Metadata</b>: judul, kata kunci, kategori</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="middle" align="center">
+      <img src="./docs/screenshot-light.png" alt="Mode Metadata tema terang" width="100%">
+      <br><sub>Tema terang</sub>
+    </td>
+    <td width="50%" valign="middle" align="center">
+      <img src="./docs/screenshot-mobile.png" alt="Tampilan StockMeta di layar ponsel" width="40%">
+      <br><sub>Tampilan ponsel (390 px)</sub>
+    </td>
+  </tr>
+</table>
+
+<sub>Gambar, hasil analisis, dan metadata pada tangkapan layar adalah data contoh untuk ilustrasi.</sub>
+
 </div>
 
 <br>
