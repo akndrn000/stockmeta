@@ -11,7 +11,7 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSession } from '../hooks/useSession';
-import { MAX_DESCRIPTION, MAX_FRAMES, MAX_KEYWORDS } from '../lib/limits';
+import { MAX_DESCRIPTION, MAX_FRAMES, MAX_KEYWORDS_ADOBE } from '../lib/limits';
 import type { Frame } from '../lib/types';
 import { CaptionSheet } from './CaptionSheet';
 
@@ -89,7 +89,7 @@ describe('CaptionSheet — struktur field tetap ada walau belum ada frame (M14)'
     expect(text()).toContain('Judul');
     expect(text()).toContain('Kata kunci');
     expect(text()).toContain('Kategori');
-    expect(text()).toContain('Tema untuk frame ini (opsional)');
+    expect(text()).toContain('Tema untuk frame ini');
 
     const ta = host.querySelector('#caption-title') as HTMLTextAreaElement;
     expect(ta).not.toBeNull();
@@ -263,7 +263,7 @@ describe('CaptionSheet — keterangan sebaris dengan label (M18)', () => {
     const ta = host.querySelector('#caption-title') as HTMLTextAreaElement;
     const note = host.querySelector('#caption-title-note');
     expect(note).not.toBeNull();
-    expect(note!.textContent).toContain('/70');
+    expect(note!.textContent).toContain('/200');
     // M18: keterangan berada di baris label, sebelum kotak isian — bukan menempel di dalamnya
     expect(ta.previousElementSibling!.contains(note!)).toBe(true);
     expect(note!.className).not.toContain('absolute');             // keluar dari posisi menempel
@@ -301,7 +301,7 @@ describe('CaptionSheet — keterangan sebaris dengan label (M18)', () => {
     const count = host.querySelector('#kw-count');
     const labelRow = host.querySelector('label[for="kw-input"]')!.parentElement!;
     expect(count).not.toBeNull();
-    expect(count!.textContent).toContain(`0/${MAX_KEYWORDS}`);
+    expect(count!.textContent).toContain(`0/${MAX_KEYWORDS_ADOBE}`);
     expect(kw.getAttribute('aria-describedby')).toBe('kw-count');       // tetap terhubung utk pembaca layar
     expect(kw.className).not.toContain('pr-24');                        // ruang cadangan dihapus
     expect(labelRow.contains(count!)).toBe(true);                       // penghitung sebaris dengan label

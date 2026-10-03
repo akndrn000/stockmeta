@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ADOBE_CATEGORIES, SHUTTERSTOCK_CATEGORIES } from './categories';
-import { MAX_DESCRIPTION, MAX_TITLE_CSV } from './limits';
+import { MAX_DESCRIPTION, MAX_KEYWORDS_ADOBE, MAX_TITLE_CSV } from './limits';
 import { buildMetadataPrompt, parseMetadataResponse } from './prompt';
 
 describe('buildMetadataPrompt', () => {
@@ -9,10 +9,12 @@ describe('buildMetadataPrompt', () => {
     expect(p).toContain('Platform target: adobe');
     expect(p).toContain('ATURAN PENTING UNTUK TITLE/DESCRIPTION:');
     expect(p).toContain(ADOBE_CATEGORIES.join(', '));
-    // M9a — spesifikasi resmi Adobe: judul maks 70 dan tanpa koma (penyimpangan dari legacy,
-    // dicatat di docs/MIGRATION.md)
-    expect(p).toContain(`"title": string maks ${MAX_TITLE_CSV} karakter dan TANPA koma`);
-    expect(p).not.toContain('200 karakter');
+    // M24 (koreksi M9a — contoh CSV resmi Adobe): judul maks 200 karakter, koma
+    // dibiarkan, keywords maks 49 yang paling penting dulu
+    expect(p).toContain(`"title": string maks ${MAX_TITLE_CSV} karakter`);
+    expect(p).toContain(`maksimal ${MAX_KEYWORDS_ADOBE} kata`);
+    expect(p).not.toContain('TANPA koma');
+    expect(p).not.toContain('tanpa koma');
     expect(p.endsWith('Keluarkan HANYA JSON valid, tanpa teks tambahan, tanpa markdown code block.')).toBe(true);
   });
 
@@ -67,13 +69,16 @@ describe('parseMetadataResponse', () => {
     expect(() => parseMetadataResponse('bukan json sama sekali', 'adobe')).toThrow('JSON tidak valid');
   });
 
-  it('keyword dibatasi 50 dan kategori array ambil yang pertama lolos', () => {
+  it('keyword dibatasi per platform (adobe 49, shutterstock 50) dan kategori array ambil yang pertama lolos', () => {
     const kw = Array.from({ length: 60 }, (_, i) => 'kata' + i);
     const p = parseMetadataResponse(JSON.stringify({ keywords: kw }), 'adobe');
-    expect(p.keywords).toHaveLength(50);
+    expect(p.keywords).toHaveLength(MAX_KEYWORDS_ADOBE);
 
-    const s = parseMetadataResponse(JSON.stringify({ category: ['Food & Drink', 'zzz-none'] }), 'shutterstock');
-    expect(s.category).toBe('Food and Drink');
+    const s = parseMetadataResponse(JSON.stringify({ keywords: kw }), 'shutterstock');
+    expect(s.keywords).toHaveLength(50);
+
+    const c = parseMetadataResponse(JSON.stringify({ category: ['Food & Drink', 'zzz-none'] }), 'shutterstock');
+    expect(c.category).toBe('Food and Drink');
   });
 
   it('kategori dari model tidak mirip → fallback kategori resmi pertama + tanda categoryAuto', () => {
@@ -104,14 +109,15 @@ describe('parseMetadataResponse', () => {
     expect(nulled.categoryAuto).toBe(true);
   });
 
-  it('adobe: koma di judul diganti spasi', () => {
+  it('adobe: koma di judul dipertahankan (M24 — CSV di-quote, tak perlu dibersihkan)', () => {
     const p = parseMetadataResponse(JSON.stringify({ title: 'Kopi, susu, dan roti' }), 'adobe');
-    expect(p.title).toBe('Kopi susu dan roti');
+    expect(p.title).toBe('Kopi, susu, dan roti');
   });
 
-  it('adobe: judul dibatasi 70 karakter setelah koma dirapikan', () => {
-    const p = parseMetadataResponse(JSON.stringify({ title: 'Kopi, '.repeat(20) }), 'adobe');
-    expect(p.title).not.toContain(',');
+  it('adobe: judul dibatasi 200 karakter', () => {
+    const p = parseMetadataResponse(JSON.stringify({ title: 'Kopi, '.repeat(50) }), 'adobe');
+    expect(p.title).toContain(',');
     expect(p.title!.length).toBeLessThanOrEqual(MAX_TITLE_CSV);
+    expect(p.title!.length).toBe(MAX_TITLE_CSV);
   });
 });

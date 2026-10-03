@@ -787,6 +787,249 @@ server. Verifikasi akhir: `npm run test` **203/203 tes**, `npx tsc --noEmit` 0 e
   `diproses lokal di browser`. Tipografi ikut skala M16 (`text-title`/`text-small`/
   `text-meta` mono), spasi ikut skala (`gap-4`, `py-4`, `mt-4`/`pt-3`/`gap-2`/`gap-1`).
 
+## Perbaikan pasca-M22 (M23) — disiplin skala mobile, bukan tahap migrasi baru
+
+Eksekusi memakai skill **frontend-design**, audit memakai **impeccable** (mode Operate).
+Aturan keras: **tanpa** perubahan logika (`src/lib`, hooks tidak disentuh), **tanpa**
+perubahan tampilan desktop — seluruh perubahan hanya di bawah 640px (default
+mobile-first), dengan varian `sm:`/`lg:`/`max-lg:`/`min-[1120px]:` mengembalikan nilai
+desktop persis di ≥640px/≥1024px/≥1120px. Hasil: tinggi halaman awal di 375px turun
+**2517 → 2229px (−288px)**, keterbacaan & target sentuh terjaga (blok `min-height:44px`
+di `globals.css` tetap menjamin ≥40px; font isian tetap 16px anti auto-zoom iOS).
+
+### 1. Toggle platform Header → segmented ringkas (mobile)
+
+- `Header.tsx`: tombol segmen `text-body → text-small`, `px-3 → px-2`, `gap-1.5 → gap-1`
+  (semua dengan `sm:` restore); wordmark `text-brand (20px) → text-title (16px)`,
+  dot brand `14 → 12px`, baris atas `pt-3 → pt-2`, baris status `gap-1.5 → gap-1`,
+  `pb/pt-2 → 1.5`. Tinggi sentuh visual tetap 44px lewat CSS, tapi bobot visual jauh
+  turun (bukan lagi dua pil raksasa).
+
+### 2. ProviderPanel → `<select>` native di <1024px, grid utuh di desktop
+
+- Keputusan: **dropdown di bawah 1024px, grid segmented tetap di ≥1024px** — pola select
+  sama seperti slot/kategori di Worksheet/CaptionSheet; grid 2×2 (4 segmen, ±2 baris
+  × ±88px) yang makan ±190px vertikal diganti satu baris select `h-10`.
+- Teknik: dua DOM dipilih per breakpoint — select `lg:hidden`, grid `max-lg:hidden`
+  (bukan `hidden lg:grid`: `lg:grid` sempat **mengalahkan** `min-[1120px]:inline-flex`
+  di cascade Tailwind v4 sehingga desktop jadi 2 baris — terdeteksi lewat audit
+  computed-style, diperbaiki, lalu diverifikasi `inline-flex` + 1 baris kembali).
+  Ambang `lg` (1024) dipilih supaya rentang 1024–1119px **identik** dengan semula.
+- Select memakai gaya select standar aplikasi (`h-10`, `border-border-control`,
+  panah SVG, `hover:border-accent/60`), opsi `Coming Soon` = `disabled`,
+  `value`/`onChange`/`disabled`/`title` identik perilaku grid; label dipakai ulang
+  (`<label for>` untuk select, `aria-labelledby` grid tetap menunjuk label yang sama).
+- Tambahan mobile: tombol `Tes koneksi` `text-body → text-small`, `px-4 → px-3`;
+  callout catatan `py-2.5 → py-2`; grup `gap-3 → gap-2`, `py-3 → py-2` (sm: restore).
+
+### 3. Dropzone dirampingkan (mobile)
+
+- `Worksheet.tsx`: `min-h-36 (144px) → min-h-28 (112px)`, `py-6 → py-4`, `px-5 → px-4`,
+  `gap-3 → gap-2`; ikon `h-11 w-11 → h-8 w-8`, glyph `22 → 16px`; judul
+  `text-body (14px) → text-small (13px)`; sub-format tetap `text-meta` (lantai 12px).
+  Tetap jelas sebagai area klik (dashed `border-2` + ikon + 2 baris teks dipertahankan).
+
+### 4. Kotak "belum ada frame" dirampingkan (mobile)
+
+- `CaptionSheet.tsx`: `py-8 → py-4`, `px-4 → px-3`, `gap-2 → gap-1.5`; ikon
+  `h-10 w-10 → h-8 w-8`, glyph `18 → 14px`; teks tetap `text-meta`. State kosong tetap
+  terbaca tanpa memakan ruang layar berharga.
+
+### 5. Disiplin ukuran mobile di semua komponen (audit impeccable)
+
+| Area | Mobile (<640px) | Desktop (restore) |
+| --- | --- | --- |
+| Judul panel (`Panel h2`), brand footer | `text-title 16 → text-body 14` | `sm:text-title` / `sm:text-brand` untuk wordmark Header (20px) |
+| Teks tombol (Generate, Batalkan, Buat ulang semua, Coba lagi, Mulai sesi baru, Tambah frame, Tes koneksi, Export CSV, Salin, Ya/timpa, konfirmasi) | `text-body 14 → text-small 13` | `sm:text-body` |
+| Padding tombol | `px-4 → px-3`, `py-2 → py-1.5`, `p-3 → p-2` | `sm:` restore penuh |
+| Body/padding panel, footer panel | `p-4 → p-3`, `px-4 py-3 → px-3 py-2` | `sm:` restore |
+| Gap vertikal (root Worksheet, caption-body, grid tema/jeda, grid kategori, main, footer) | `gap-4 → gap-3`, `py-4 → py-3`, `mt-4 pt-3 → mt-3 pt-2` | `sm:` restore |
+| Toggle detail caption, strip nama file | `px-3 py-2 → px-2 py-1.5`, `px-4 py-2 → px-3 py-1.5` (+ `mx/mt` negatif strip ikut `p-3` body) | `sm:` restore |
+| Info tile (`px-3 py-2 → px-2 py-1.5`) | padding saja | `sm:` restore |
+
+- **Sengaja tidak dikecilkan** (lantai keterbacaan/aksesibilitas): semua
+  `input/select/textarea` (16px anti-zoom iOS via CSS), `text-meta` (label, counter,
+  badge, chip status — sudah di lantai 12px), chip kata kunci, pesan hint/notice
+  `text-small`, badge status `border-2` (tetap 2px sesuai skala M16).
+- Semua nilai rapat tetap dalam skala spasi M16 {4, 6, 8, 12, 16, 24}px.
+
+### 6. Verifikasi M23
+
+- `npm run test` **222/222**, `npx tsc --noEmit` 0, `npm run lint` 0, `npm run build`
+  sukses, `impeccable detect --json` atas 7 file UI → **`[]`** (exit 0).
+- Bukti screenshot (full-page, mode gelap, state awal kosong):
+  `docs/screenshots-mobile/before/` (`before-375/390/1440.png`) vs
+  `docs/screenshots-mobile/after/` (`after-375/390/1440.png`) — diambil via Chrome
+  headless + CDP (`Emulation.setDeviceMetricsOverride` + `captureBeyondViewport`).
+- Desktop 1440px: tata letak identik (provider 1 baris inline-flex, dropzone 176px,
+  semua computed-style terukur sama: h1 20px, tombol 14px, panel 16px, footer 16px);
+  selisih tinggi total −16px berasal dari pembungkusan ulang teks (font swap),
+  bukan perubahan kelas — seluruh nilai desktop di-restore eksplisit per tabel di atas.
+
+## Perbaikan pasca-M23 (M24) — koreksi batas Adobe Stock, bukan tahap migrasi baru
+
+Sumber: **contoh CSV resmi Adobe Stock yang diverifikasi langsung oleh user**
+(header `Filename,Title,Keywords,Category,Releases`; Title "Up to 200 characters";
+Keywords "Max 49 keywords, most important first") — bukan asumsi lagi. Koreksi atas
+asumsi salah M9a (70 karakter + tanpa koma + maks 50 keywords).
+
+| Sebelum (M9a, asumsi) | Sesudah (M24, contoh resmi) | File |
+| --- | --- | --- |
+| `MAX_TITLE_CSV = 70` | `MAX_TITLE_CSV = 200` | `src/lib/limits.ts` |
+| — (satu batas 50 utk semua) | `MAX_KEYWORDS_ADOBE = 49` (Shutterstock tetap `MAX_KEYWORDS = 50`) | `src/lib/limits.ts` |
+| Prompt Adobe: "maks 70 … TANPA koma" | "maks 200 karakter … (maksimal 49 kata, yang paling penting dulu)", tanpa larangan koma | `src/lib/prompt.ts` |
+| Parser: `cleanAdobeTitle` ganti koma → spasi, potong 70; keyword cap 50 | `cleanAdobeTitle` hanya rapikan spasi (koma dipertahankan); judul mentah model dipotong 200; keyword cap 49 Adobe / 50 Shutterstock | `src/lib/prompt.ts`, `src/lib/metadata.ts` |
+| Validasi: saran >70 + saran "mengandung koma"; keyword Adobe >50 | Saran >200; **saran koma dihapus**; keyword Adobe >49 | `src/lib/validate.ts` |
+| Ekspor: judul dibersihkan dari koma | Koma dipertahankan (quoting `"` sudah benar); header & `Releases` kosong tak berubah | `src/lib/csv.ts` |
+| UI: `n/70 · tanpa koma`, counter `n/50` utk Adobe | `n/200`, counter Adobe `n/49` (editor `max` per platform) | `CaptionSheet.tsx`, `KeywordEditor.tsx` (+ prop baru `max`) |
+| README: "maks 70 … tanpa koma", "maksimal 50" (Adobe) | "maks 200 (koma aman)", "maksimal 49" (Adobe; Shutterstock tetap 50) | `README.md` |
+
+- Bagian historis M9a/M11/M13/M18 di dokumen ini **sengaja tidak ditulis ulang** (catatan
+  masa lalu); yang diperbarui ke keadaan kini: kontrak CSV di atas, catatan legacy, UI,
+  README, dan tes (`prompt`/`validate`/`csv`/`metadata` + regresi `cleanAdobeTitle` baru +
+  `CaptionSheet` `/200` & `/49`).
+- Verifikasi: `npm run test` **223/223**, `npx tsc --noEmit` 0, `npm run lint` 0,
+  `npm run build` sukses.
+
+## Perbaikan pasca-M24 (M25) — audit overflow horizontal mobile, bukan tahap migrasi baru
+
+Dugaan awal: M23 menyebabkan regresi overflow di 360–390px. Audit memakai **DevTools
+responsif sungguhan** (Chrome headless + CDP `Emulation.setDeviceMetricsOverride`
+dengan `mobile: true`, bukan asumsi dari kelas CSS): diukur
+`document.documentElement.scrollWidth` & `document.body.scrollWidth` vs
+`window.innerWidth`, plus pemindaian semua elemen yang `right`-nya melewati viewport
+(kecuali isi scroll-container sengaja seperti baris chip status `overflow-x-auto`).
+
+Hasil — **tidak ada overflow sama sekali** (dugaan regresi terbantahkan oleh data):
+
+| Lebar | Keadaan | `innerWidth` | `scrollWidth` (doc/body) | Offender |
+| --- | --- | --- | --- | --- |
+| 360px | kosong (profil bersih) | 360 | 360 / 360 | 0 |
+| 375px | kosong (profil bersih) | 375 | 375 / 375 | 0 |
+| 390px | kosong (profil bersih) | 390 | 390 / 390 | 0 |
+| 360px | **5 frame nama-sangat-panjang** (tile + strip caption + counter) | 360 | 360 / 360 | 0 |
+| 375px | idem | 375 | 375 / 375 | 0 |
+| 390px | idem | 390 | 390 / 390 | 0 |
+| 360px | idem + platform **Shutterstock** (2 select kategori) | 360 | 360 / 360 | 0 |
+
+- Pemeriksaan khusus terkonfirmasi aman: baris header "Lembar kerja"
+  (judul + badge + `Mulai sesi baru`) memakai `flex-wrap` — tombol turun ke baris
+  kedua, tidak dipaksa satu baris; baris breadcrumb `❯ …` menggulir di dalam
+  container-nya sendiri (`overflow-x-auto` + `whitespace-nowrap`), tidak mendorong
+  body; strip nama file memakai `truncate` (= `overflow:hidden` → minimum flex 0,
+  menyusut benar); grid thumbnail `minmax(7.5rem,1fr)` muat 2 kolom di 336px isi.
+- Karena nol offender, **tidak ada perubahan kode** di M25 — hanya bukti + catatan ini.
+- Bukti screenshot: `docs/screenshots-mobile/after-m24/` (`after-360/375/390/1440.png`,
+  profil bersih) + `seed-check.png` (360px, 5 frame nama panjang) +
+  `seed-shutter-360.png` (Shutterstock). Desktop 1440px tidak berubah kecuali counter
+  baru (`0/200`, `0/49`) yang memang disengaja oleh M24.
+
+## Perbaikan pasca-M25 (M26) — hapus breadcrumb, ringkas fallback & label, bukan tahap migrasi baru
+
+### 1. Baris status/breadcrumb di bawah Header dihapus seluruhnya
+
+- `Header.tsx`: blok `❯ 00 FRAME / ADOBE STOCK / GROQ / ● BELUM DITES` (prompt + 4 chip
+  + scroll horizontal) dibuang; header kini hanya baris brand + toggle platform.
+  Konstanta `CHIP`/`STATUS_CHIP`/`STATUS_DOT`/`pad2` ikut dihapus; props
+  `provider`/`status` dicabut dari `Header` (tidak dipakai komponen lain — tidak ada
+  tes yang merender `Header`, URL di atas) dan `page.tsx` tidak lagi mengopernya;
+  container atas diberi `pb-2 sm:pb-3` pengganti padding bawah yang hilang.
+  Footer paling bawah **tetap ada, tidak disentuh**.
+
+### 2. Checkbox fallback: teks dihapus, pindah ke samping label PROVIDER
+
+- `ProviderPanel.tsx`: teks `Fallback antar provider saat kuota habis` dihapus dari UI;
+  checkbox telanjang (`h-4 w-4`, tanpa teks) pindah ke satu baris dengan label
+  `PROVIDER` (`PROVIDER ☐`). Satu baris label dipakai bersama select (mobile,
+  `aria-labelledby`) & grid (desktop) — tanpa duplikasi DOM.
+- Aksesibilitas: `aria-label="Fallback antar provider saat kuota habis"` pada input +
+  `title` pada label berisi fungsi + limit ringkas per provider
+  (`LIMIT_TIP`: Groq 8.000 token/menit · Gemini Flash-Lite longgar/429 harian →
+  besok · OpenRouter ±20 request/hari); pesan hasil tes terakhir pindah ke
+  `title` badge status. Area sentuh diperlebar tak terlihat (`p-1.5` − `my-1.5`,
+  tanpa geser layout). Fungsi toggle (localStorage `readFallback`/`writeFallback`) tak berubah.
+
+### 3. Label "TEMA UNTUK FRAME INI (OPSIONAL)" → "TEMA UNTUK FRAME INI"
+
+- `CaptionSheet.tsx` (+ penyesuaian asersi `CaptionSheet.test.ts`): hanya teks label;
+  field tetap opsional secara fungsi.
+
+### 4. Berkas sampah: `src/components/LabelRow.tsx` dihapus
+
+- Audit seluruh repo (di luar `node_modules`/`.next`): **nol** file `.log`/`.bak`/
+  `.tmp`/`*~`, **nol** skrip `.mjs`/`.cjs` di luar `src/`+`scripts/` (helper CDP hanya
+  di direktori temp OS), **nol** nama `copy`/`old`/`temp`/`backup`; semua file `src/`
+  terimpor/aktif kecuali satu: `LabelRow.tsx` (baris label generik sisa refactor —
+  `Field`/`KeywordEditor` tidak pernah memakainya; grep hanya menemukan definisi +
+  sebutan di README) → **dihapus**, dan daftar struktur folder di `README.md`
+  diperbarui. `scripts/live-test.ts`, `docs/` (termasuk seluruh
+  `docs/screenshots-mobile/` yang dirujuk bagian M23/M25/M26 ini), konfigurasi resmi,
+  `Footer.tsx`, dan `tsconfig.tsbuildinfo` (cache compiler) **dipertahankan**.
+
+### 5. Verifikasi M26
+
+- `npm run test` **223/223**, `npx tsc --noEmit` 0, `npm run lint` 0, `npm run build`
+  sukses. Overflow ulang 360/375/390: `scrollWidth == innerWidth`, 0 offender.
+- Bukti screenshot: `docs/screenshots-mobile/m26-before/` vs `m26-after/`
+  (`before/after-375/390/1440.png`, profil ber-frame agar tombol wrap & strip
+  terlihat). Tinggi halaman 375px **2883 → 2541px (−342px)**.
+
+## Perbaikan pasca-M26 (M27) — audit responsif menyeluruh 9 lebar × 2 mode, bukan tahap migrasi baru
+
+Tanpa e2e Playwright; verifikasi via Chrome headless + CDP sungguhan
+(`Emulation.setDeviceMetricsOverride` + `mobile`, `setEmulatedMedia`
+`prefers-color-scheme`, `getBoundingClientRect`): `scrollWidth` vs `innerWidth`,
+pemindaian elemen `right > viewport`, inventaris `nowrap`/flex-baris-tanpa-wrap,
+rect semua target sentuh, dan `font-size` semua teks — di 360/375/390/414/768/1024/
+1120/1440/1920px × terang/gelap, keadaan kosong + ber-frame (seed 3 frame, 49 keyword,
+nama-sangat-panjang).
+
+### Tahap 1 — temuan (before)
+
+Overflow: **NOL di semua 18 kombinasi** (`scrollWidth == innerWidth` di mobile;
+di desktop `== innerWidth − 10`, yaitu lebar scrollbar vertikal — normal, 0 offender).
+`nowrap` baris-asli (>2 item, arah-row): **NOL** — yang terdeteksi hanya `flex-col`
+(arah kolom, tidak bisa overflow horizontal) dan grid tersegmentasi by-design.
+Font <12px untuk teks bermakna: **NOL** (lantai `text-meta` 12px via clamp terbukti).
+
+| Temuan sentuh <40px di <640px | Ukuran terukur | Keputusan Tahap 2 |
+| --- | --- | --- |
+| `ThemeToggle` (`h-9 w-9`) | 36×44 (lebar <40; tinggi diselamatkan CSS) | **Diperbaiki**: `h-10 w-10 sm:h-9 sm:w-9` → 40×44 mobile, 36×36 desktop tetap |
+| Checkbox fallback (`h-4 w-4`, label `p-1.5`) | glyph 16×44, hit label ±28×44 | **Diperbaiki**: label `p-3 -m-3` + input `min-h-4!` → hit **40×40**, baris 17px, glyph tak bergeser |
+| `Mulai sesi baru` (29.5px, `btn-compact` + `before:-inset-1.5`) | hit efektif ±41.5 | By-design, dipertahankan (pola pseudo-area resmi) |
+| Ikon tile 28px / hapus chip 20px (`btn-compact` + pseudo) | hit efektif 40 / 44 | By-design, dipertahankan |
+| Temuan saat audit: input checkbox ikut kena `min-height:44px` global → baris label sempat membengkak 17→44px | — | `min-h-4!` (Tailwind important) mengalahkan aturan global khusus di sini; hit 40×40 sudah dijamin label |
+
+### Tahap 3 — verifikasi (after, berdampingan dengan before)
+
+| Lebar | Mode | Before `SW==VW` | After `SW==VW` | Touch <640 | Font <12px |
+| --- | --- | --- | --- | --- | --- |
+| 360px | gelap/terang | 360==360 ✓ | 360==360 ✓ | toggle 40×44 ✓, fallback 40×40 ✓, sisa pseudo ✓ | nihil |
+| 375px | gelap/terang | 375==375 ✓ | 375==375 ✓ | sama ✓ | nihil |
+| 390px | gelap/terang | 390==390 ✓ | 390==390 ✓ | sama ✓ | nihil |
+| 414px | gelap/terang | 414==414 ✓ | 414==414 ✓ | sama ✓ | nihil |
+| 768px | gelap/terang | 758 (scrollbar) ✓ | 758 ✓ | n/a (≥640) | nihil |
+| 1024px | gelap/terang | 1014 (scrollbar) ✓ | 1014 ✓ | n/a | nihil |
+| 1120px | gelap/terang | 1110 (scrollbar) ✓ | 1110 ✓ | n/a | nihil |
+| 1440px | gelap/terang | 1430 (scrollbar) ✓ | 1430 ✓ | n/a | nihil |
+| 1920px | gelap/terang | 1910 (scrollbar) ✓ | 1910 ✓ | n/a | nihil |
+
+- Scorecard desktop 1440px **identik**: header 1440×65, worksheet 797×437, kolom
+  caption 569×579, h1 20px, segmen 14px, judul panel 16px, dropzone 176px,
+  generate 44px/14px, toggle 36×36. `min-[1120px]:grid-cols-5` dan clearance ikon
+  M15b **tidak disentuh** (tanpa overflow di desktop → tanpa alasan mengubah).
+- Interaksi kunci **7/7 lolos** di 390px-gelap DAN 1440px-gelap: klik generate saat
+  disabled = no-op; upload via input → 1 tile + caption aktif; toggle platform ⇄;
+  ganti provider via select (persist `stockmeta_provider`); tes koneksi (fetch
+  di-stub) → `Aktif`; generate → `Batch selesai — 1 siap · 0 gagal` + badge SIAP;
+  scroll kotak 49 keyword (`scrollHeight > clientHeight`, `scrollTop` bergerak).
+- Masalah tersisa eksplisit (bukan temuan baru, di luar cakupan): toggle tema 36px
+  di 640–1119px dan tombol compact <40px di desktop ≥1120 (konteks mouse, by-design);
+  jalur generate-akti diuji dengan fetch stub (tanpa API key asli).
+- Verifikasi: `npm run test` **223/223**, `npx tsc --noEmit` 0, `npm run lint` 0,
+  `npm run build` sukses. Berkas diubah: `ThemeToggle.tsx`, `ProviderPanel.tsx`
+  (logika `src/lib`/hooks **tidak disentuh**).
+
 ## Kontrak perilaku (WAJIB sama dengan legacy)
 
 Sumber: `legacy/docs/PROGRESS.md` + `legacy/js/*.js`. Tanda **[BARU]** = perilaku baru yang
@@ -936,11 +1179,13 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
   **Impor CSV nyata ke portal masing-masing masih perlu uji manual** — verifikasi dengan impor
   CSV uji sebelum dipakai produksi.
   - **Adobe Stock** — header **persis** `Filename,Title,Keywords,Category,Releases`:
-    `Filename` maks **30 karakter** (termasuk ekstensi); `Title` maks **70 karakter** dan
-    **tanpa koma** (koma diganti spasi saat ekspor; judul **tidak dipotong diam-diam** —
+    `Filename` maks **30 karakter** (termasuk ekstensi); `Title` maks **200 karakter**
+    **[M24: koreksi dari 70]** dan **boleh berkoma** (setiap sel di-quote `"`, koma aman —
+    tidak ada lagi pembersihan koma saat ekspor; judul **tidak dipotong diam-diam** —
     kelebihan jadi saran); `Keywords` satu sel bertanda kutip dipisah koma (urut relevansi,
-    maks 50); `Category` = **nomor** kategori (`ADOBE_CATEGORY_IDS`, 1–21; kosong bila belum
-    dipilih); `Releases` selalu kosong.
+    **maks 49, yang paling penting dulu** **[M24: koreksi dari 50]**); `Category` = **nomor**
+    kategori (`ADOBE_CATEGORY_IDS`, 1–21; kosong bila belum dipilih); `Releases` selalu
+    kosong (fitur releases/model release di luar cakupan tools ini).
   - **Shutterstock** — kolom A–D: `Filename`, `Description`, `Keywords`, `Categories`; kategori
     = 1–2 nama resmi dalam **satu sel** dipisah koma; kolom opsional E–G (Illustration, Mature
     content, Editorial) **tidak disertakan**.
@@ -983,10 +1228,18 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
   onSuccess/onError`) karena hanya pemanggil yang bisa mengembalikan frame batal ke
   `menunggu`; `useSession.snapshot()` / `applyGenerated` / `failFrame` adalah aksi baru untuk
   membaca state segar & menulis hasil batch di dalam callback async.
-- Prompt & parser judul Adobe (M9a): **maks 70 karakter dan tanpa koma** (spesifikasi CSV resmi
-  Adobe) menggantikan batas legacy 200 — **tes prompt yang dibandingkan persis dengan legacy
-  sengaja diperbarui**; parser merapikan koma → spasi lalu memotong di 70, ekspor CSV hanya
-  merapikan koma tanpa memotong (kelebihan dikasih tahu lewat saran validasi).
+- Prompt & parser judul Adobe (M9a, **dikoreksi M24 — lihat di bawah**): **maks 70 karakter
+  dan tanpa koma** (asumsi spesifikasi CSV resmi Adobe saat itu) menggantikan batas legacy
+  200 — **tes prompt yang dibandingkan persis dengan legacy sengaja diperbarui**; parser
+  merapikan koma → spasi lalu memotong di 70, ekspor CSV hanya merapikan koma tanpa
+  memotong (kelebihan dikasih tahu lewat saran validasi).
+- Koreksi batas Adobe (M24): contoh CSV resmi Adobe Stock yang **diverifikasi langsung oleh
+  user** menyatakan Title "Up to 200 characters" dan Keywords "Max 49 keywords, most
+  important first" — angka M9a (70 + tanpa koma, maks 50) ternyata asumsi salah. Sejak M24:
+  `MAX_TITLE_CSV = 200`, `MAX_KEYWORDS_ADOBE = 49` (Shutterstock tetap 50); koma judul
+  dipertahankan di prompt, parser (`cleanAdobeTitle` tinggal merapikan spasi), ekspor CSV
+  (quoting sudah benar), dan validasi (saran koma dihapus); parser memotong judul mentah
+  model di 200; UI (`n/200`, `n/49`, tanpa "tanpa koma") + README + tes ikut diperbarui.
 - Layout (M11): dari kerangka "aplikasi setinggi layar + scroll di dalam tiap panel" (M5–M7)
   menjadi **satu dokumen yang menggulir**; Worksheet & CaptionSheet tingginya mengikuti isi
   (grid 2 kolom ≥1024px tetap), tanpa scrollbar internal, Header non-sticky.

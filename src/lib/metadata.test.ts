@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mergeGenerated } from './metadata';
+import { cleanAdobeTitle, mergeGenerated } from './metadata';
 import type { AdobeMetadata, ShutterstockMetadata } from './types';
 
 const adobe = (patch: Partial<AdobeMetadata> = {}): AdobeMetadata => ({
@@ -28,5 +28,14 @@ describe('mergeGenerated — kategori fallback (categoryAuto)', () => {
   it('model mengembalikan kategori valid → bendera lama dibersihkan', () => {
     expect(mergeGenerated('adobe', adobe({ category: 'Animals', categoryAuto: true }), { category: 'Food' }))
       .toEqual({ title: '', keywords: [], category: 'Food' });
+  });
+});
+
+// M24 (koreksi M9a): koma di judul Adobe dipertahankan — CSV di-quote sehingga aman;
+// hanya spasi berlebih yang dirapikan, tanpa pemotongan panjang di sini.
+describe('cleanAdobeTitle', () => {
+  it('koma dibiarkan, spasi ganda/newline dirapikan + trim', () => {
+    expect(cleanAdobeTitle('Kopi,  susu,\ndan roti ')).toBe('Kopi, susu, dan roti');
+    expect(cleanAdobeTitle('  Judul bagus ')).toBe('Judul bagus');
   });
 });

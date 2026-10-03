@@ -4,6 +4,7 @@ import {
   MAX_DESCRIPTION,
   MAX_FILENAME,
   MAX_KEYWORDS,
+  MAX_KEYWORDS_ADOBE,
   MAX_TITLE_CSV,
   MIN_DESCRIPTION_WORDS,
   MIN_KEYWORDS_ADOBE,
@@ -34,12 +35,12 @@ describe('validateMetadata — Adobe', () => {
     expect(notes[1].message).toBe('Pilih satu kategori.');
   });
 
-  it('judul > 70 (batas CSV) disebut; koma di judul disebut', () => {
+  it('judul > 200 (batas CSV resmi) disebut; koma di judul TIDAK disarankan (M24)', () => {
     const over = validateMetadata('adobe', adobe({ title: 'x'.repeat(MAX_TITLE_CSV + 1), keywords: kws(5), category: 'Kopi' }));
     expect(over).toEqual([{ field: 'title', message: `Judul ${MAX_TITLE_CSV + 1} karakter — melebihi batas CSV ${MAX_TITLE_CSV} karakter.` }]);
 
     const comma = validateMetadata('adobe', adobe({ title: 'Kopi, teh', keywords: kws(5), category: 'Kopi' }));
-    expect(comma).toEqual([{ field: 'title', message: 'Judul mengandung koma — CSV Adobe tanpa koma, ganti dengan spasi.' }]);
+    expect(comma).toEqual([]);
   });
 
   it('nama file > 30 karakter disebut untuk Adobe saja', () => {
@@ -60,10 +61,10 @@ describe('validateMetadata — Adobe', () => {
     expect(shutterNotes).toEqual([]);
   });
 
-  it('judul tepat 70 tidak disebut; kata kunci > 50 disebut', () => {
-    const notes = validateMetadata('adobe', adobe({ title: 'x'.repeat(MAX_TITLE_CSV), keywords: kws(MAX_KEYWORDS + 1), category: 'Kopi' }));
+  it('judul tepat 200 tidak disebut; kata kunci Adobe > 49 disebut', () => {
+    const notes = validateMetadata('adobe', adobe({ title: 'x'.repeat(MAX_TITLE_CSV), keywords: kws(MAX_KEYWORDS_ADOBE + 1), category: 'Kopi' }));
     expect(fields(notes)).toEqual(['keywords']);
-    expect(notes[0].message).toBe(`Kata kunci ${MAX_KEYWORDS + 1} — maksimal ${MAX_KEYWORDS}.`);
+    expect(notes[0].message).toBe(`Kata kunci ${MAX_KEYWORDS_ADOBE + 1} — maksimal ${MAX_KEYWORDS_ADOBE}.`);
   });
 
   it('lengkap dan ideal → []', () => {

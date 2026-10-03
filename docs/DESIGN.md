@@ -198,8 +198,10 @@ Dua keluarga badge, dibedakan peran — bukan per selera:
 
 - **Satu dokumen, satu scroll** (M12): tidak ada tinggi dikunci ke viewport — semua elemen
   tingginya = isi.
-- **≥1024px**: `main` = dua kolom `3fr / 2fr` dengan `items-stretch` → Worksheet & CaptionSheet
-  sama tinggi.
+- **≥1120px**: `main` = dua kolom `minmax(0,1.4fr) / minmax(24rem,1fr)` (M19: ambang naik
+  dari `lg`/1024 ke 1120 agar satu sistem dengan grid thumbnail & header lengket);
+  kolom caption `sticky top-28`, `items-start` (tinggi kartu = isi). Di bawah 1120px
+  panel menumpuk satu kolom.
 - **Grid thumbnail**: `auto-fill minmax(9.375rem,1fr)` sebagai dasar, dikunci **`min-[1120px]:grid-cols-5`**
   (bukan `lg`) — 20 frame pas menjadi 4 baris × 5 kolom penuh. Ambang 1120px dihitung dari
   geometri tile; setelah M16 gap grid memakai skala spasi (8px), lebar tile = `0,12V − 18,96px`.
@@ -230,6 +232,32 @@ Dua keluarga badge, dibedakan peran — bukan per selera:
 - Kontras diukur terhadap permukaan TINT yang sudah di-composite (bukan hanya latar polos):
   sub-line dropzone memakai `--text-secondary` supaya tetap ≥4,5:1 saat drag-over mengubah
   latarnya ke `--accent-tint` (lihat catatan di bagian Token warna).
+
+## Breakpoint & audit responsif (acuan resmi, M27)
+
+Tabel ambang yang mengikat (semua terverifikasi nol-overflow di 360–1920px × 2 mode):
+
+| Rentang | Kolom `main` | Provider | Grid thumbnail | Header |
+| --- | --- | --- | --- | --- |
+| <640px (mobile) | 1 kolom, rapat (`gap-3`, `py-3`) | `<select>` (`lg:hidden`) | `auto-fill minmax(7.5rem,1fr)` | tidak lengket, toggle `grid-cols-2` |
+| 640–1023px (tablet) | 1 kolom | `<select>` | auto-fill | tidak lengket |
+| 1024–1119px | 1 kolom | grid 2×2 | auto-fill | tidak lengket |
+| ≥1120px (desktop) | 2 kolom `minmax(0,1.4fr)/minmax(24rem,1fr)`, caption `sticky` | `inline-flex` 1 baris | **kunci 5 kolom** (`min-[1120px]:grid-cols-5`, clearance M15b) | `sticky top-0` |
+
+Aturan audit (cara M25/M27 memverifikasi, wajib diulang tiap mengubah responsif):
+
+1. `scrollWidth === innerWidth` di tiap lebar × mode (desktop boleh `−10px` =
+   scrollbar vertikal); nol elemen `right > viewport` di luar scroll-container sengaja.
+2. Target sentuh ≥40px di <640px: tombol/isian via blok `min-height` CSS; elemen
+   ringkas (`.btn-compact`, checkbox) via area pseudo/padding tak terlihat yang
+   dikompensasi margin — tidak boleh menggeser layout; pengecualian input
+   `min-height` global hanya via `min-h-4!` bila hit area sudah dijamin pembungkus.
+3. Font teks bermakna ≥12px (`text-meta` clamp), isian/select/textarea 16px
+   (anti auto-zoom iOS — blok CSS, jangan di-override Tailwind).
+4. `flex` arah-baris tanpa `wrap` yang berisi >2 item = kandidat overflow; arah-kolom
+   tidak dihitung. `truncate` aman (overflow hidden → minimum flex 0).
+5. Scorecard desktop 1440px (header 1440×65, worksheet 797×437, kolom caption
+  569×579, h1 20px, dropzone 176px, generate 44px) harus identik sebelum/sesudah.
 
 ## Keputusan sadar M15
 

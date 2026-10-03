@@ -9,13 +9,15 @@ export function ThemeToggle() {
   const label = theme === 'dark' ? 'Aktifkan mode siang' : 'Aktifkan mode malam';
 
   return (
+    // M27: 40px di <640px (sm: kembali 36px desktop); tinggi ≥44px di layar
+    // kecil sudah dijamin blok min-height CSS di globals.
     <button
       type="button"
       onClick={toggle}
       aria-label={label}
       title={label}
       suppressHydrationWarning
-      className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border-control bg-surface text-text-secondary transition-colors duration-150 hover:border-accent/70 hover:bg-accent-tint hover:text-text active:bg-accent-tint"
+      className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border-control bg-surface text-text-secondary transition-colors duration-150 hover:border-accent/70 hover:bg-accent-tint hover:text-text active:bg-accent-tint sm:h-9 sm:w-9"
     >
       <span className="theme-icon-moon inline-flex" aria-hidden="true">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">

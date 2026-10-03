@@ -2,13 +2,13 @@
 // parseJsonLoose + normalisasi di providers-gemini.js/app.js (tanpa panggilan jaringan).
 import { getCategories, normCat } from './categories';
 import { cleanAdobeTitle } from './metadata';
-import { MAX_DESCRIPTION, MAX_TITLE_CSV } from './limits';
+import { MAX_DESCRIPTION, MAX_KEYWORDS, MAX_KEYWORDS_ADOBE, MAX_TITLE_CSV } from './limits';
 import type { Platform } from './types';
 
 export function buildMetadataPrompt({ platform, theme }: { platform: Platform; theme?: string }): string {
   const cats = getCategories(platform);
   const jsonFormat = platform === 'adobe'
-    ? `{"title": string maks ${MAX_TITLE_CSV} karakter dan TANPA koma (ganti koma dengan kata sambung atau spasi), "keywords": array 15-35 kata, "category": string — salah satu persis dari daftar kategori di atas}`
+    ? `{"title": string maks ${MAX_TITLE_CSV} karakter, "keywords": array 15-35 kata (maksimal ${MAX_KEYWORDS_ADOBE} kata, yang paling penting dulu), "category": string — salah satu persis dari daftar kategori di atas}`
     : `{"description": string kalimat deskriptif lengkap minimal 5 kata dan maksimal sekitar ${MAX_DESCRIPTION} karakter (BUKAN daftar kata), "keywords": array 15-40 kata, "category": array 1-2 string persis dari daftar kategori di atas}`;
 
   const lines = [
@@ -92,7 +92,8 @@ export function parseMetadataResponse(raw: string, platform: Platform): ParsedMe
 
   const kwRaw = pick(obj, 'keywords');
   const kw = typeof kwRaw === 'string' ? kwRaw.split(/[,;]+/) : kwRaw;
-  if (Array.isArray(kw)) out.keywords = cleanKeywords(kw, 50);
+  // M24: batas keyword per platform — Adobe 49 (contoh resmi), Shutterstock 50 (tetap)
+  if (Array.isArray(kw)) out.keywords = cleanKeywords(kw, platform === 'adobe' ? MAX_KEYWORDS_ADOBE : MAX_KEYWORDS);
 
   // M11: model kadang memakai key `categories` (Shutterstock) — terima `category` dulu, lalu aliasnya.
   const catRaw = pick(obj, 'category') ?? pick(obj, 'categories');
@@ -112,7 +113,7 @@ export function parseMetadataResponse(raw: string, platform: Platform): ParsedMe
 
   const t = pick(obj, 'title');
   if (typeof t === 'string' && t.trim()) {
-    // Adobe: spesifikasi CSV — tanpa koma, maks 70 karakter (M9a)
+    // Adobe: contoh CSV resmi — maks 200 karakter, koma dibiarkan (M24)
     out.title = platform === 'adobe' ? cleanAdobeTitle(t).slice(0, MAX_TITLE_CSV) : t.trim().slice(0, 200);
   }
   const d = pick(obj, 'description');

@@ -93,12 +93,12 @@ Ekspor mengikuti template resmi masing-masing portal (lihat `src/lib/csv.ts` dan
 | Aturan | **Adobe Stock** | **Shutterstock** |
 | --- | --- | --- |
 | Kolom | `Filename, Title, Keywords, Category, Releases` | `Filename, Description, Keywords, Categories` |
-| Judul / deskripsi | Judul maks 70 karakter dan **tanpa koma**. Koma otomatis diganti spasi saat ekspor | Deskripsi berupa kalimat utuh, bukan daftar kata |
+| Judul / deskripsi | Judul maks 200 karakter (koma aman, sel CSV di-quote) | Deskripsi berupa kalimat utuh, bukan daftar kata |
 | Kategori | Berupa **nomor** (1-21) sesuai daftar resmi Adobe; kolom `Releases` dikosongkan | **1-2 nama** resmi dalam satu sel, dipisah koma |
-| Kata kunci | Satu sel dipisah koma, maksimal 50 | Satu sel dipisah koma, maksimal 50 |
+| Kata kunci | Satu sel dipisah koma, maksimal 49 (yang paling penting dulu) | Satu sel dipisah koma, maksimal 50 |
 | Nama file | Saran bila melebihi 30 karakter (termasuk ekstensi) | Tidak ada batas khusus di aplikasi |
 
-- Judul yang dihasilkan AI dibatasi 70 karakter saat parsing. Edit manual yang melebihi batas tidak dipotong diam-diam saat ekspor, melainkan memunculkan saran validasi.
+- Judul Adobe yang dihasilkan AI dibatasi 200 karakter saat parsing. Edit manual yang melebihi batas tidak dipotong diam-diam saat ekspor, melainkan memunculkan saran validasi.
 - Hanya baris yang sudah punya isi untuk platform tersebut yang diekspor. File dikirim sebagai UTF-8 dengan BOM dan baris CRLF, plus proteksi injeksi formula untuk sel berawalan `=`, `+`, `-`, atau `@`.
 - Saran validasi lain (kata kunci minimal 5 untuk Adobe dan 7 untuk Shutterstock, deskripsi minimal 5 kata, kategori wajib diisi) bersifat non-pemblokir.
 
@@ -179,7 +179,7 @@ Atau hubungkan repo ini ke Vercel Dashboard. Build default: `npm run build`.
 src/
   app/            layout.tsx, page.tsx, globals.css (token warna), icon.svg
   components/     Header, ProviderPanel, Worksheet, CaptionSheet, KeywordEditor,
-                  Panel, CopyButton, ThemeToggle, LabelRow, Footer, InlineScript
+                  Panel, CopyButton, ThemeToggle, Footer, InlineScript
   hooks/          useSession, useProvider, useBatch, useTheme
   lib/            batch, csv, prompt, validate, storage, limits, categories,
                   metadata, keywords, frames, image, fileStore, types
@@ -194,7 +194,7 @@ docs/             DESIGN.md, MIGRATION.md, banner dan tangkapan layar README
 
 - **Maksimal 20 frame per batch.**
 - **File asli tidak disimpan setelah refresh.** Sesi menyimpan thumbnail dan metadata saja. Untuk generate ulang, upload ulang gambar dengan nama yang sama.
-- **Hasil AI tetap perlu ditinjau manual.** Subjek bisa salah baca dan kata kunci perlu dikurasi. Batas portal (misalnya judul Adobe 70 karakter) hanya berupa saran, kecuali pemotongan 70 karakter pada output mentah model.
+- **Hasil AI tetap perlu ditinjau manual.** Subjek bisa salah baca dan kata kunci perlu dikurasi. Batas portal (misalnya judul Adobe 200 karakter) hanya berupa saran, kecuali pemotongan 200 karakter pada output mentah model.
 - **Kategori bisa terisi otomatis oleh sistem** bila nama dari model tidak cocok dengan daftar resmi. Hasil seperti ini ditandai dengan saran *"Kategori dipilih otomatis oleh sistem, periksa kembali."*
 
 ## Kontribusi

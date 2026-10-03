@@ -40,10 +40,11 @@ export function Panel({
           Di HP / layar sentuh semua tombol dinaikkan ke target 44px (globals.css) →
           tinggi minimum ikut naik ke 69px (24 + 1 + 44) supaya tetap sejajar. Dua varian
           di bawah memakai media YANG SAMA dengan aturan tombol 44px ((max-width:1119px)
-          ATAU (pointer:coarse)) supaya tidak ada celah 1px di antaranya. */}
-      <div className="flex min-h-15 flex-wrap items-center gap-3 border-b border-border px-4 py-3 [@media(max-width:1119px)]:min-h-[4.3125rem] pointer-coarse:min-h-[4.3125rem]">
+          ATAU (pointer:coarse)) supaya tidak ada celah 1px di antaranya.
+          M23: padding & judul panel diringkas di <640px (sm: kembali ke desktop). */}
+      <div className="flex min-h-15 flex-wrap items-center gap-2 border-b border-border px-3 py-2 sm:gap-3 sm:px-4 sm:py-3 [@media(max-width:1119px)]:min-h-[4.3125rem] pointer-coarse:min-h-[4.3125rem]">
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1.5">
-          <h2 className="truncate text-title font-bold tracking-[-0.015em] text-text">
+          <h2 className="truncate text-body font-bold tracking-[-0.015em] text-text sm:text-title">
             {title}
           </h2>
           {/* meta = readout berbentuk pil (bukan teks telanjang) — angka tabular */}
@@ -53,8 +54,8 @@ export function Panel({
         </div>
         {actions && <div className="ml-auto shrink-0">{actions}</div>}
       </div>
-      <div className="grow p-4">{children}</div>
-      {footer && <div className="border-t border-border px-4 py-3">{footer}</div>}
+      <div className="grow p-3 sm:p-4">{children}</div>
+      {footer && <div className="border-t border-border px-3 py-2 sm:px-4 sm:py-3">{footer}</div>}
     </section>
   );
 }

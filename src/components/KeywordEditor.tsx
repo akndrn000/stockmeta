@@ -16,9 +16,11 @@ function skipMessage(dup: number, over: number): string {
   return parts.length ? `${parts.join(' dan ')} dilewati.` : '';
 }
 
-export function KeywordEditor({ keywords, min, onChange, disabled }: {
+export function KeywordEditor({ keywords, min, max = MAX_KEYWORDS, onChange, disabled }: {
   keywords: string[];
   min: number;
+  /** M24: batas atas per platform — Adobe 49 (contoh resmi), Shutterstock 50 */
+  max?: number;
   onChange: (list: string[]) => void;
   /** M14: nonaktifkan salin + input saat belum ada frame terpilih (CaptionSheet) */
   disabled?: boolean;
@@ -27,11 +29,11 @@ export function KeywordEditor({ keywords, min, onChange, disabled }: {
   const [skip, setSkip] = useState('');
   const plain = keywordsToPlain(keywords);
   const n = keywords.length;
-  const full = n >= MAX_KEYWORDS;
+  const full = n >= max;
 
   function commit(text: string) {
     const incoming = parseKeywordInput(text);
-    const r = incoming.length ? addKeywords(keywords, incoming) : null;
+    const r = incoming.length ? addKeywords(keywords, incoming, max) : null;
     if (r && r.addedCount) onChange(r.list);
     setSkip(r ? skipMessage(r.skippedDuplicate, r.skippedOverLimit) : '');
     setDraft('');
@@ -50,7 +52,7 @@ export function KeywordEditor({ keywords, min, onChange, disabled }: {
             {/* M16: badge meta kecil (penghitung, min, penuh) = teks polos tanpa kotak —
                 hanya badge STATUS (berwarna aktif) yang memakai garis 2px. */}
             <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-text-muted tabular-nums">
-              {n}/{MAX_KEYWORDS}
+              {n}/{max}
             </span>
             {n < min && (
               <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-warning tabular-nums">

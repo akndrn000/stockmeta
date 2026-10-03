@@ -2,36 +2,30 @@
 import { useEffect, useState } from 'react';
 import { PROVIDER_LABELS, PROVIDER_ORDER, STATUS_LABELS } from '../hooks/useProvider';
 import type { useProvider } from '../hooks/useProvider';
-import { PROVIDER_MODELS } from '../lib/providers/models';
 import { readFallback, writeFallback } from '../lib/storage';
+import type { ProviderId } from '../lib/types';
 
 type ProviderApi = ReturnType<typeof useProvider>;
 
-const GROQ_NOTE =
-  'Limit gratis Groq ketat (8.000 token/menit); batch besar bisa lebih lambat karena menunggu limit reset.';
-const GEMINI_NOTE =
-  'Pakai Flash-Lite — model Gemini dengan kuota gratis paling longgar (jauh lebih longgar daripada flash biasa). Kalau tetap kena 429 harian, lanjutkan besok atau biarkan frame dialihkan ke Groq lewat fallback.';
-const OPENROUTER_NOTE =
-  'Free tier OpenRouter sangat terbatas (sekitar 20 request/hari tanpa isi saldo) — cocok sebagai cadangan, bukan andalan utama. Modelnya satu alias tetap (openrouter/free).';
+// M26: versi SANGAT ringkas dari catatan limit per provider — bukan paragraf, hanya
+// tooltip pada checkbox fallback (info kritis tetap ada jejaknya setelah kotak
+// keterangan dihapus).
+const LIMIT_TIP: Record<ProviderId, string> = {
+  groq: 'Limit gratis Groq ketat (8.000 token/menit).',
+  gemini: 'Kuota gratis Gemini longgar (Flash-Lite); 429 harian → lanjutkan besok.',
+  openrouter: 'Free tier OpenRouter ±20 request/hari — cadangan, bukan andalan.',
+  'coming-soon': 'Provider tambahan akan segera hadir.'
+};
 
 // Label field: kecil, tegas, uppercase — dipakai identik di seluruh halaman.
 const LABEL =
   'text-meta font-semibold uppercase tracking-[0.06em] text-text-muted';
-
-// Teks hasil tes diberi nada sesuai kondisi (netral / sukses / gagal / menguji).
-const NOTE_TONE: Record<string, string> = {
-  ok: 'text-success',
-  fail: 'text-error',
-  testing: 'text-accent-text',
-  idle: 'text-text-secondary'
-};
 
 export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean }) {
   const [showKey, setShowKey] = useState(false);
   // toggle fallback antar provider (default aktif); direstore setelah mount hindari mismatch SSR
   const [fallback, setFallback] = useState(true);
   const testing = api.status === 'testing';
-  const model = PROVIDER_MODELS[api.provider];
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- restore sekali dari localStorage
@@ -48,27 +42,90 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
       aria-label="Koneksi provider"
       className="border-b border-border bg-bg-secondary"
     >
-      <div className="shell flex flex-col gap-3 py-3">
+      <div className="shell flex flex-col gap-2 py-2 sm:gap-3 sm:py-3">
         {/* M19: mobile disusun vertikal selebar penuh (provider → input → tombol → status);
             satu baris flex dengan input mengisi sisa ruang mulai 1120px (sama dengan
             ambang dua kolom di bawahnya). */}
-        <div className="flex flex-col gap-3 min-[1120px]:flex-row min-[1120px]:items-end min-[1120px]:gap-4">
-          {/* Provider — segmented control (bukan dropdown): pelat aktif isian aksen,
-              opsi "Coming Soon" tampil redup + badge kecil + cursor not-allowed. */}
+        <div className="flex flex-col gap-2 min-[1120px]:flex-row min-[1120px]:items-end min-[1120px]:gap-4 sm:gap-3">
+          {/* M23: di bawah lg provider berupa <select> native tunggal (pola yang sama
+              seperti slot/kategori di Worksheet/CaptionSheet) — jauh lebih ringkas
+              vertikal daripada grid 2×2. ≥1024px (lg:) grid segmented seperti semula;
+              ambang lg dipilih supaya rentang desktop 1024–1119px tidak berubah sama
+              sekali. Satu DOM dipilih per breakpoint (hidden), perilaku & teks sama.
+              M26: satu baris label dipakai bersama select & grid — "PROVIDER" +
+              checkbox fallback tanpa teks di sampingnya. */}
           <div
-            className="flex flex-col gap-1.5 min-w-0"
+            className="flex min-w-0 flex-col gap-1.5"
             title={busy ? 'Batch berjalan — ganti provider setelah selesai' : undefined}
           >
-            <span id="provider-label" className={LABEL}>
-              Provider
+            <span className="flex items-center gap-2">
+              <span id="provider-label" className={LABEL}>
+                Provider
+              </span>
+              {/* Checkbox fallback TANPA teks (M26) — nama aksesibel via aria-label,
+                  fungsi + limit ringkas via title. M27: area sentuh 40×40 tanpa
+                  menggeser layout (padding 12px dikompensasi margin negatif —
+                  glyph & teks tetangga tetap di tempat). */}
+              <label
+                className="inline-flex cursor-pointer items-center p-3 -m-3"
+                title={busy ? 'Batch berjalan — ubah pengaturan setelah selesai' : `Fallback antar provider saat kuota habis — bila kuota habis/error 503, frame diproses provider lain yang key-nya tersimpan. ${LIMIT_TIP[api.provider]}`}
+              >
+                {/* M27: `min-h-4!` mengalahkan min-height 44px global khusus untuk
+                    checkbox ini — area sentuh 40×40 sudah dijamin label
+                    pembungkusnya, jadi glyph boleh tetap 16px dan baris label
+                    tidak ikut membengkak. */}
+                <input
+                  type="checkbox"
+                  checked={fallback}
+                  disabled={busy}
+                  onChange={(e) => setFallbackEnabled(e.target.checked)}
+                  aria-label="Fallback antar provider saat kuota habis"
+                  className="h-4 min-h-4! w-4 shrink-0 cursor-pointer accent-accent disabled:cursor-not-allowed disabled:opacity-50"
+                />
+              </label>
             </span>
-            {/* M19: 4 segmen (Groq, Gemini, OpenRouter, Coming Soon) — 2 kolom × 2 baris
-                di bawah 1120px supaya teks "OpenRouter" muat tanpa meluber di layar 360px
-                (4 kolom selebar layar hanya ±88px per segmen); ≥1120px jadi inline-flex. */}
+            <div className="relative lg:hidden">
+              <select
+                id="provider-select"
+                value={api.provider}
+                disabled={testing || busy}
+                aria-labelledby="provider-label"
+                onChange={(e) => api.setProvider(e.target.value as ProviderId)}
+                className="h-10 w-full appearance-none rounded border border-border-control bg-surface-elevated px-3 py-2 pr-8 text-body font-semibold text-text transition-colors duration-150 hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {PROVIDER_ORDER.map((p) => (
+                  <option key={p} value={p} disabled={p === 'coming-soon'}>
+                    {PROVIDER_LABELS[p]}
+                  </option>
+                ))}
+              </select>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                aria-hidden="true"
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
+              >
+                <path
+                  d="M4 6l4 4 4-4"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+            {/* Provider — segmented control (bukan dropdown): pelat aktif isian aksen,
+                opsi "Coming Soon" tampil redup + badge kecil + cursor not-allowed.
+                M19: 4 segmen — 2 kolom × 2 baris di 1024–1119px (teks "OpenRouter" muat
+                tanpa meluber); ≥1120px jadi inline-flex. M23: `max-lg:hidden` (bukan
+                `hidden lg:grid`) agar cascade ≥1024px persis seperti semula.
+                M26: label dipakai bersama dengan select di atas (satu #provider-label). */}
             <div
               role="group"
               aria-labelledby="provider-label"
-              className="grid w-full grid-cols-2 gap-1 rounded-lg border border-border bg-surface-elevated p-1 min-[1120px]:inline-flex min-[1120px]:w-fit"
+              className="grid w-full grid-cols-2 gap-1 rounded-lg border border-border bg-surface-elevated p-1 max-lg:hidden min-[1120px]:inline-flex min-[1120px]:w-fit"
             >
               {PROVIDER_ORDER.map((p) => (
                 <button
@@ -172,17 +229,19 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
               onClick={api.test}
               disabled={api.isSoon || testing || busy}
               aria-busy={testing}
-              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-border-control bg-surface px-4 text-body font-semibold text-text transition-colors duration-150 hover:border-accent/70 hover:bg-accent-tint hover:text-text disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-border-control disabled:hover:bg-surface disabled:hover:text-text min-[1120px]:w-auto"
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-border-control bg-surface px-3 text-small font-semibold text-text transition-colors duration-150 hover:border-accent/70 hover:bg-accent-tint hover:text-text disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-border-control disabled:hover:bg-surface disabled:hover:text-text sm:px-4 sm:text-body min-[1120px]:w-auto"
             >
               {testing && <span className="spinner" aria-hidden="true" />}
               {testing ? 'Menguji…' : 'Tes koneksi'}
             </button>
             {/* Chip status "Belum dites" — M19 (G.1): gayanya DISERAGAMKAN dengan chip
                 status di header (pil + dot), bukan bracket putus-putus. Teks asli tetap
-                dibaca pembaca layar lewat role="status". */}
+                dibaca pembaca layar lewat role="status". M26: pesan hasil tes terakhir
+                (sukses/gagal) tetap bisa dibaca lewat tooltip badge ini. */}
             <span
               role="status"
               aria-live="polite"
+              title={api.note}
               className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-meta font-medium uppercase tracking-[0.06em] transition-colors duration-150 ${
                 api.status === 'ok'
                   ? 'border-success/40 bg-success-tint text-success'
@@ -207,62 +266,6 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
               />
               {STATUS_LABELS[api.status]}
             </span>
-          </div>
-        </div>
-
-        {/* Catatan (key tersimpan di browser + limit provider) dalam callout lembut
-            berikon kecil; baris pertama = pesan hasil tes, diwarnai sesuai kondisi. */}
-        <div className="flex items-start gap-2 rounded-lg border border-border bg-surface px-3 py-2.5">
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 14 14"
-            fill="none"
-            aria-hidden="true"
-            className="mt-0.5 shrink-0 text-text-muted"
-          >
-            <circle cx="7" cy="7" r="5.6" stroke="currentColor" strokeWidth="1.2" />
-            <path d="M7 6.2v3.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-            <circle cx="7" cy="4.2" r="0.8" fill="currentColor" />
-          </svg>
-          <div className="flex min-w-0 flex-col gap-1">
-            {/* pesan hasil tes (sukses/gagal) diumumkan pembaca layar saat berubah */}
-            <p
-              aria-live="polite"
-              className={`text-small leading-relaxed ${NOTE_TONE[api.status] ?? 'text-text-secondary'}`}
-            >
-              {api.note}
-            </p>
-            {/* model TETAP per provider — teks statis, tanpa dropdown pemilih model */}
-            {model && (
-              <span className="font-mono text-meta text-text-muted tabular-nums">
-                Model: <span className="font-bold text-text">{model}</span>
-              </span>
-            )}
-            {api.provider === 'groq' && (
-              <p className="font-mono text-small leading-relaxed text-text-muted">{GROQ_NOTE}</p>
-            )}
-            {api.provider === 'gemini' && (
-              <p className="font-mono text-small leading-relaxed text-text-muted">{GEMINI_NOTE}</p>
-            )}
-            {api.provider === 'openrouter' && (
-              <p className="font-mono text-small leading-relaxed text-text-muted">{OPENROUTER_NOTE}</p>
-            )}
-            {/* Toggle fallback antar provider: aktif (default) = kuota harian/503 habis →
-                frame diproses provider lain yang key-nya tersimpan. */}
-            <label
-              className="mt-0.5 flex w-fit cursor-pointer items-center gap-2 text-small text-text-secondary"
-              title={busy ? 'Batch berjalan — ubah pengaturan setelah selesai' : undefined}
-            >
-              <input
-                type="checkbox"
-                checked={fallback}
-                disabled={busy}
-                onChange={(e) => setFallbackEnabled(e.target.checked)}
-                className="h-4 w-4 shrink-0 cursor-pointer accent-accent disabled:cursor-not-allowed disabled:opacity-50"
-              />
-              <span>Fallback antar provider saat kuota habis</span>
-            </label>
           </div>
         </div>
       </div>

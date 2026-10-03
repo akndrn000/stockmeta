@@ -17,7 +17,7 @@ import type { ReactNode } from 'react';
 import type { useSession } from '../hooks/useSession';
 import { ADOBE_CATEGORIES, SHUTTERSTOCK_CATEGORIES } from '../lib/categories';
 import { downloadCsv } from '../lib/csv';
-import { MAX_DESCRIPTION, MAX_TITLE_CSV, MIN_KEYWORDS_ADOBE, MIN_KEYWORDS_SHUTTER } from '../lib/limits';
+import { MAX_DESCRIPTION, MAX_KEYWORDS, MAX_KEYWORDS_ADOBE, MAX_TITLE_CSV, MIN_KEYWORDS_ADOBE, MIN_KEYWORDS_SHUTTER } from '../lib/limits';
 import { hasContent } from '../lib/metadata';
 import type { AdobeMetadata, Frame, FrameStatus, ShutterstockMetadata } from '../lib/types';
 import { validateMetadata } from '../lib/validate';
@@ -151,7 +151,7 @@ export function CaptionSheet({ session }: {
   // kartu cukup lebar (@container → @md), satu kolom bila sempit. JSX dipakai ulang oleh
   // kedua cabang platform supaya urutan & jumlah field tetap sama.
   const temaField = (
-    <Field id="caption-tema" label="Tema untuk frame ini (opsional)" disabled={!frame}>
+    <Field id="caption-tema" label="Tema untuk frame ini" disabled={!frame}>
       <input
         id="caption-tema"
         type="text"
@@ -181,7 +181,8 @@ export function CaptionSheet({ session }: {
       }
       footer={
         // M12: flex-wrap — di layar sempit / zoom tinggi baris footer turun, tidak meluber
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        // M23: mobile lebih rapat (sm: kembali ke desktop)
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
           {/* M14: aria-disabled + title (pola M13) — alasan "kenapa mati" tetap muncul sebagai
               tooltip di semua peramban dan tetap bisa dibaca pembaca layar, walau tombol
               tidak bisa diklik. onClick tetap di-guard. */}
@@ -198,7 +199,7 @@ export function CaptionSheet({ session }: {
                   ? 'Belum ada frame — upload gambar dulu di lembar kerja.'
                   : 'Belum ada metadata — jalankan Buat metadata dulu.'
             }
-            className={`inline-flex items-center gap-2 rounded-md border border-accent/40 bg-accent-tint/60 px-3.5 py-1.5 text-body font-semibold text-accent-text transition-colors duration-150 hover:border-accent hover:bg-accent-tint ${
+            className={`inline-flex items-center gap-2 rounded-md border border-accent/40 bg-accent-tint/60 px-3 py-1 text-small font-semibold text-accent-text transition-colors duration-150 hover:border-accent hover:bg-accent-tint sm:px-3.5 sm:py-1.5 sm:text-body ${
               canExport ? '' : 'cursor-not-allowed opacity-45 hover:border-accent/40 hover:bg-accent-tint/60'
             }`}
           >
@@ -238,7 +239,7 @@ export function CaptionSheet({ session }: {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-controls="caption-body"
-        className="mb-3 flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-md border border-border bg-transparent px-3 py-2 text-body font-semibold text-text-secondary transition-colors duration-150 hover:border-border-control hover:bg-accent-tint hover:text-text lg:hidden"
+        className="mb-3 flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-md border border-border bg-transparent px-2 py-1.5 text-small font-semibold text-text-secondary transition-colors duration-150 hover:border-border-control hover:bg-accent-tint hover:text-text sm:px-3 sm:py-2 sm:text-body lg:hidden"
       >
         <span className="inline-flex shrink-0 items-center gap-2">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" className={`transition-transform duration-150 ${open ? '' : '-rotate-90'}`}>
@@ -254,13 +255,15 @@ export function CaptionSheet({ session }: {
         </span>
       </button>
 
-      <div id="caption-body" className={`flex flex-col gap-4 @container ${open ? '' : 'max-lg:hidden'}`}>
+      <div id="caption-body" className={`flex flex-col gap-3 @container sm:gap-4 ${open ? '' : 'max-lg:hidden'}`}>
         {/* Empty state ramah: ikon + teks yang sudah ada ("belum ada frame") + ruang lega —
-            hanya saat sesi benar-benar kosong; seluruh field tetap dirender di bawahnya. */}
+            hanya saat sesi benar-benar kosong; seluruh field tetap dirender di bawahnya.
+            M23: di <640px jauh lebih ramping (ikon 14, padding 16 vertikal); sm:
+            mengembalikan proporsi desktop. */}
         {frames.length === 0 && (
-          <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border-strong bg-bg-secondary px-4 py-8 text-center">
-            <span aria-hidden="true" className="grid h-10 w-10 place-items-center rounded-md border border-border bg-surface text-text-muted">
-              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+          <div className="flex flex-col items-center gap-1.5 rounded-lg border border-dashed border-border-strong bg-bg-secondary px-3 py-4 text-center sm:gap-2 sm:px-4 sm:py-8">
+            <span aria-hidden="true" className="grid h-8 w-8 place-items-center rounded-md border border-border bg-surface text-text-muted sm:h-10 sm:w-10">
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5 sm:h-[18px] sm:w-[18px]">
                 <rect x="2.5" y="4" width="15" height="12" rx="2" />
                 <path d="M2.5 12.5l3.6-3.2a1.5 1.5 0 0 1 2 0l4.4 3.9" />
                 <path d="M12.2 11.2l1.5-1.3a1.5 1.5 0 0 1 2 0l1.8 1.6" />
@@ -276,7 +279,7 @@ export function CaptionSheet({ session }: {
             ("Belum ada frame dipilih") dihapus; struktur field di bawah yang menandai
             lembar ini masih kosong (semuanya nonaktif sampai ada frame). */}
         {frame && (
-          <div className="-mx-4 -mt-4 flex items-center justify-between gap-3 border-b border-border bg-surface-elevated px-4 py-2">
+          <div className="-mx-3 -mt-3 flex items-center justify-between gap-3 border-b border-border bg-surface-elevated px-3 py-1.5 sm:-mx-4 sm:-mt-4 sm:px-4 sm:py-2">
             <span className="truncate text-small font-medium text-text" title={frame.name}>
               {frame.name}
             </span>
@@ -300,8 +303,8 @@ export function CaptionSheet({ session }: {
         {/* M13: hanya pesan error — tombol & konfirmasi "Timpa hasil yang ada?" pindah
             ke ikon buat ulang di tile Worksheet (showError = ada frame + status gagal) */}
         {showError && (
-          <div role="alert" className="rounded-lg border-2 border-error bg-error-tint p-3">
-            <p className="text-body font-semibold leading-snug text-error">{err}</p>
+          <div role="alert" className="rounded-lg border-2 border-error bg-error-tint p-2 sm:p-3">
+            <p className="text-small font-semibold leading-snug text-error sm:text-body">{err}</p>
           </div>
         )}
 
@@ -317,7 +320,7 @@ export function CaptionSheet({ session }: {
               note={
                 <FieldNote
                   id="caption-title-note"
-                  text={`${title.length}/${MAX_TITLE_CSV} · tanpa koma`}
+                  text={`${title.length}/${MAX_TITLE_CSV}`}
                   tone={toneFor(title.length, MAX_TITLE_CSV)}
                 />
               }
@@ -339,12 +342,13 @@ export function CaptionSheet({ session }: {
             <KeywordEditor
               keywords={adobe?.keywords ?? []}
               min={MIN_KEYWORDS_ADOBE}
+              max={MAX_KEYWORDS_ADOBE}
               onChange={(list) => patchAdobe({ keywords: list })}
               disabled={!frame}
             />
 
             {/* M19 (E.4): Kategori + Tema berdampingan bila kartu cukup lebar */}
-            <div className="grid gap-4 @md:grid-cols-2">
+            <div className="grid gap-3 @md:grid-cols-2 @md:gap-4">
               <Field id="caption-category" label="Kategori" copyText={adobe?.category ?? ''} disabled={!frame}>
                 <div className="relative">
                   <select
@@ -398,12 +402,13 @@ export function CaptionSheet({ session }: {
             <KeywordEditor
               keywords={shutter?.keywords ?? []}
               min={MIN_KEYWORDS_SHUTTER}
+              max={MAX_KEYWORDS}
               onChange={(list) => patchShutter({ keywords: list })}
               disabled={!frame}
             />
 
             {/* M19 (E.4): dua select kategori berdampingan bila kartu cukup lebar */}
-            <div className="grid gap-4 @md:grid-cols-2">
+            <div className="grid gap-3 @md:grid-cols-2 @md:gap-4">
               <Field id="caption-cat1" label="Kategori utama" copyText={cats[0] ?? ''} disabled={!frame}>
                 <div className="relative">
                   <select
@@ -457,7 +462,7 @@ export function CaptionSheet({ session }: {
             Kotak AMBER lembut (non-pemblokir): judul & ikon warning, isi tetap teks sekunder
             supaya kontras AA di kedua mode. */}
         {notes.length > 0 && (
-          <div className="rounded-lg border border-warning/45 bg-warning-tint p-3">
+          <div className="rounded-lg border border-warning/45 bg-warning-tint p-2 sm:p-3">
             <p className="mb-1.5 flex items-center gap-1.5 font-mono text-meta font-bold uppercase tracking-[0.08em] text-warning">
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                 <path d="M6 1.6l4.6 8H1.4l4.6-8z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />

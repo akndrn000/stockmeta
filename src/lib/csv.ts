@@ -1,8 +1,10 @@
-// CSV sesuai template resmi (M9a — spesifikasi & sumber di docs/MIGRATION.md):
-// Adobe  = Filename, Title (tanpa koma), Keywords, Category (NOMOR), Releases (kosong);
-// Shutterstock = Filename, Description, Keywords, Categories (1-2 nama, satu sel).
-// Hanya baris yang slot platform aktif berisi; judul dirapikan tapi TIDAK dipotong diam-diam
-// (kelebihan 70 karakter jadi saran validasi). BOM UTF-8 + CRLF ada di downloadCsv.
+// CSV sesuai template resmi (M9a, dikoreksi M24 — sumber di docs/MIGRATION.md):
+// Adobe  = Filename, Title, Keywords, Category (NOMOR), Releases (kosong — fitur
+// releases/model release di luar cakupan tools ini); Title maks 200 karakter dan BOLEH
+// berkoma (setiap sel di-quote); Shutterstock = Filename, Description, Keywords,
+// Categories (1-2 nama, satu sel).
+// Hanya baris yang slot platform aktif berisi; judul TIDAK dipotong diam-diam
+// (kelebihan 200 karakter jadi saran validasi). BOM UTF-8 + CRLF ada di downloadCsv.
 import { ADOBE_CATEGORY_IDS } from './categories';
 import { cleanAdobeTitle, hasContent } from './metadata';
 import type { Frame, Platform } from './types';

@@ -59,7 +59,10 @@ function NewSessionButton({ hasFrames, disabled, onConfirm }: {
         setArmed(false);
         onConfirm();
       }}
-      className={`rounded-md border px-3 py-1.5 text-body font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-45 ${
+      // M26: mobile tampil ringkas seperti tombol kecil lain (visual ±29px) tapi area
+      // sentuh tetap ≥40px lewat `btn-compact` (bebas min-height 44px) + pseudo-area
+      // `before:-inset-1.5` (pola yang sama dengan ikon tile); sm: kembali ke desktop.
+      className={`btn-compact relative rounded-md border px-2 py-1 text-small font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-45 before:absolute before:-inset-1.5 before:content-[''] sm:px-3 sm:py-1.5 sm:text-body ${
         armed ? 'border-error bg-error-tint text-error' : 'border-border-control text-text-secondary hover:bg-accent-tint hover:text-text'
       }`}
     >
@@ -96,7 +99,7 @@ function GenerateButton({
           aria-busy={busy}
           // M15: tombol utama = hijau fosfor solid + glow tipis (hanya saat aktif; mode siang
           // glow-nya none, teks memakai --accent-contrast supaya kontras AA di kedua mode)
-          className={`inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border-2 border-accent bg-accent px-4 text-body font-semibold text-accent-contrast transition-colors duration-150 hover:border-accent-hover hover:bg-accent-hover active:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-45 ${
+          className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border-2 border-accent bg-accent px-3 text-small font-semibold text-accent-contrast transition-colors duration-150 hover:border-accent-hover hover:bg-accent-hover active:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-45 sm:h-11 sm:px-4 sm:text-body ${
             disabled || busy ? '' : 'glow'
           }`}
         >
@@ -107,7 +110,7 @@ function GenerateButton({
           <button
             type="button"
             onClick={onCancel}
-            className="shrink-0 rounded-md border border-error px-4 py-2 text-body font-semibold text-error transition-colors duration-150 hover:bg-error-tint"
+            className="shrink-0 rounded-md border border-error px-3 py-1.5 text-small font-semibold text-error transition-colors duration-150 hover:bg-error-tint sm:px-4 sm:py-2 sm:text-body"
           >
             Batalkan
           </button>
@@ -254,7 +257,7 @@ function FrameTile({
             </span>
           )}
         </div>
-        <div className="flex flex-col gap-1 px-3 py-2">
+        <div className="flex flex-col gap-1 px-2 py-1.5 sm:px-3 sm:py-2">
           <span className="truncate text-small font-medium text-text" title={frame.name}>
             {frame.name}
           </span>
@@ -330,21 +333,21 @@ function FrameTile({
           mengikuti ikonnya, jadi tetap nempel di semua ukuran font root/zoom. */}
       {regenConfirm && (
         <div className="absolute left-1.5 right-1.5 top-[2.625rem] z-10 flex flex-wrap items-center gap-2 rounded-lg border border-error bg-surface-elevated p-2">
-          <span className="text-body font-semibold leading-snug text-text">
+          <span className="text-small font-semibold leading-snug text-text sm:text-body">
             Timpa hasil yang ada?
           </span>
           <div className="ml-auto flex items-center gap-1.5">
             <button
               type="button"
               onClick={onRegen}
-              className="rounded-md border border-error px-3 py-1 text-body font-semibold text-error transition-colors duration-150 hover:bg-error hover:text-error-contrast"
+              className="rounded-md border border-error px-3 py-1 text-small font-semibold text-error transition-colors duration-150 hover:bg-error hover:text-error-contrast sm:text-body"
             >
               Ya, timpa
             </button>
             <button
               type="button"
               onClick={onDismissRegen}
-              className="rounded-md border border-border-control px-3 py-1 text-body font-semibold text-text-secondary transition-colors duration-150 hover:bg-accent-tint hover:text-text"
+              className="rounded-md border border-border-control px-3 py-1 text-small font-semibold text-text-secondary transition-colors duration-150 hover:bg-accent-tint hover:text-text sm:text-body"
             >
               Batal
             </button>
@@ -468,7 +471,7 @@ export function Worksheet({ session, provider, batch }: {
       }
     >
       <div
-        className="flex flex-col gap-4"
+        className="flex flex-col gap-3 sm:gap-4"
         onDragOver={(e) => {
           e.preventDefault();
           if (!full && !busy) setDragOver(true);
@@ -503,19 +506,22 @@ export function Worksheet({ session, provider, batch }: {
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              className={`flex min-h-36 flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-5 py-6 text-center transition-colors duration-150 sm:min-h-44 sm:px-6 ${
+              // M23: disiplin mobile — dropzone jauh lebih ramping di <640px (ikon 16,
+              // teks small, padding 16); sm: mengembalikan proporsi desktop.
+              className={`flex min-h-28 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-4 text-center transition-colors duration-150 sm:min-h-44 sm:gap-3 sm:px-6 sm:py-6 ${
                 dragOver ? 'border-accent bg-accent-tint' : 'border-border-control bg-bg-secondary hover:border-accent/70'
               }`}
             >
               <span
                 aria-hidden="true"
-                className="grid h-11 w-11 place-items-center rounded-md border border-border bg-surface text-accent-text"
+                className="grid h-8 w-8 place-items-center rounded-md border border-border bg-surface text-accent-text sm:h-11 sm:w-11"
               >
                 <svg
                   width="22"
                   height="22"
                   viewBox="0 0 24 24"
                   fill="none"
+                  className="h-4 w-4 sm:h-[22px] sm:w-[22px]"
                 >
                   <path
                     d="M12 15.5V4m0 0L7.5 8.5M12 4l4.5 4.5"
@@ -533,7 +539,7 @@ export function Worksheet({ session, provider, batch }: {
                   />
                 </svg>
               </span>
-              <span className="text-body font-semibold text-text">
+              <span className="text-small font-semibold text-text sm:text-body">
                 Letakkan gambar di sini, atau klik untuk memilih
               </span>
               <span className="font-mono text-meta uppercase tracking-[0.06em] text-text-secondary tabular-nums">
@@ -546,7 +552,7 @@ export function Worksheet({ session, provider, batch }: {
               disabled={full || busy}
               title={busy ? 'Tunggu batch selesai' : full ? 'Batch penuh' : undefined}
               onClick={() => inputRef.current?.click()}
-              className={`w-full rounded-md border px-3 py-2 text-body font-semibold transition-colors duration-150 ${
+              className={`w-full rounded-md border px-3 py-1.5 text-small font-semibold transition-colors duration-150 sm:py-2 sm:text-body ${
                 full || busy
                   ? 'cursor-not-allowed border-border-control text-text-muted opacity-60'
                   : dragOver
@@ -609,7 +615,7 @@ export function Worksheet({ session, provider, batch }: {
         )}
 
         {/* Tema batch + jeda sejajar rapi (2 kolom di ≥640px, menumpuk di bawahnya) */}
-        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_11rem] sm:items-end">
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_11rem] sm:items-end sm:gap-4">
           <div className="flex flex-col gap-1.5">
             <label
               htmlFor="tema-batch"
@@ -681,20 +687,20 @@ export function Worksheet({ session, provider, batch }: {
         {frames.some((f) => f.status[platform] === 'siap' || f.status[platform] === 'gagal') && (
           <div className="flex flex-col gap-1.5">
             {batch.regenAllConfirm === platform ? (
-              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-elevated p-3">
-                <span className="text-body font-semibold text-text">Ganti semua hasil yang sudah ada?</span>
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-elevated p-2 sm:p-3">
+                <span className="text-small font-semibold text-text sm:text-body">Ganti semua hasil yang sudah ada?</span>
                 <button
                   type="button"
                   onClick={batch.regenerateAll}
                   disabled={busy}
-                  className="rounded-md border border-error px-3 py-1.5 text-body font-semibold text-error transition-colors duration-150 hover:bg-error hover:text-error-contrast disabled:cursor-not-allowed disabled:opacity-45"
+                  className="rounded-md border border-error px-3 py-1 text-small font-semibold text-error transition-colors duration-150 hover:bg-error hover:text-error-contrast disabled:cursor-not-allowed disabled:opacity-45 sm:py-1.5 sm:text-body"
                 >
                   Ya, ganti semua
                 </button>
                 <button
                   type="button"
                   onClick={batch.dismissRegenAll}
-                  className="rounded-md border border-border-control px-3 py-1.5 text-body font-semibold text-text-secondary transition-colors duration-150 hover:bg-accent-tint hover:text-text"
+                  className="rounded-md border border-border-control px-3 py-1 text-small font-semibold text-text-secondary transition-colors duration-150 hover:bg-accent-tint hover:text-text sm:py-1.5 sm:text-body"
                 >
                   Batal
                 </button>
@@ -711,7 +717,7 @@ export function Worksheet({ session, provider, batch }: {
                       ? generateHint
                       : 'Generate ulang SEMUA frame platform ini, menimpa hasil yang sudah ada'
                 }
-                className="w-full rounded-md border border-border-control px-4 py-2 text-body font-semibold text-text-secondary transition-colors duration-150 hover:bg-accent-tint hover:text-text disabled:cursor-not-allowed disabled:opacity-45"
+                className="w-full rounded-md border border-border-control px-3 py-1.5 text-small font-semibold text-text-secondary transition-colors duration-150 hover:bg-accent-tint hover:text-text disabled:cursor-not-allowed disabled:opacity-45 sm:px-4 sm:py-2 sm:text-body"
               >
                 Buat ulang semua
               </button>
@@ -723,7 +729,7 @@ export function Worksheet({ session, provider, batch }: {
           <button
             type="button"
             onClick={batch.startBatch}
-            className="w-full rounded-md border border-error px-4 py-2 text-body font-semibold text-error transition-colors duration-150 hover:bg-error-tint"
+            className="w-full rounded-md border border-error px-3 py-1.5 text-small font-semibold text-error transition-colors duration-150 hover:bg-error-tint sm:px-4 sm:py-2 sm:text-body"
           >
             Coba lagi frame gagal
           </button>

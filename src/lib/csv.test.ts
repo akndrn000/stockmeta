@@ -13,7 +13,7 @@ const frame = (metadata: Frame['metadata'], name = 'foto.jpg'): Frame => ({
 });
 
 describe('buildCsv — spesifikasi resmi (M9a)', () => {
-  it('adobe: header persis template, kategori jadi NOMOR, judul koma diganti spasi, Releases kosong', () => {
+  it('adobe: header persis template, kategori jadi NOMOR, koma judul dipertahankan (M24), Releases kosong', () => {
     const csv = buildCsv([frame({
       adobe: {
         title: 'Kucing "merah", di meja',
@@ -24,7 +24,7 @@ describe('buildCsv — spesifikasi resmi (M9a)', () => {
 
     expect(csv).toBe(
       '"Filename","Title","Keywords","Category","Releases"\r\n'
-      + '"kucing, ""merah"".jpg","Kucing ""merah"" di meja","kucing, meja, lucu","1",""'
+      + '"kucing, ""merah"".jpg","Kucing ""merah"", di meja","kucing, meja, lucu","1",""'
     );
   });
 
@@ -33,8 +33,8 @@ describe('buildCsv — spesifikasi resmi (M9a)', () => {
     expect(csv).toBe('"Filename","Title","Keywords","Category","Releases"\r\n"foto.jpg","Judul","kata","",""');
   });
 
-  it('adobe: judul panjang TIDAK dipotong diam-diam (kelebihan jadi saran validasi)', () => {
-    const title = 'x'.repeat(100);
+  it('adobe: judul panjang TIDAK dipotong diam-diam (kelebihan 200 jadi saran validasi)', () => {
+    const title = 'x'.repeat(250);
     const csv = buildCsv([frame({ adobe: { title, keywords: ['kata'], category: 'Food' } })], 'adobe');
     expect(csv).toContain(`"${title}"`);
   });

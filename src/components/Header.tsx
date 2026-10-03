@@ -1,6 +1,5 @@
 'use client';
-import type { ConnectionStatus, Platform, ProviderId } from '../lib/types';
-import { PROVIDER_LABELS, STATUS_LABELS } from '../hooks/useProvider';
+import type { Platform } from '../lib/types';
 import type { useSession } from '../hooks/useSession';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -9,42 +8,16 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   shutterstock: 'Shutterstock'
 };
 const PLATFORM_IDS: readonly Platform[] = ['adobe', 'shutterstock'];
-const pad2 = (n: number) => String(n).padStart(2, '0');
-
-// Chip readout: pil netral untuk frame/platform/provider (data & teks sama seperti
-// readout terminal sebelumnya — hanya presentation yang berubah jadi chip terpisah).
-// shrink-0: baris status di bawah 1120px digulir horizontal, chip tidak boleh gepeng.
-const CHIP =
-  'inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-surface px-2.5 py-1 font-mono text-meta font-medium uppercase tracking-[0.06em] text-text-secondary tabular-nums';
-
-// Baris status koneksi: dot indikator warna — abu = belum dites, hijau = terhubung,
-// merah = gagal, aksen = sedang menguji (teks & sumber datanya tidak berubah).
-const STATUS_CHIP: Record<ConnectionStatus, string> = {
-  ok: 'border-success/40 bg-success-tint text-success',
-  fail: 'border-error/40 bg-error-tint text-error',
-  testing: 'border-accent/40 bg-accent-tint text-accent-text',
-  idle: 'border-border bg-surface text-text-secondary'
-};
-const STATUS_DOT: Record<ConnectionStatus, string> = {
-  ok: 'bg-success',
-  fail: 'bg-error',
-  testing: 'bg-accent',
-  idle: 'bg-text-muted'
-};
 
 export function Header({
-  provider,
-  status,
   session,
   disabled
 }: {
-  provider: ProviderId;
-  status: ConnectionStatus;
   session: ReturnType<typeof useSession>;
   /** true saat batch berjalan — platform terkunci */
   disabled?: boolean;
 }) {
-  const { platform, frames, setPlatform } = session;
+  const { platform, setPlatform } = session;
 
   return (
     // M19: lengket HANYA di ≥1120px — di bawah itu header menggulir bersama halaman
@@ -54,14 +27,16 @@ export function Header({
     // selebar penuh, 2 kolom sama lebar, tinggi minimum 44px. Susunan baris diatur lewat
     // `order` + `w-full` responsif — satu DOM, tanpa duplikasi markup.
     <header className="z-40 border-b border-border bg-bg-secondary/85 backdrop-blur-md min-[1120px]:sticky min-[1120px]:top-0">
-      <div className="shell flex flex-wrap items-center gap-x-4 gap-y-2 pt-3">
+      {/* M23: disiplin mobile — baris atas lebih rapat di <640px (sm: mengembalikan
+          nilai desktop); target sentuh tetap ≥44px lewat blok CSS globals. */}
+      <div className="shell flex flex-wrap items-center gap-x-3 gap-y-1.5 pb-2 pt-2 sm:gap-x-4 sm:gap-y-2 sm:pb-3 sm:pt-3">
         {/* Brand: indikator fosfor + wordmark hijau — satu-satunya aksen utama */}
         <div className="order-1 flex items-center gap-2">
           <span
             aria-hidden="true"
-            className="glow h-3.5 w-3.5 rounded-[0.1875rem] bg-accent"
+            className="glow h-3 w-3 rounded-[0.1875rem] bg-accent sm:h-3.5 sm:w-3.5"
           />
-          <h1 className="text-brand font-extrabold tracking-[-0.03em] text-accent-text">
+          <h1 className="text-title font-extrabold tracking-[-0.03em] text-accent-text sm:text-brand">
             StockMeta
           </h1>
         </div>
@@ -71,7 +46,10 @@ export function Header({
         </div>
 
         <div className="order-3 w-full min-[1120px]:order-2 min-[1120px]:ml-auto min-[1120px]:w-auto">
-          {/* Segmented platform: pelat aktif = aksen fosfor (mode siang: solid kontras AA) */}
+          {/* Segmented platform: pelat aktif = aksen fosfor (mode siang: solid kontras AA).
+              M23: di <640px tombol memakai font small + padding rapat (segmented ringkas,
+              bukan pil raksasa); sm: mengembalikan ukuran desktop. Tinggi sentuh ≥40px
+              dijamin blok min-height CSS di globals (44px di <1120px / pointer kasar). */}
           <div
             role="group"
             aria-label="Platform"
@@ -85,7 +63,7 @@ export function Header({
                 aria-pressed={platform === p}
                 disabled={disabled}
                 onClick={() => setPlatform(p)}
-                className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-1 text-body font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50 min-[1120px]:justify-start ${
+                className={`flex items-center justify-center gap-1 rounded-md px-2 py-1 text-small font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50 sm:gap-1.5 sm:px-3 sm:text-body min-[1120px]:justify-start ${
                   platform === p
                     ? 'bg-accent text-accent-contrast'
                     : 'text-text-secondary hover:bg-accent-tint hover:text-text'
@@ -98,25 +76,8 @@ export function Header({
         </div>
       </div>
 
-      {/* Baris status: satu baris yang digulir halus (tanpa scrollbar terlihat) di layar
-          sempit — TIDAK wrap acak. Prompt "❯" tetap sejajar (shrink-0, center) di semua
-          lebar. Teks tiap chip identik dengan readout sebelumnya. */}
-      <div className="shell flex items-center gap-1.5 overflow-x-auto scroll-none whitespace-nowrap pb-2 pt-2">
-        <span
-          aria-hidden="true"
-          className="mr-0.5 shrink-0 self-center font-mono text-meta font-bold leading-none text-accent-text"
-        >
-          {'\u276F\u00A0'}
-        </span>
-        <span className={CHIP}>{pad2(frames.length)} frame</span>
-        <span className={CHIP}>{PLATFORM_LABELS[platform]}</span>
-        <span className={CHIP}>{PROVIDER_LABELS[provider]}</span>
-        <span className={`${CHIP} ${STATUS_CHIP[status]}`}>
-          <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[status]}`} />
-          {STATUS_LABELS[status]}
-        </span>
-      </div>
-
+      {/* M26: baris status/breadcrumb (❯ …) dihapus seluruhnya — header kini hanya
+          baris brand + toggle platform. */}
       {/* Garis tipis kedua tepat di bawah header — tepi title bar terminal */}
       <div aria-hidden="true" className="h-px bg-accent-faint" />
     </header>

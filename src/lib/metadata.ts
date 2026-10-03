@@ -9,10 +9,12 @@ export function defaultMetadata(platform: Platform): Metadata {
     : { description: '', keywords: [], categories: [] };
 }
 
-// Judul Adobe untuk CSV: koma adalah pemisah kolom → diganti spasi, spasi ganda dirapikan.
-// Sengaja TIDAK dipotong di sini — kelebihan 70 karakter dikasih tahu lewat saran validasi.
+// Judul Adobe untuk CSV — M24 (koreksi M9a): koma TIDAK lagi dibersihkan. Contoh CSV
+// resmi Adobe yang diverifikasi user membolehkan Title hingga 200 karakter, dan koma aman
+// karena buildCsv meng-quote setiap sel dengan benar. Fungsi ini tinggal merapikan spasi.
+// Sengaja TIDAK dipotong di sini — kelebihan 200 karakter dikasih tahu lewat saran validasi.
 export function cleanAdobeTitle(title: string): string {
-  return title.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
+  return title.replace(/\s+/g, ' ').trim();
 }
 
 export function hasContent(platform: Platform, m: Metadata): boolean {

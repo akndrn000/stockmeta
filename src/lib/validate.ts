@@ -4,6 +4,7 @@ import {
   MAX_DESCRIPTION,
   MAX_FILENAME,
   MAX_KEYWORDS,
+  MAX_KEYWORDS_ADOBE,
   MAX_TITLE_CSV,
   MIN_DESCRIPTION_WORDS,
   MIN_KEYWORDS_ADOBE,
@@ -38,15 +39,13 @@ export function validateMetadata(platform: Platform, metadata: Metadata | undefi
     if (title.length > MAX_TITLE_CSV) {
       notes.push({ field: 'title', message: `Judul ${title.length} karakter — melebihi batas CSV ${MAX_TITLE_CSV} karakter.` });
     }
-    if (title.includes(',')) {
-      notes.push({ field: 'title', message: 'Judul mengandung koma — CSV Adobe tanpa koma, ganti dengan spasi.' });
-    }
+    // M24: saran koma dihapus — koma di judul Adobe aman karena sel CSV di-quote
     if (filename.length > MAX_FILENAME) {
       notes.push({ field: 'filename', message: `Nama file ${filename.length} karakter — batas CSV ${MAX_FILENAME} karakter (termasuk ekstensi).` });
     }
     const n = m?.keywords.length ?? 0;
     if (n < MIN_KEYWORDS_ADOBE) notes.push({ field: 'keywords', message: `Kata kunci minimal ${MIN_KEYWORDS_ADOBE} (baru ${n}).` });
-    if (n > MAX_KEYWORDS) notes.push({ field: 'keywords', message: `Kata kunci ${n} — maksimal ${MAX_KEYWORDS}.` });
+    if (n > MAX_KEYWORDS_ADOBE) notes.push({ field: 'keywords', message: `Kata kunci ${n} — maksimal ${MAX_KEYWORDS_ADOBE}.` });
     // M11: kategori fallback otomatis tetap disarankan untuk diperiksa, meski slotnya terisi
     if (m?.categoryAuto) notes.push({ field: 'category', message: AUTO_CATEGORY_MSG });
     else if (!m?.category) notes.push({ field: 'category', message: 'Pilih satu kategori.' });
