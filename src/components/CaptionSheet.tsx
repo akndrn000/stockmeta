@@ -375,7 +375,6 @@ export function CaptionSheet({ session }: {
               id="caption-desc"
               label="Deskripsi"
               copyText={desc}
-              hint="Tulis kalimat deskriptif utuh, bukan daftar kata."
               disabled={!frame}
               note={
                 <FieldNote
@@ -385,8 +384,8 @@ export function CaptionSheet({ session }: {
                 />
               }
             >
-              {/* Petunjuk instruksional tetap di bawah kotak; hanya penghitung yang masuk
-                  ke baris label (M18). */}
+              {/* Hint statis di bawah kotak dihapus — minimal 5 kata tetap divalidasi
+                  via blok "Saran perbaikan". Hanya penghitung di baris label (M18). */}
               <textarea
                 id="caption-desc"
                 rows={3}
@@ -430,7 +429,7 @@ export function CaptionSheet({ session }: {
                 </div>
               </Field>
 
-              <Field id="caption-cat2" label="Kategori tambahan (opsional)" copyText={cats[1] ?? ''} disabled={!frame}>
+              <Field id="caption-cat2" label="Kategori tambahan" copyText={cats[1] ?? ''} disabled={!frame}>
                 <div className="relative">
                   <select
                     id="caption-cat2"

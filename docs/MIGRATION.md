@@ -1030,6 +1030,38 @@ Font <12px untuk teks bermakna: **NOL** (lantai `text-meta` 12px via clamp terbu
   `npm run build` sukses. Berkas diubah: `ThemeToggle.tsx`, `ProviderPanel.tsx`
   (logika `src/lib`/hooks **tidak disentuh**).
 
+<<<<<<< HEAD
+=======
+## Perbaikan pasca-M27 (M28) — koreksi FINAL batas deskripsi Shutterstock, bukan tahap migrasi baru
+
+Sumber: **SCREENSHOT LANGSUNG dari form upload Shutterstock sungguhan** (sumber paling
+akurat — mengalahkan semua artikel web): field Description bertuliskan
+**maksimal 2048 karakter, minimal 5 kata**.
+
+> **JANGAN ubah angka ini lagi tanpa bukti sekuat screenshot form asli.**
+> Riwayat salah: batas deskripsi Shutterstock sempat salah **2 kali** — awalnya memakai
+> **200** (M11 bonus "±200 karakter", M13 penghitung `n/200`, M18 `n/200` di baris label),
+> lalu sempat disebut **150** (komentar lama `validate.ts` soal "editor Portfolio") —
+> **keduanya SALAH** dan kini dikoreksi total ke **2048**. (Angka 70 yang kadang
+> disebut-sebut adalah batas *judul Adobe*, bukan deskripsi Shutterstock — jangan
+> dicampuradukkan.)
+
+| Sebelum (salah) | Sesudah (M28, screenshot form asli) | File |
+| --- | --- | --- |
+| `MAX_DESCRIPTION = 200` | `MAX_DESCRIPTION = 2048` | `src/lib/limits.ts` |
+| Prompt: "minimal 5 kata dan maksimal sekitar 200 karakter" | "satu-dua kalimat deskriptif alami minimal 5 kata dan maksimal 2048 karakter (BUKAN daftar kata — jangan bertele-tele/spam hanya karena batasnya longgar)" | `src/lib/prompt.ts` |
+| Parser: deskripsi mentah model dipotong `slice(0, 500)` | dipotong `slice(0, MAX_DESCRIPTION)` (= 2048) | `src/lib/prompt.ts` |
+| Komentar "ambang 200 … editor 150 … penanda praktis" | komentar M28: 2048 dari screenshot, 200/150 salah | `src/lib/validate.ts` |
+| UI: penghitung `n/200`, hint "Tulis kalimat deskriptif utuh …" | penghitung `n/2048`, **tanpa** hint statis (minimal 5 kata tetap divalidasi via "Saran perbaikan"); label "Kategori tambahan (opsional)" → "Kategori tambahan" | `src/components/CaptionSheet.tsx` |
+| Tes: `/200`, `> 200 karakter` (string pendek `repeat(6)`) | `/2048`, `> 2048 karakter` (string `repeat(40)` agar benar-benar > 2048), + regresi parser 2048 & saran min-5-kata tanpa hint | `prompt.test.ts`, `validate.test.ts`, `CaptionSheet.test.ts` |
+
+- Validasi minimal **5 KATA** (dihitung per kata via `countWords`, bukan karakter) tidak
+  berubah — tetap saran non-pemblokir, terpisah dari batas maksimal karakter.
+- Bagian historis M11/M13/M18 di dokumen ini **sengaja tidak ditulis ulang** (catatan
+  masa lalu); yang berlaku kini hanya angka M28 ini + kontrak CaptionSheet di bawah.
+- Verifikasi: `npm run test`, `npx tsc --noEmit`, `npm run lint`, `npm run build` — lolos.
+
+>>>>>>> c00d4ea (M27: audit responsif menyeluruh 18 kombinasi, perbaiki touch target <40px, koreksi dokumentasi breakpoint)
 ## Kontrak perilaku (WAJIB sama dengan legacy)
 
 Sumber: `legacy/docs/PROGRESS.md` + `legacy/js/*.js`. Tanda **[BARU]** = perilaku baru yang
@@ -1164,9 +1196,10 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
   judul > 70 (batas CSV), judul ber-koma, nama file > 30 karakter (Adobe saja).
   **[M13 → M18]** petunjuk batas + penghitung judul kini **sebaris dengan label `Judul`
   (di atas textarea)** — bukan di dalam kotak (M13) dan bukan baris terpisah (M9a); deskripsi
-  punya penghitung `n/200` di baris label `Deskripsi`, sedangkan petunjuk instruksional tetap
-  di bawah kotak. Baris label memakai `flex-wrap`: label kiri, keterangan + `Salin` kanan, dan
-  grup kanan turun ke baris kedua yang tetap rata kanan bila layar sempit.
+  punya penghitung `n/2048` di baris label `Deskripsi` **[M28]** tanpa hint statis
+  (minimal 5 kata tetap divalidasi via "Saran perbaikan"). Baris label memakai `flex-wrap`:
+  label kiri, keterangan + `Salin` kanan, dan grup kanan turun ke baris kedua yang tetap
+  rata kanan bila layar sempit.
 - Footer **`N baris punya saran perbaikan`** **[M9a]**: jumlah frame (baris) yang punya saran
   untuk platform aktif — tampil di dekat tombol `Export CSV` bila > 0, **tidak memblokir
   ekspor**. Footer **`N baris`** = jumlah baris yang **benar-benar diekspor** (slot berisi),

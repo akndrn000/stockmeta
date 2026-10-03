@@ -94,8 +94,8 @@ describe('validateMetadata — Shutterstock', () => {
     expect(empty).toEqual([]);
   });
 
-  it('deskripsi > 200 karakter disebut', () => {
-    const desc = `${'kalimat deskriptif yang cukup panjang untuk melewati batas. '.repeat(6).trim()}x`.slice(0, MAX_DESCRIPTION + 1);
+  it('deskripsi > 2048 karakter disebut (M28 — screenshot form asli)', () => {
+    const desc = 'kalimat deskriptif yang cukup panjang untuk melewati batas. '.repeat(40).slice(0, MAX_DESCRIPTION + 1);
     const notes = validateMetadata('shutterstock', shutter({ description: desc, keywords: kws(7), categories: ['Makanan'] }));
     expect(notes).toEqual([
       { field: 'description', message: `Deskripsi ${MAX_DESCRIPTION + 1} karakter — maksimal ${MAX_DESCRIPTION}.` }

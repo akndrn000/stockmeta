@@ -8,7 +8,7 @@ import type { Platform } from './types';
 export function buildMetadataPrompt({ platform, theme }: { platform: Platform; theme?: string }): string {
   const cats = getCategories(platform);
   const jsonFormat = platform === 'adobe'
-    ? `{"title": string maks ${MAX_TITLE_CSV} karakter, "keywords": array 15-35 kata (maksimal ${MAX_KEYWORDS_ADOBE} kata, yang paling penting dulu), "category": string — salah satu persis dari daftar kategori di atas}`
+    ? `{"title": string maks ${MAX_TITLE_CSV} karakter dan TANPA koma (ganti koma dengan kata sambung atau spasi), "keywords": array 15-35 kata, "category": string — salah satu persis dari daftar kategori di atas}`
     : `{"description": string kalimat deskriptif lengkap minimal 5 kata dan maksimal sekitar ${MAX_DESCRIPTION} karakter (BUKAN daftar kata), "keywords": array 15-40 kata, "category": array 1-2 string persis dari daftar kategori di atas}`;
 
   const lines = [
@@ -117,7 +117,7 @@ export function parseMetadataResponse(raw: string, platform: Platform): ParsedMe
     out.title = platform === 'adobe' ? cleanAdobeTitle(t).slice(0, MAX_TITLE_CSV) : t.trim().slice(0, 200);
   }
   const d = pick(obj, 'description');
-  if (typeof d === 'string' && d.trim()) out.description = d.trim().slice(0, 500);
+  if (typeof d === 'string' && d.trim()) out.description = d.trim().slice(0, MAX_DESCRIPTION);
 
   return out;
 }

@@ -278,7 +278,7 @@ describe('CaptionSheet — keterangan sebaris dengan label (M18)', () => {
     expect(row.querySelector('[aria-label="Salin Judul"]')).not.toBeNull();
   });
 
-  it('deskripsi (Shutterstock): penghitung n/maks juga naik ke baris label', () => {
+  it('deskripsi (Shutterstock): penghitung n/2048 naik ke baris label, tanpa hint statis', () => {
     const [id] = addFrames(1);
     const desc = 'Dua kalimat.';
     act(() => {
@@ -290,9 +290,15 @@ describe('CaptionSheet — keterangan sebaris dengan label (M18)', () => {
     const note = host.querySelector('#caption-desc-note');
     expect(note).not.toBeNull();
     expect(note!.textContent).toBe(`${desc.length}/${MAX_DESCRIPTION}`);
+    expect(note!.textContent).toContain('/2048');
     expect(ta.previousElementSibling!.contains(note!)).toBe(true);
     expect(ta.className).not.toContain('pb-6');
     expect(ta.getAttribute('aria-describedby')).toBe('caption-desc-note');
+    // Hint statis dihapus dari tampilan; validasi min 5 kata tetap hidup via
+    // blok "Saran perbaikan" (desc 2 kata → saran muncul)
+    expect(text()).not.toContain('tulis satu-dua kalimat deskriptif utuh');
+    expect(text()).toContain('Saran perbaikan');
+    expect(text()).toContain('Deskripsi minimal 5 kata (baru 2).');
   });
 
   it('penghitung kata kunci juga keluar dari kotak input (M18)', () => {

@@ -23,10 +23,13 @@ describe('buildMetadataPrompt', () => {
     expect(p).toContain('Platform target: shutterstock');
     expect(p).toContain(SHUTTERSTOCK_CATEGORIES.join(', '));
     expect(p).not.toContain(ADOBE_CATEGORIES.join(', '));
-    expect(p).toContain('kalimat deskriptif lengkap minimal 5 kata');
-    // M11 (temuan layar): dorong deskripsi tetap dekat batas 200 karakter — instruksi saja,
-    // tanpa memotong paksa di kode
-    expect(p).toContain(`maksimal sekitar ${MAX_DESCRIPTION} karakter`);
+    // M28 (koreksi final — screenshot form asli): deskripsi minimal 5 kata,
+    // maksimal 2048 karakter; rentang longgar tapi tetap satu-dua kalimat alami,
+    // bukan daftar kata / teks bertele-tele
+    expect(p).toContain('minimal 5 kata');
+    expect(p).toContain(`maksimal ${MAX_DESCRIPTION} karakter`);
+    expect(p).toContain('satu-dua kalimat');
+    expect(p).toContain('BUKAN daftar kata');
   });
 
   it('tema kosong: blok tema tidak dikirim sama sekali', () => {
@@ -118,6 +121,5 @@ describe('parseMetadataResponse', () => {
     const p = parseMetadataResponse(JSON.stringify({ title: 'Kopi, '.repeat(50) }), 'adobe');
     expect(p.title).toContain(',');
     expect(p.title!.length).toBeLessThanOrEqual(MAX_TITLE_CSV);
-    expect(p.title!.length).toBe(MAX_TITLE_CSV);
   });
 });

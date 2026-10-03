@@ -18,5 +18,10 @@ export const MIN_KEYWORDS_SHUTTER = 7;
 export const MAX_TITLE_CSV = 200;
 export const MAX_KEYWORDS_ADOBE = 49;
 export const MAX_FILENAME = 30;
-export const MAX_DESCRIPTION = 200;
+// Deskripsi Shutterstock — M28 (koreksi final): MAKSIMAL 2048 KARAKTER berdasarkan
+// SCREENSHOT LANGSUNG form upload Shutterstock sungguhan (sumber paling akurat).
+// Riwayat salah: sempat memakai 200 (M11/M13/M18) lalu disebut 150 (komentar
+// validate.ts) — keduanya SALAH. Jangan ubah lagi tanpa bukti sekuat screenshot form asli.
+// Minimal tetap 5 KATA (dihitung per kata, bukan karakter) — terpisah dari batas karakter.
+export const MAX_DESCRIPTION = 2048;
 export const MIN_DESCRIPTION_WORDS = 5;

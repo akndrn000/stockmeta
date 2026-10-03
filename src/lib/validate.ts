@@ -56,9 +56,10 @@ export function validateMetadata(platform: Platform, metadata: Metadata | undefi
   const m = metadata as AdobeMetadata | undefined;   // union cukup untuk field yang dipakai
   const desc = 'description' in (m ?? {}) ? String((m as unknown as { description?: string }).description ?? '') : '';
   const words = countWords(desc);
-  // Ambang saran 200 karakter (non-pemblokir): ketentuan resmi Shutterstock kini maks 2048
-  // karakter (Content Publishing Standards) sementara editor Portfolio membatasi 150 karakter —
-  // 200 dipertahankan sebagai penanda praktis "terlalu panjang untuk praktis".
+  // M28 (koreksi final): batas deskripsi Shutterstock MAKSIMAL 2048 KARAKTER
+  // berdasarkan screenshot langsung form upload Shutterstock sungguhan (sumber
+  // paling akurat). Angka lama 200/150 SALAH. Saran non-pemblokir: < 5 kata atau
+  // > 2048 karakter.
   if (words > 0 && words < MIN_DESCRIPTION_WORDS) notes.push({ field: 'description', message: `Deskripsi minimal ${MIN_DESCRIPTION_WORDS} kata (baru ${words}).` });
   if (desc.length > MAX_DESCRIPTION) notes.push({ field: 'description', message: `Deskripsi ${desc.length} karakter — maksimal ${MAX_DESCRIPTION}.` });
   if (desc && looksLikeWordList(desc)) notes.push({ field: 'description', message: 'Deskripsi terlihat seperti daftar kata — tulis kalimat utuh.' });
