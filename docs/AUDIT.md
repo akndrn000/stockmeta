@@ -174,3 +174,45 @@
 5. Editorial ber-tanda: format caption manual seperti apa yang diminta portal?
 6. Filename `.jpeg`/`.eps` sama persis (huruf + ekstensi) lolos impor?
 7. Deskripsi bawaan metadata file: tertimpa CSV atau tidak?
+
+## 11. Risiko penolakan Adobe/Shutterstock (ESTIMASI — SELESAI di kode, perlu kalibrasi + uji portal)
+
+Aturan dasar (konfirmasi sumber resmi): Shutterstock tiga hasil (marketplace kreatif + data
+licensing / HANYA data licensing / ditolak); Adobe menolak konten terlalu mirip + masalah
+kualitas dan hanya memberi alasan umum. Ambang angka tidak dipublikasikan → semua ambang
+heuristik status `verify`.
+
+| Rule baru | Status | Bukti |
+|---|---|---|
+| ADOBE_SIMILAR | verify | `src/lib/platform-rules.ts`, `src/lib/outcome.ts` (SIMILAR_CONTENT; koleksi platform selalu "tidak diketahui") |
+| ADOBE_QUALITY_FOCUS | verify | `src/lib/quality/metrics.ts` (varians Laplacian global + tile 8x8) + `outcome.ts` |
+| ADOBE_QUALITY_EXPOSURE | verify | metrik luminans/highlight/shadow + `outcome.ts` |
+| ADOBE_QUALITY_NOISE | verify | noise area datar + blokiness + crop 100% (`cropInspect.ts`, hanya menaikkan) |
+| ADOBE_QUALITY_COLOR | verify | saturasi + WB gray-world (photo saja; ikon/vektor dilewati) |
+| ADOBE_QUALITY_OVEREDIT | verify | blokiness + halo crop |
+| ADOBE_MIN_RESOLUTION | verify | foto min 4MP; vektor min artboard 15MP (di bawah = error pemblokir) |
+| SS_OUTCOME | verify | tiga estimasi; label persis "Data licensing saja (tidak masuk marketplace)", tanpa kata approved/disetujui (`outcome.ts`, `RiskPanel.tsx`, test `riskUi.test.ts`) |
+| SS_MIN_QUALITY | verify | kualitas di bawah minimum → data licensing saja |
+| SS_MIN_RESOLUTION | verify | foto/ilustrasi min 4MP (di bawah = Kemungkinan ditolak) |
+| SIMILARITY_BATCH | verify | `similarity.ts` (dHash/pHash/center-hash/color-layout + Jaccard) + riwayat hash saja (`similarityStore.ts`) |
+| CONCEPT_SATURATION | verify | AI subjektif, confidence rendah, bukan satu-satunya alasan tinggi |
+
+Modul: `src/lib/quality/{metrics,thresholds,crops,cropInspect,runner}.ts`,
+`src/lib/{similarity,similarityStore,outcome,calibration}.ts`, `src/hooks/useRisk.ts`,
+`src/components/{RiskPanel,CalibrationPanel}.tsx`, `inspectCrop` di ketiga adapter,
+`riskContext` + clamp juri (`judge.ts`, `useJudge.ts`), `held` di CSV (`csv.ts`,
+`CaptionSheet.tsx` dialog).
+
+### Daftar [VERIFIKASI] baru (semuanya peringatan non-pemblokir + TODO di kode)
+
+- Semua ambang kualitas/similarity: `src/lib/quality/thresholds.ts` (heuristik, disetel via kalibrasi).
+- Pratinjau vektor/ikon: yang dianalisis hanya gambar pratinjau yang diunggah, bukan `.eps`/`.svg` asli (`thresholds.ts`, `RiskPanel.tsx`).
+- Laporan komunitas (konten mirip/kualitas wajar bisa masuk Data Catalog): hanya catatan `verifyNote`, bukan aturan keras (`outcome.ts`).
+- Kejenuhan konsep AI: perkiraan subjektif, bukan data koleksi (`useRisk.ts`, `RiskPanel.tsx`).
+
+### Uji manual yang perlu di portal (tambahan)
+
+1. Bandingkan estimasi vs hasil nyata 20+ frame per platform, lalu tinjau panel Akurasi.
+2. Coba frame duplikat mirip: apakah Adobe menolak dengan alasan similar?
+3. Coba frame kualitas pas-pasan di Shutterstock: marketplace vs data licensing saja?
+4. Verifikasi resolusi minimum (Adobe 4MP foto / 15MP vektor; SS 4MP).

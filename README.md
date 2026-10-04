@@ -59,6 +59,23 @@ flowchart LR
 | **Edit manual** | Judul atau deskripsi, kata kunci berbentuk chip, kategori resmi, tema per foto, nama file di portal, toggle Ilustrasi/Editorial (Shutterstock), dan cek keras yang memblokir (error) vs saran (warning). |
 | **Ekspor CSV** | Mengikuti template resmi portal, dialog pra-unduh berisi daftar Filename, hanya baris lolos cek keras yang ditulis, atau salin per field dengan satu klik. |
 | **Juri kepatuhan** | Hingga 3 provider menilai tiap frame per platform (LOLOS / DENGAN CATATAN / TIDAK LOLOS / PERLU DITINJAU) — selalu saran, bukan keputusan platform. |
+| **Risiko penolakan (estimasi)** | Metrik piksel asli + inspeksi crop 100% + kemiripan batch/riwayat → risiko Adobe per penyebab & estimasi Shutterstock tiga arah. |
+| **Kalibrasi** | Catat hasil nyata per frame; panel Akurasi menampilkan matriks + rekomendasi ambang (tidak otomatis). |
+
+## Risiko Penolakan (Estimasi)
+
+Panel **Risiko penolakan** mengukur tiap frame dari **piksel asli** yang diunggah (bukan versi 1280px untuk AI) lewat Web Worker — deterministik: input identik selalu menghasilkan angka identik. Semua keluaran adalah **ESTIMASI**: tidak ada persen "peluang lolos", tidak ada klaim "dijamin lolos" — hanya tingkat risiko **rendah / sedang / tinggi / tidak diketahui** + bukti angka.
+
+**Cara membaca risiko:**
+
+- **Adobe Stock** — tujuh risiko terpisah: `SIMILAR_CONTENT`, `QUALITY_FOCUS`, `QUALITY_EXPOSURE`, `QUALITY_NOISE_ARTIFACTS`, `QUALITY_COLOR`, `QUALITY_OVEREDIT`, `IP_RELEASE`. Risiko keseluruhan = yang tertinggi, lengkap dengan penyebab utama, bukti angka (mis. "highlight terpotong 8%"), dan saran perbaikan konkret.
+- **Shutterstock** — selalu salah satu dari tiga estimasi: **Marketplace**, **Data licensing saja (tidak masuk marketplace)**, atau **Kemungkinan ditolak**. Status data licensing **bukan** approved ke marketplace.
+- **Klaster mirip** — frame yang mirip (warna berbeda saja / zoom-crop / sudut-pose mirip / metadata nyaris sama) dikelompokkan; kandidat terbaik (skor kualitas tertinggi) ditandai, sisanya "risiko similar tinggi". Tombol **tahan frame mirip** menyembunyikan frame dari ekspor CSV (dengan konfirmasi, bukan menghapus).
+- **Inspeksi kualitas detail** (toggle, default aktif) — 4 crop 512×512 resolusi asli (detail tertinggi, shadow, tepi kontras, pusat) dikirim ke model vision. Hasilnya hanya boleh **menaikkan** risiko metrik, tidak pernah menurunkan. Provider tanpa vision menampilkan "inspeksi detail tidak tersedia" tanpa menebak.
+
+**Yang tidak bisa diprediksi:** keputusan moderator, kemiripan terhadap **koleksi platform** (selalu "tidak diketahui" — hanya diukur dalam batch + riwayat lokal berisi hash saja), dan ambang angka kualitas (tidak dipublikasikan platform — semua ambang adalah heuristik status `verify` yang dikalibrasi dari hasil Anda).
+
+**Cara kalibrasi:** isi kolom **Hasil sebenarnya** per frame (Adobe: Diterima / Ditolak-Similar / Ditolak-Quality / Ditolak-IP / Ditolak-lainnya; Shutterstock: Marketplace / Data licensing saja / Ditolak). Panel **Akurasi** menampilkan matriks prediksi vs hasil nyata, metrik paling berkorelasi dengan penolakan, dan **rekomendasi** penyesuaian ambang (ditampilkan sebagai diff, diterapkan manual — tidak otomatis). Sampel &lt;20 per platform → peringatan "sampel terlalu sedikit". Ekspor/impor JSON tersedia.
 | **Jeda antar foto** | Dapat diatur 3, 6, 12, atau 20 detik (default 6) untuk menghindari limit. |
 | **Nyaman dipakai** | Mode siang/malam (mengikuti sistem, bisa di-override) dan sesi tersimpan otomatis di browser. |
 
@@ -159,6 +176,7 @@ Ekspor mengikuti template resmi tiap portal (satu sumber kebenaran: `src/lib/pla
 
 - **Tanpa server perantara.** Key dan gambar dikirim langsung dari browser ke server provider (`api.groq.com`, `generativelanguage.googleapis.com`, atau endpoint custom pilihanmu). Repo ini tidak memiliki API route backend, dan tidak ada analytics atau pelacak di kode.
 - **Yang dikirim ke provider**, baik di Mode Analisis maupun Metadata: API key (sebagai otorisasi), teks prompt, dan gambar dalam format base64.
+- **Inspeksi kualitas detail** mengirim 4 crop JPEG 512px per frame ke provider aktif (bisa dimatikan lewat toggle; estimasi biaya panggilan ditampilkan).
 - **Juri kepatuhan** mengirim gambar + metadata ke **SEMUA juri aktif** — aplikasi meminta konfirmasi privasi sekali sebelum menilai.
 - **API key** disimpan di localStorage browser (`stockmeta_groq_key`, `stockmeta_gemini_key`, `stockmeta_custom_key`) dan hanya ditulis setelah tes koneksi lulus. Konfigurasi custom (`stockmeta_custom_baseurl`, `stockmeta_custom_model`) juga di browser.
 - **Preferensi non-sensitif** juga disimpan di localStorage: sesi (`stockmeta_session`, berisi thumbnail, metadata, observation, dan cache juri — bukan file asli), tema (`stockmeta_theme`), jeda antar foto (`stockmeta_batch_delay`), provider terpilih (`stockmeta_provider`), status fallback (`stockmeta_fallback`), mode aktif (`stockmeta_mode`), juri terpilih, verifikasi ketat, dan status privasi juri.
@@ -253,16 +271,15 @@ Konvensi kode ada di [`AGENTS.md`](./AGENTS.md): satu modul satu seam dengan int
 src/
   app/            layout.tsx, page.tsx, globals.css (token warna), icon.svg
   components/     Header, ModeToggle, ProviderPanel, Worksheet, CaptionSheet,
-                  CompliancePanel, AnalysisPanel, KeywordEditor, Panel, CopyButton,
+                  CompliancePanel, AnalysisPanel, RiskPanel, CalibrationPanel, KeywordEditor, Panel, CopyButton,
                   ThemeToggle, Footer, InlineScript
-  hooks/          useSession, useProvider, useBatch, useAnalysisBatch, useJudge, useTheme
+  hooks/          useSession, useProvider, useBatch, useAnalysisBatch, useJudge, useRisk, useTheme
   lib/            batch, csv, prompt, analysisPrompt, observation, pipeline, judge,
-                  validate, brands, platform-rules, storage, limits,
+                  validate, brands, platform-rules, storage, limits, outcome, similarity,
+                  similarityStore, calibration, riskBatch.test, riskUi.test,
                   categories, metadata, keywords, frames, image, fileStore, types
+  lib/quality/    metrics, thresholds, crops, cropInspect, runner
   lib/providers/  groq, gemini, custom, fallback, retry, models, types, index, http
-scripts/          live-test.ts (pipeline + juri + fixture manual, tidak ikut build)
-docs/             DESIGN.md, MIGRATION.md, AUDIT.md, banner.svg, hero.png,
-                  screenshots-mobile/ dan screenshots-m29/ (bukti audit)
 ```
 
 </details>
