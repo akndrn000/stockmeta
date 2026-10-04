@@ -83,7 +83,8 @@ export function useAnalysisBatch(session: Session, provider: ProviderApi, opts?:
             image,
             platform: args.platform,
             signal: args.signal,
-            onWait: args.onWait
+            onWait: args.onWait,
+            customConfig: activeProvider === 'custom' ? provider.getCustomConfig() : undefined
           });
           usedVia = out.usedFallback ? PROVIDER_LABELS[out.provider] : '';
           return out.analysis;

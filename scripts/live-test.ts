@@ -17,7 +17,7 @@ const MIME: Record<string, string> = {
 async function main(): Promise<void> {
   const [providerArg, imagePath, platformArg, themeArg] = process.argv.slice(2);
   if (!providerArg || !imagePath || !platformArg) {
-    console.error('Pakai: GEMINI_KEY=… npx tsx scripts/live-test.ts <gemini|groq|openrouter> <gambar> <adobe|shutterstock> [tema]');
+    console.error('Pakai: GEMINI_KEY=… npx tsx scripts/live-test.ts <gemini|groq|custom> <gambar> <adobe|shutterstock> [tema]');
     process.exit(1);
   }
   const provider = providerArg as ProviderId;
@@ -32,12 +32,15 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   const keyEnv = provider === 'gemini' ? 'GEMINI_KEY'
-    : provider === 'openrouter' ? 'OPENROUTER_KEY' : 'GROQ_KEY';
+    : provider === 'custom' ? 'CUSTOM_KEY' : 'GROQ_KEY';
   const key = process.env[keyEnv];
   if (!key) {
     console.error('Set environment variable ' + keyEnv + ' terlebih dahulu.');
     process.exit(1);
   }
+  // provider custom: base URL + model dari environment (tanpa hardcode layanan)
+  const baseUrl = provider === 'custom' ? (process.env.CUSTOM_BASE_URL ?? '') : undefined;
+  const model = provider === 'custom' ? (process.env.CUSTOM_MODEL ?? '') : undefined;
 
   const buf = await readFile(imagePath);
   const image: ImageInput = {
@@ -45,7 +48,7 @@ async function main(): Promise<void> {
     mimeType: MIME[extname(imagePath).toLowerCase()] ?? 'image/jpeg'
   };
 
-  const test = await adapter.testConnection(key);
+  const test = await adapter.testConnection(key, { baseUrl, model });
   console.log(JSON.stringify({ test }, null, 2));
   if (!test.ok) process.exit(1);
 
@@ -53,7 +56,9 @@ async function main(): Promise<void> {
     apiKey: key,
     image,
     platform,
-    theme: themeArg
+    theme: themeArg,
+    baseUrl,
+    model
   });
   console.log(JSON.stringify({ result }, null, 2));
 }

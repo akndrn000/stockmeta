@@ -13,7 +13,7 @@ type ProviderApi = ReturnType<typeof useProvider>;
 const LIMIT_TIP: Record<ProviderId, string> = {
   groq: 'Limit gratis Groq ketat (8.000 token/menit).',
   gemini: 'Kuota gratis Gemini longgar (Flash-Lite); 429 harian → lanjutkan besok.',
-  openrouter: 'Free tier OpenRouter ±20 request/hari — cadangan, bukan andalan.',
+  custom: 'Endpoint + model pilihanmu — limit mengikuti akunmu di layanan itu.',
   'coming-soon': 'Provider tambahan akan segera hadir.'
 };
 
@@ -118,8 +118,8 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
             </div>
             {/* Provider — segmented control (bukan dropdown): pelat aktif isian aksen,
                 opsi "Coming Soon" tampil redup + badge kecil + cursor not-allowed.
-                M19: 4 segmen — 2 kolom × 2 baris di 1024–1119px (teks "OpenRouter" muat
-                tanpa meluber); ≥1120px jadi inline-flex. M23: `max-lg:hidden` (bukan
+                M19: 4 segmen — 2 kolom × 2 baris di 1024–1119px;
+                ≥1120px jadi inline-flex. M23: `max-lg:hidden` (bukan
                 `hidden lg:grid`) agar cascade ≥1024px persis seperti semula.
                 M26: label dipakai bersama dengan select di atas (satu #provider-label). */}
             <div
@@ -158,6 +158,42 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
 
           {/* API key */}
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            {api.provider === 'custom' && (
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <label htmlFor="custom-baseurl" className={LABEL}>
+                    Base URL
+                  </label>
+                  <input
+                    id="custom-baseurl"
+                    type="text"
+                    value={api.customBaseUrl}
+                    onChange={(e) => api.setCustomBaseUrl(e.target.value)}
+                    placeholder="https://api.layanan-anda.com/v1"
+                    autoComplete="off"
+                    spellCheck={false}
+                    autoCapitalize="none"
+                    className="h-10 w-full rounded-md border border-border-control bg-surface-elevated px-3 py-2 font-mono text-body text-text transition-colors duration-150 placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                </div>
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <label htmlFor="custom-model" className={LABEL}>
+                    Model
+                  </label>
+                  <input
+                    id="custom-model"
+                    type="text"
+                    value={api.customModel}
+                    onChange={(e) => api.setCustomModel(e.target.value)}
+                    placeholder="nama-model-milikmu"
+                    autoComplete="off"
+                    spellCheck={false}
+                    autoCapitalize="none"
+                    className="h-10 w-full rounded-md border border-border-control bg-surface-elevated px-3 py-2 font-mono text-body text-text transition-colors duration-150 placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                </div>
+              </div>
+            )}
             <label htmlFor="apikey" className={LABEL}>
               API key
             </label>

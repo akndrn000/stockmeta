@@ -21,6 +21,8 @@ export interface ProviderErrorOpts {
   maxRetries?: number;
   /** true = 429 kuota HARIAN habis → tanpa retry, layak fallback antar provider */
   dailyQuota?: boolean;
+  /** true = endpoint/model tidak mendukung gambar → frame berhenti, tanpa fallback teks-saja */
+  noVision?: boolean;
 }
 
 export class ProviderError extends Error {
@@ -31,6 +33,8 @@ export class ProviderError extends Error {
   maxRetries?: number;
   /** true bila 429 kuota harian habis (bukan limit per menit) */
   dailyQuota: boolean;
+  /** true bila endpoint/model tidak mendukung gambar */
+  noVision: boolean;
 
   constructor(message: string, opts: ProviderErrorOpts = {}) {
     super(message);
@@ -40,6 +44,7 @@ export class ProviderError extends Error {
     this.retryable = opts.retryable ?? (opts.status !== undefined && RETRYABLE_STATUS.has(opts.status));
     this.maxRetries = opts.maxRetries;
     this.dailyQuota = opts.dailyQuota ?? false;
+    this.noVision = opts.noVision ?? false;
   }
 }
 

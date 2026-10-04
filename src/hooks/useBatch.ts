@@ -107,7 +107,8 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
             platform: args.platform,
             theme: args.theme,
             signal: args.signal,
-            onWait: args.onWait
+            onWait: args.onWait,
+            customConfig: activeProvider === 'custom' ? provider.getCustomConfig() : undefined
           });
           usedVia = out.usedFallback ? PROVIDER_LABELS[out.provider] : '';
           return out.meta;

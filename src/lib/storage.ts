@@ -8,7 +8,7 @@ import { hasContent } from './metadata';
 const KEY_LS: Partial<Record<ProviderId, string>> = {
   gemini: 'stockmeta_gemini_key',
   groq: 'stockmeta_groq_key',
-  openrouter: 'stockmeta_openrouter_key'
+  custom: 'stockmeta_custom_key'
 };
 
 export const SESS_KEY = 'stockmeta_session';
@@ -17,6 +17,9 @@ export const BATCH_DELAY_KEY = 'stockmeta_batch_delay';
 export const PROVIDER_KEY = 'stockmeta_provider';
 export const FALLBACK_KEY = 'stockmeta_fallback';
 export const MODE_KEY = 'stockmeta_mode';
+/** base URL + model provider custom OpenAI-compatible (diisi pengguna, tanpa hardcode layanan) */
+export const CUSTOM_BASE_URL_KEY = 'stockmeta_custom_baseurl';
+export const CUSTOM_MODEL_KEY = 'stockmeta_custom_model';
 
 function ls(): Storage | null {
   try { return typeof localStorage === 'undefined' ? null : localStorage; }
@@ -44,12 +47,32 @@ export function writeKey(provider: ProviderId, key: string): void {
 export function readProvider(): ProviderId | null {
   try {
     const v = ls()?.getItem(PROVIDER_KEY);
-    return v === 'gemini' || v === 'groq' || v === 'openrouter' || v === 'coming-soon' ? v : null;
+    // migrasi: id lama 'openrouter' dipetakan ke provider custom generik
+    if (v === 'openrouter') return 'custom';
+    return v === 'gemini' || v === 'groq' || v === 'custom' || v === 'coming-soon' ? v : null;
   } catch { return null; }
 }
 
 export function writeProvider(provider: ProviderId): void {
   try { ls()?.setItem(PROVIDER_KEY, provider); } catch { /* diabaikan */ }
+}
+
+/* ---------------- konfigurasi provider custom (base URL + model isi pengguna) ---------------- */
+
+export function readCustomBaseUrl(): string {
+  try { return ls()?.getItem(CUSTOM_BASE_URL_KEY) ?? ''; } catch { return ''; }
+}
+
+export function writeCustomBaseUrl(baseUrl: string): void {
+  try { ls()?.setItem(CUSTOM_BASE_URL_KEY, baseUrl); } catch { /* diabaikan */ }
+}
+
+export function readCustomModel(): string {
+  try { return ls()?.getItem(CUSTOM_MODEL_KEY) ?? ''; } catch { return ''; }
+}
+
+export function writeCustomModel(model: string): void {
+  try { ls()?.setItem(CUSTOM_MODEL_KEY, model); } catch { /* diabaikan */ }
 }
 
 /* ---------------- fallback antar provider (toggle panel, default: aktif) ---------------- */

@@ -6,12 +6,14 @@
 // Key dikirim lewat header Authorization dan TIDAK PERNAH dicetak ke log.
 import { buildAnalysisPrompt, parseAnalysisResponse } from '../analysisPrompt';
 import type { AnalysisResult } from '../types';
+import { judgePromptFor, parseJudgeResponse } from '../judge';
 import { buildMetadataPrompt, parseMetadataResponse } from '../prompt';
 import type { ParsedMetadata } from '../prompt';
 import { readBody } from './http';
 import { GROQ_MODEL } from './models';
 import { MODEL_RETRY_MAX, ProviderError, dailyQuotaError, isDailyQuota, parseRetryAfter, withRetry } from './retry';
-import type { AnalyzeArgs, GenerateArgs, ImageInput, ProviderAdapter, TestResult } from './types';
+import type { AnalyzeArgs, GenerateArgs, ImageInput, JudgeInput, JudgeOutput, ProviderAdapter, TestOpts, TestResult, TextArgs } from './types';
+import { isVisionNotSupportedError } from './types';
 
 const GROQ_BASE = 'https://api.groq.com/openai/v1';
 
@@ -43,7 +45,20 @@ function groqHttpError(status: number, data: unknown, raw: string, headers: Head
   });
 }
 
-async function testConnection(apiKey: string, signal?: AbortSignal): Promise<TestResult> {
+/** Error gambar-tak-didukung → noVision (frame berhenti, tanpa fallback teks-saja). */
+function withNoVision(err: unknown): unknown {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (isVisionNotSupportedError(msg)) {
+    return new ProviderError('Model Groq tidak mendukung gambar — frame dihentikan (tanpa mode teks-saja).', {
+      retryable: false,
+      noVision: true
+    });
+  }
+  return err;
+}
+
+async function testConnection(apiKey: string, opts?: TestOpts): Promise<TestResult> {
+  const signal = opts?.signal;
   let res: Response;
   try {
     res = await fetch(GROQ_BASE + '/models', {
@@ -64,7 +79,8 @@ async function testConnection(apiKey: string, signal?: AbortSignal): Promise<Tes
 
 // M29: satu-satunya tempat HTTP POST chat — prompt & parser diinjeksikan pemanggil
 // (generate metadata vs analisis reviewer) supaya request tidak diduplikasi.
-async function postChat(opts: { apiKey: string; image: ImageInput; prompt: string; signal?: AbortSignal }): Promise<string> {
+// Tanpa image = panggilan teks murni (Tahap B/D, juri tanpa gambar, perbaikan).
+async function postChat(opts: { apiKey: string; image?: ImageInput; prompt: string; signal?: AbortSignal }): Promise<string> {
   const { apiKey, image, prompt, signal } = opts;
   let res: Response;
   try {
@@ -73,10 +89,10 @@ async function postChat(opts: { apiKey: string; image: ImageInput; prompt: strin
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
       body: JSON.stringify({
         model: GROQ_MODEL,
-        messages: [{ role: 'user', content: [
+        messages: [{ role: 'user', content: image ? [
           { type: 'text', text: prompt },
           { type: 'image_url', image_url: { url: 'data:' + image.mimeType + ';base64,' + image.base64 } }
-        ] }],
+        ] : prompt }],
         response_format: { type: 'json_object' }
       }),
       signal
@@ -101,8 +117,10 @@ async function generateForImage(args: GenerateArgs): Promise<ParsedMetadata> {
   const prompt = buildMetadataPrompt({ platform, theme });
 
   return withRetry(async () => {
-    const text = await postChat({ apiKey, image, prompt, signal });
-    return parseMetadataResponse(text, platform);   // fence ```json ikut dibersihkan parser
+    try {
+      const text = await postChat({ apiKey, image, prompt, signal });
+      return parseMetadataResponse(text, platform);   // fence ```json ikut dibersihkan parser
+    } catch (err) { throw withNoVision(err); }
   }, { onWait, signal });
 }
 
@@ -111,9 +129,39 @@ async function analyzeImage(args: AnalyzeArgs): Promise<AnalysisResult> {
   const prompt = buildAnalysisPrompt({ platform });
 
   return withRetry(async () => {
-    const text = await postChat({ apiKey, image, prompt, signal });
-    return parseAnalysisResponse(text);
+    try {
+      const text = await postChat({ apiKey, image, prompt, signal });
+      return parseAnalysisResponse(text);
+    } catch (err) { throw withNoVision(err); }
   }, { onWait, signal });
 }
 
-export const groq: ProviderAdapter = { id: 'groq', testConnection, generateForImage, analyzeImage };
+async function callText(args: TextArgs): Promise<string> {
+  const { apiKey, prompt, signal, onWait } = args;
+  return withRetry(async () => postChat({ apiKey, prompt, signal }), { onWait, signal });
+}
+
+async function callJudge(input: JudgeInput): Promise<JudgeOutput> {
+  const { apiKey, signal, onWait } = input;
+  const prompt = judgePromptFor(input);
+  const image = input.sendImage ? input.image : undefined;
+  return withRetry(async () => {
+    try {
+      const text = await postChat({ apiKey, image, prompt, signal });
+      return parseJudgeResponse(text);   // rule_id asing → error kind 'json' → di-retry
+    } catch (err) { throw withNoVision(err); }
+  }, { onWait, signal });
+}
+
+export const groq: ProviderAdapter = {
+  id: 'groq',
+  label: 'Groq',
+  // TODO [VERIFIKASI]: pastikan model default qwen/qwen3.8-27b benar-benar mendukung
+  // gambar di endpoint Groq — bila tidak, frame berhenti dengan error jelas (noVision).
+  supportsVision: true,
+  testConnection,
+  generateForImage,
+  analyzeImage,
+  callText,
+  callJudge
+};

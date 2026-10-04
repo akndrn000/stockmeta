@@ -5,12 +5,14 @@
 // Key hanya dikirim sebagai query param ke API resmi Google dan TIDAK PERNAH dicetak ke log.
 import { buildAnalysisPrompt, parseAnalysisResponse } from '../analysisPrompt';
 import type { AnalysisResult } from '../types';
+import { judgePromptFor, parseJudgeResponse } from '../judge';
 import { buildMetadataPrompt, parseMetadataResponse } from '../prompt';
 import type { ParsedMetadata } from '../prompt';
 import { readBody } from './http';
 import { GEMINI_MODEL } from './models';
 import { MODEL_RETRY_MAX, ProviderError, dailyQuotaError, isDailyQuota, parseRetryAfter, withRetry } from './retry';
-import type { AnalyzeArgs, GenerateArgs, ImageInput, ProviderAdapter, TestResult } from './types';
+import type { AnalyzeArgs, GenerateArgs, ImageInput, JudgeInput, JudgeOutput, ProviderAdapter, TestOpts, TestResult, TextArgs } from './types';
+import { isVisionNotSupportedError } from './types';
 
 export const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
@@ -42,7 +44,20 @@ function geminiHttpError(status: number, data: unknown, raw: string, headers: He
   });
 }
 
-async function testConnection(apiKey: string, signal?: AbortSignal): Promise<TestResult> {
+/** Error gambar-tak-didukung → noVision (frame berhenti, tanpa fallback teks-saja). */
+function withNoVision(err: unknown): unknown {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (isVisionNotSupportedError(msg)) {
+    return new ProviderError('Model Gemini tidak mendukung gambar — frame dihentikan (tanpa mode teks-saja).', {
+      retryable: false,
+      noVision: true
+    });
+  }
+  return err;
+}
+
+async function testConnection(apiKey: string, opts?: TestOpts): Promise<TestResult> {
+  const signal = opts?.signal;
   // GET /models/{model}: sekalian membuktikan key valid DAN model tunggal tersedia.
   let res: Response;
   try {
@@ -60,7 +75,8 @@ async function testConnection(apiKey: string, signal?: AbortSignal): Promise<Tes
 }
 
 // M29: satu-satunya tempat HTTP generateContent — prompt & parser diinjeksikan pemanggil.
-async function postChat(opts: { apiKey: string; image: ImageInput; prompt: string; signal?: AbortSignal }): Promise<string> {
+// Tanpa image = panggilan teks murni (Tahap B/D, juri tanpa gambar, perbaikan).
+async function postChat(opts: { apiKey: string; image?: ImageInput; prompt: string; signal?: AbortSignal }): Promise<string> {
   const { apiKey, image, prompt, signal } = opts;
   let res: Response;
   try {
@@ -68,7 +84,7 @@ async function postChat(opts: { apiKey: string; image: ImageInput; prompt: strin
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: image.mimeType, data: image.base64 } }] }],
+        contents: [{ parts: image ? [{ text: prompt }, { inline_data: { mime_type: image.mimeType, data: image.base64 } }] : [{ text: prompt }] }],
         generationConfig: { responseMimeType: 'application/json' }
       }),
       signal
@@ -99,8 +115,10 @@ async function generateForImage(args: GenerateArgs): Promise<ParsedMetadata> {
   const prompt = buildMetadataPrompt({ platform, theme });
 
   return withRetry(async () => {
-    const text = await postChat({ apiKey, image, prompt, signal });
-    return parseMetadataResponse(text, platform);   // JSON rusak → Error kind 'json' → di-retry ≤2x
+    try {
+      const text = await postChat({ apiKey, image, prompt, signal });
+      return parseMetadataResponse(text, platform);   // JSON rusak → Error kind 'json' → di-retry ≤2x
+    } catch (err) { throw withNoVision(err); }
   }, { onWait, signal });
 }
 
@@ -109,9 +127,39 @@ async function analyzeImage(args: AnalyzeArgs): Promise<AnalysisResult> {
   const prompt = buildAnalysisPrompt({ platform });
 
   return withRetry(async () => {
-    const text = await postChat({ apiKey, image, prompt, signal });
-    return parseAnalysisResponse(text);
+    try {
+      const text = await postChat({ apiKey, image, prompt, signal });
+      return parseAnalysisResponse(text);
+    } catch (err) { throw withNoVision(err); }
   }, { onWait, signal });
 }
 
-export const gemini: ProviderAdapter = { id: 'gemini', testConnection, generateForImage, analyzeImage };
+async function callText(args: TextArgs): Promise<string> {
+  const { apiKey, prompt, signal, onWait } = args;
+  return withRetry(async () => postChat({ apiKey, prompt, signal }), { onWait, signal });
+}
+
+async function callJudge(input: JudgeInput): Promise<JudgeOutput> {
+  const { apiKey, signal, onWait } = input;
+  const prompt = judgePromptFor(input);
+  const image = input.sendImage ? input.image : undefined;
+  return withRetry(async () => {
+    try {
+      const text = await postChat({ apiKey, image, prompt, signal });
+      return parseJudgeResponse(text);   // rule_id asing → error kind 'json' → di-retry
+    } catch (err) { throw withNoVision(err); }
+  }, { onWait, signal });
+}
+
+export const gemini: ProviderAdapter = {
+  id: 'gemini',
+  label: 'Gemini',
+  // TODO [VERIFIKASI]: pastikan model default gemini-3.5-flash-lite benar-benar
+  // mendukung gambar — bila tidak, frame berhenti dengan error jelas (noVision).
+  supportsVision: true,
+  testConnection,
+  generateForImage,
+  analyzeImage,
+  callText,
+  callJudge
+};

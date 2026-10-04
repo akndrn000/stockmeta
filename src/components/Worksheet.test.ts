@@ -32,7 +32,14 @@ let calls = 0;
 
 const fakeAdapter: ProviderAdapter = {
   id: 'gemini',
+  label: 'Gemini',
+  supportsVision: true,
   testConnection: async () => ({ ok: true }),
+  callText: async () => '{}',
+  callJudge: async () => ({
+    verdict: 'pass', score: 100, checks: [], unsupported_metadata: [], ip_risks: [],
+    category_ok: true, suggested_category: null, needs_editorial_or_release: false, confidence: 1
+  }),
   analyzeImage: async () => ({ verdict: 'layak', issues: [], summary: '' }),
   generateForImage: async (args) => {
     const step = script[Math.min(calls, Math.max(script.length - 1, 0))] ?? {};

@@ -1,5 +1,9 @@
 // Kontrak seragam untuk semua provider (lihat codebase-design: satu seam, adapter per provider).
-// Tiap provider punya TEPAT SATU model (lihat models.ts) — tanpa pemilihan model dinamis.
+// Tiap provider fixed (Groq/Gemini) punya TEPAT SATU model (lihat models.ts); provider
+// 'custom' memakai baseUrl + model isi pengguna. supportsVision menandai dukungan
+// gambar — frame pada provider tanpa vision BERHENTI dengan error jelas dan TIDAK
+// PERNAH jatuh ke mode teks-saja.
+import type { Observation } from '../observation';
 import type { AnalysisResult } from '../types';
 import type { ParsedMetadata } from '../prompt';
 import type { Platform, ProviderId } from '../types';
@@ -15,6 +19,18 @@ export type TestResult =
   | { ok: true }
   | { ok: false; message: string };
 
+export interface TestOpts {
+  signal?: AbortSignal;
+  /** khusus provider custom OpenAI-compatible */
+  baseUrl?: string;
+  model?: string;
+}
+
+export interface CustomConfig {
+  baseUrl: string;
+  model: string;
+}
+
 export interface GenerateArgs {
   apiKey: string;
   image: ImageInput;
@@ -22,23 +38,96 @@ export interface GenerateArgs {
   theme?: string;
   signal?: AbortSignal;
   onWait?: (info: WaitInfo) => void;
+  /** khusus custom: diabaikan provider fixed */
+  baseUrl?: string;
+  model?: string;
 }
 
 // M29: argumen analisis — sama seperti GenerateArgs TANPA theme (reviewer tidak butuh tema).
-// `model` diterima tapi diabaikan: tiap provider memakai TEPAT SATU model (models.ts).
+// `model`/`baseUrl` hanya dipakai provider custom; provider fixed memakai model tunggalnya.
 export interface AnalyzeArgs {
   apiKey: string;
   model?: string;
+  baseUrl?: string;
   image: ImageInput;
   platform: Platform;
   signal?: AbortSignal;
   onWait?: (info: WaitInfo) => void;
 }
 
+/** panggilan teks murni (Tahap B/D, juri, perbaikan) — TANPA gambar */
+export interface TextArgs {
+  apiKey: string;
+  prompt: string;
+  signal?: AbortSignal;
+  onWait?: (info: WaitInfo) => void;
+  /** khusus custom */
+  baseUrl?: string;
+  model?: string;
+}
+
+/* ---------------- juri kepatuhan ---------------- */
+
+export type JudgeVerdict = 'pass' | 'pass_with_notes' | 'fail';
+export type JudgeCheckStatus = 'ok' | 'warn' | 'fail' | 'n/a';
+
+export interface JudgeCheck {
+  rule_id: string;
+  status: JudgeCheckStatus;
+  evidence: string;
+  fix: string;
+}
+
+export interface JudgeOutput {
+  verdict: JudgeVerdict;
+  score: number;
+  checks: JudgeCheck[];
+  unsupported_metadata: string[];
+  ip_risks: string[];
+  category_ok: boolean;
+  suggested_category: string | null;
+  needs_editorial_or_release: boolean;
+  confidence: number;
+}
+
+export interface JudgeInput {
+  apiKey: string;
+  /** gambar dikirim HANYA bila supportsVision + toggle aktif; bila tidak, observation saja */
+  image?: ImageInput;
+  sendImage: boolean;
+  observation: Observation;
+  /** metadata yang akan diekspor, sudah diserialkan pemanggil */
+  metadataText: string;
+  /** blok ATURAN dari renderRulesBlock() */
+  rulesBlock: string;
+  /** ringkasan hasil cek keras sebagai konteks */
+  hardContext: string;
+  signal?: AbortSignal;
+  onWait?: (info: WaitInfo) => void;
+  /** khusus custom */
+  baseUrl?: string;
+  model?: string;
+}
+
+/** pola pesan error API yang berarti endpoint/model tidak mendukung gambar */
+const VISION_ERROR_RE = /image|vision|multimodal|inline_data|content\s*part|unsupported.*media|media.*unsupported/i;
+
+/** true bila pesan error menandakan gambar tidak didukung (bukan kuota/jaringan) */
+export function isVisionNotSupportedError(message: string): boolean {
+  return VISION_ERROR_RE.test(message);
+}
+
 export interface ProviderAdapter {
   id: ProviderId;
-  testConnection(apiKey: string, signal?: AbortSignal): Promise<TestResult>;
+  label: string;
+  /** false → frame berhenti dengan error jelas; tidak ada fallback teks-saja */
+  supportsVision: boolean;
+  testConnection(apiKey: string, opts?: TestOpts): Promise<TestResult>;
   generateForImage(args: GenerateArgs): Promise<ParsedMetadata>;
   /** M29: nilai kelayakan upload (reviewer), bukan metadata. */
   analyzeImage(args: AnalyzeArgs): Promise<AnalysisResult>;
+  /** panggilan teks murni (Tahap B/D, juri tanpa gambar, perbaikan) */
+  callText(args: TextArgs): Promise<string>;
+  /** juri kepatuhan: kirim gambar hanya bila supportsVision + input.sendImage */
+  callJudge(input: JudgeInput): Promise<JudgeOutput>;
 }
