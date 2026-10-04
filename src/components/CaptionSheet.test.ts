@@ -183,7 +183,7 @@ describe('CaptionSheet — saran perbaikan', () => {
       api().s.applyGenerated(id, 'adobe', { title: 'Judul contoh' });
     });
     expect(text()).toContain('Saran perbaikan');
-    expect(text()).toContain('Kata kunci minimal 5 (baru 0).');
+    expect(text()).toContain('Kata kunci unik minimal 5 (baru 0).');
     expect(text()).toContain('1 baris punya saran perbaikan');
   });
 
@@ -242,8 +242,12 @@ describe('CaptionSheet — footer jumlah baris ekspor (F2)', () => {
     act(() => {
       api().s.select(ids[0]);
       api().s.applyGenerated(ids[0], 'adobe', {
-        title: 'Judul contoh',
-        keywords: ['a', 'b', 'c', 'd', 'e'],
+        title: 'Red panda eating bamboo in forest',
+        keywords: ['red panda', 'bamboo', 'forest', 'eating', 'wildlife',
+          'mammal', 'nature', 'green', 'mountain', 'daylight',
+          'animal', 'cute', 'fur', 'tree', 'leaves',
+          'outdoor', 'park', 'zoo', 'asia', 'china',
+          'resting', 'sitting', 'branch', 'tall', 'leaves2'],
         category: 'Animals'
       });
     });

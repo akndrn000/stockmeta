@@ -11,6 +11,7 @@ import type { Platform } from './types';
 export type RuleId =
   | 'ADOBE_TITLE_LEN'
   | 'ADOBE_TITLE_COMMA'
+  | 'ADOBE_TITLE_WORDS'
   | 'ADOBE_KEYWORDS_RANGE'
   | 'ADOBE_KEYWORDS_TITLE_WORDS'
   | 'ADOBE_CATEGORY'
@@ -41,6 +42,7 @@ export interface RuleDef {
 export const RULE_IDS: readonly RuleId[] = [
   'ADOBE_TITLE_LEN',
   'ADOBE_TITLE_COMMA',
+  'ADOBE_TITLE_WORDS',
   'ADOBE_KEYWORDS_RANGE',
   'ADOBE_KEYWORDS_TITLE_WORDS',
   'ADOBE_CATEGORY',
@@ -70,6 +72,10 @@ export const RULES: Record<RuleId, RuleDef> = {
   ADOBE_TITLE_COMMA: {
     status: 'confirmed',
     summary: 'Adobe title tanpa koma dan karakter khusus (kutip, titik koma, emoji); sanitasi saat ekspor dan tandai di UI.'
+  },
+  ADOBE_TITLE_WORDS: {
+    status: 'confirmed',
+    summary: 'Adobe title berupa frasa faktual, bukan daftar kata; jangan awali dengan "photo of"/"photograph of".'
   },
   ADOBE_KEYWORDS_RANGE: {
     status: 'confirmed',
@@ -369,7 +375,7 @@ export const SHUTTERSTOCK_MANUAL_STEPS: readonly string[] = [
  */
 export function renderRulesBlock(platform: Platform): string {
   const ids: readonly RuleId[] = platform === 'adobe'
-    ? ['ADOBE_TITLE_LEN', 'ADOBE_TITLE_COMMA', 'ADOBE_KEYWORDS_RANGE', 'ADOBE_KEYWORDS_TITLE_WORDS', 'ADOBE_CATEGORY', 'IP_BRAND', 'IP_PERSON_ARTIST_CHARACTER', 'TECH_DATA', 'AI_LABEL_IN_TEXT', 'LANGUAGE_EN', 'GROUNDING', 'CATEGORY_FIT', 'FILENAME_MATCH', 'RELEASE_NEEDED', 'IMAGE_QUALITY']
+    ? ['ADOBE_TITLE_LEN', 'ADOBE_TITLE_COMMA', 'ADOBE_TITLE_WORDS', 'ADOBE_KEYWORDS_RANGE', 'ADOBE_KEYWORDS_TITLE_WORDS', 'ADOBE_CATEGORY', 'IP_BRAND', 'IP_PERSON_ARTIST_CHARACTER', 'TECH_DATA', 'AI_LABEL_IN_TEXT', 'LANGUAGE_EN', 'GROUNDING', 'CATEGORY_FIT', 'FILENAME_MATCH', 'RELEASE_NEEDED', 'IMAGE_QUALITY']
     : ['SS_DESC_LEN', 'SS_DESC_SENTENCE', 'SS_KEYWORDS_RANGE', 'SS_KEYWORDS_UNIQUE', 'SS_KEYWORDS_STEM', 'SS_CATEGORIES', 'IP_BRAND', 'IP_PERSON_ARTIST_CHARACTER', 'AI_LABEL_IN_TEXT', 'LANGUAGE_EN', 'GROUNDING', 'CATEGORY_FIT', 'FILENAME_MATCH', 'RELEASE_NEEDED', 'IMAGE_QUALITY'];
   const lines = ids.map((id) => {
     const rule = RULES[id];

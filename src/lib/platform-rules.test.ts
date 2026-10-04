@@ -107,6 +107,9 @@ describe('platform-rules: tanpa angka batas hardcode di luar', () => {
   });
 
   it('perbandingan literal 4/5/6/7 tidak muncul di src/lib non-test', () => {
+    // Hanya pada identifier domain limit (keyword/title/deskripsi/kategori/unique) —
+    // konstanta algoritmik intern (stemmer, panjang kata) bukan batas platform.
+    const DOMAIN = /(keyword|title|descri|categor|unique)/i;
     const bad: string[] = [];
     for (const file of allSources()) {
       if (!file.replace(/\\/g, '/').includes('/lib/') || file.includes('/lib/providers/')) continue;
@@ -117,7 +120,7 @@ describe('platform-rules: tanpa angka batas hardcode di luar', () => {
         if (/from '.\/(platform-rules|limits)'/.test(line)) return;
         // abaikan angka di dalam string UI (pesan memakai konstanta via template)
         const noStrings = line.replace(/(['"`]).*?\1/g, '');
-        if (SINGLE_CMP.test(noStrings)) bad.push(short + ':' + (i + 1) + ' → ' + line.trim().slice(0, 80));
+        if (DOMAIN.test(noStrings) && SINGLE_CMP.test(noStrings)) bad.push(short + ':' + (i + 1) + ' → ' + line.trim().slice(0, 80));
       });
     }
     expect(bad, 'perbandingan batas literal di src/lib:\n' + bad.join('\n')).toEqual([]);
@@ -125,8 +128,8 @@ describe('platform-rules: tanpa angka batas hardcode di luar', () => {
 });
 
 describe('platform-rules: isi', () => {
-  it('21 RULE_ID minimal semuanya terdefinisi', () => {
-    expect(RULE_IDS).toHaveLength(21);
+  it('22 RULE_ID minimal semuanya terdefinisi', () => {
+    expect(RULE_IDS).toHaveLength(22);
     for (const id of RULE_IDS) expect(RULES[id].summary.length).toBeGreaterThan(0);
   });
 
@@ -160,7 +163,7 @@ describe('platform-rules: isi', () => {
 
   it('blok aturan juri memuat semua RULE_ID dan menandai item verify', () => {
     const expected: Record<'adobe' | 'shutterstock', readonly string[]> = {
-      adobe: ['ADOBE_TITLE_LEN', 'ADOBE_TITLE_COMMA', 'ADOBE_KEYWORDS_RANGE', 'ADOBE_KEYWORDS_TITLE_WORDS', 'ADOBE_CATEGORY', 'TECH_DATA'],
+      adobe: ['ADOBE_TITLE_LEN', 'ADOBE_TITLE_COMMA', 'ADOBE_TITLE_WORDS', 'ADOBE_KEYWORDS_RANGE', 'ADOBE_KEYWORDS_TITLE_WORDS', 'ADOBE_CATEGORY', 'TECH_DATA'],
       shutterstock: ['SS_DESC_LEN', 'SS_DESC_SENTENCE', 'SS_KEYWORDS_RANGE', 'SS_KEYWORDS_UNIQUE', 'SS_KEYWORDS_STEM', 'SS_CATEGORIES']
     };
     const shared = ['IP_BRAND', 'IP_PERSON_ARTIST_CHARACTER', 'AI_LABEL_IN_TEXT', 'LANGUAGE_EN', 'GROUNDING', 'CATEGORY_FIT', 'FILENAME_MATCH', 'RELEASE_NEEDED', 'IMAGE_QUALITY'];

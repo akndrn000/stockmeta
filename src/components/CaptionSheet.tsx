@@ -121,10 +121,15 @@ export function CaptionSheet({ session }: {
   // saran hanya kalau slot platform aktif sudah berisi — slot kosong jangan dinilai (error frame gagal tetap tampil)
   const notesFor = (f: Frame): ReturnType<typeof validateMetadata> => {
     const sm = f.metadata[platform];
-    return sm && hasContent(platform, sm) ? validateMetadata(platform, sm, f.name) : [];
+    if (!sm || !hasContent(platform, sm)) return { errors: [], warnings: [] };
+    return validateMetadata(platform, sm, f.name);
   };
-  const notes = frame ? notesFor(frame) : [];
-  const rowsWithNotes = frames.filter((f) => notesFor(f).length > 0).length;
+  const result = frame ? notesFor(frame) : { errors: [], warnings: [] };
+  const notes = [...result.errors, ...result.warnings];
+  const rowsWithNotes = frames.filter((f) => {
+    const r = notesFor(f);
+    return r.errors.length + r.warnings.length > 0;
+  }).length;
   // footer: jumlah baris yang benar-benar diekspor (slot berisi) — bukan jumlah frame
   const exportRows = frames.filter((f) => {
     const sm = f.metadata[platform];
