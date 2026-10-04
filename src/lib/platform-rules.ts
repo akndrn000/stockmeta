@@ -30,7 +30,19 @@ export type RuleId =
   | 'CATEGORY_FIT'
   | 'FILENAME_MATCH'
   | 'RELEASE_NEEDED'
-  | 'IMAGE_QUALITY';
+  | 'IMAGE_QUALITY'
+  | 'ADOBE_SIMILAR'
+  | 'ADOBE_QUALITY_FOCUS'
+  | 'ADOBE_QUALITY_EXPOSURE'
+  | 'ADOBE_QUALITY_NOISE'
+  | 'ADOBE_QUALITY_COLOR'
+  | 'ADOBE_QUALITY_OVEREDIT'
+  | 'ADOBE_MIN_RESOLUTION'
+  | 'SS_OUTCOME'
+  | 'SS_MIN_QUALITY'
+  | 'SS_MIN_RESOLUTION'
+  | 'SIMILARITY_BATCH'
+  | 'CONCEPT_SATURATION';
 
 export type RuleStatus = 'confirmed' | 'verify';
 
@@ -61,7 +73,19 @@ export const RULE_IDS: readonly RuleId[] = [
   'CATEGORY_FIT',
   'FILENAME_MATCH',
   'RELEASE_NEEDED',
-  'IMAGE_QUALITY'
+  'IMAGE_QUALITY',
+  'ADOBE_SIMILAR',
+  'ADOBE_QUALITY_FOCUS',
+  'ADOBE_QUALITY_EXPOSURE',
+  'ADOBE_QUALITY_NOISE',
+  'ADOBE_QUALITY_COLOR',
+  'ADOBE_QUALITY_OVEREDIT',
+  'ADOBE_MIN_RESOLUTION',
+  'SS_OUTCOME',
+  'SS_MIN_QUALITY',
+  'SS_MIN_RESOLUTION',
+  'SIMILARITY_BATCH',
+  'CONCEPT_SATURATION'
 ];
 
 export const RULES: Record<RuleId, RuleDef> = {
@@ -155,6 +179,57 @@ export const RULES: Record<RuleId, RuleDef> = {
   IMAGE_QUALITY: {
     status: 'verify',
     summary: 'Kualitas gambar (fokus, noise, exposure) dinilai dari observation; peringatan umum saja.'
+  },
+  // TODO [VERIFIKASI]: semua ambang kualitas/risiko di bawah adalah heuristik yang bisa
+  // disetel via kalibrasi — bukan ambang platform. Hanya peringatan/bukti, kecuali
+  // resolusi minimum resmi (error pemblokir per platform).
+  ADOBE_SIMILAR: {
+    status: 'verify',
+    summary: 'Adobe menolak konten terlalu mirip (sudut/pose berulang, ubahan warna/zoom kecil); sinyal internal batch saja.'
+  },
+  ADOBE_QUALITY_FOCUS: {
+    status: 'verify',
+    summary: 'Fokus lembut (varians Laplacian + fraksi tile tajam); heuristik, bukan ambang Adobe.'
+  },
+  ADOBE_QUALITY_EXPOSURE: {
+    status: 'verify',
+    summary: 'Eksposur (luminans, highlight/shadow terpotong); heuristik.'
+  },
+  ADOBE_QUALITY_NOISE: {
+    status: 'verify',
+    summary: 'Noise/artefak/debu (area datar + inspeksi crop 100%); heuristik.'
+  },
+  ADOBE_QUALITY_COLOR: {
+    status: 'verify',
+    summary: 'White balance/saturasi tidak wajar; heuristik (WB hanya photo).'
+  },
+  ADOBE_QUALITY_OVEREDIT: {
+    status: 'verify',
+    summary: 'Over-edit/penajaman berlebih/halo (blokiness JPEG + crop); heuristik.'
+  },
+  ADOBE_MIN_RESOLUTION: {
+    status: 'verify',
+    summary: 'Adobe foto min 4MP (JPEG); vektor min artboard 15MP. Di bawah minimum = error pemblokir.'
+  },
+  SS_OUTCOME: {
+    status: 'verify',
+    summary: 'Estimasi tiga arah Shutterstock (marketplace / data licensing saja / ditolak); bukan keputusan platform.'
+  },
+  SS_MIN_QUALITY: {
+    status: 'verify',
+    summary: 'Kualitas di bawah minimum menurut metrik/inspeksi → Data licensing saja (tidak masuk marketplace).'
+  },
+  SS_MIN_RESOLUTION: {
+    status: 'verify',
+    summary: 'Shutterstock foto/ilustrasi min 4MP (JPEG/TIFF). Di bawah minimum = error pemblokir.'
+  },
+  SIMILARITY_BATCH: {
+    status: 'verify',
+    summary: 'Kemiripan dalam batch + riwayat lokal (hash saja); ambang disetel via kalibrasi.'
+  },
+  CONCEPT_SATURATION: {
+    status: 'verify',
+    summary: 'Kejenuhan konsep dinilai AI; perkiraan subjektif, bukan data koleksi platform.'
   }
 };
 
@@ -375,8 +450,8 @@ export const SHUTTERSTOCK_MANUAL_STEPS: readonly string[] = [
  */
 export function renderRulesBlock(platform: Platform): string {
   const ids: readonly RuleId[] = platform === 'adobe'
-    ? ['ADOBE_TITLE_LEN', 'ADOBE_TITLE_COMMA', 'ADOBE_TITLE_WORDS', 'ADOBE_KEYWORDS_RANGE', 'ADOBE_KEYWORDS_TITLE_WORDS', 'ADOBE_CATEGORY', 'IP_BRAND', 'IP_PERSON_ARTIST_CHARACTER', 'TECH_DATA', 'AI_LABEL_IN_TEXT', 'LANGUAGE_EN', 'GROUNDING', 'CATEGORY_FIT', 'FILENAME_MATCH', 'RELEASE_NEEDED', 'IMAGE_QUALITY']
-    : ['SS_DESC_LEN', 'SS_DESC_SENTENCE', 'SS_KEYWORDS_RANGE', 'SS_KEYWORDS_UNIQUE', 'SS_KEYWORDS_STEM', 'SS_CATEGORIES', 'IP_BRAND', 'IP_PERSON_ARTIST_CHARACTER', 'AI_LABEL_IN_TEXT', 'LANGUAGE_EN', 'GROUNDING', 'CATEGORY_FIT', 'FILENAME_MATCH', 'RELEASE_NEEDED', 'IMAGE_QUALITY'];
+    ? ['ADOBE_TITLE_LEN', 'ADOBE_TITLE_COMMA', 'ADOBE_TITLE_WORDS', 'ADOBE_KEYWORDS_RANGE', 'ADOBE_KEYWORDS_TITLE_WORDS', 'ADOBE_CATEGORY', 'IP_BRAND', 'IP_PERSON_ARTIST_CHARACTER', 'TECH_DATA', 'AI_LABEL_IN_TEXT', 'LANGUAGE_EN', 'GROUNDING', 'CATEGORY_FIT', 'FILENAME_MATCH', 'RELEASE_NEEDED', 'IMAGE_QUALITY', 'ADOBE_SIMILAR', 'ADOBE_QUALITY_FOCUS', 'ADOBE_QUALITY_EXPOSURE', 'ADOBE_QUALITY_NOISE', 'ADOBE_QUALITY_COLOR', 'ADOBE_QUALITY_OVEREDIT', 'ADOBE_MIN_RESOLUTION', 'SIMILARITY_BATCH', 'CONCEPT_SATURATION']
+    : ['SS_DESC_LEN', 'SS_DESC_SENTENCE', 'SS_KEYWORDS_RANGE', 'SS_KEYWORDS_UNIQUE', 'SS_KEYWORDS_STEM', 'SS_CATEGORIES', 'IP_BRAND', 'IP_PERSON_ARTIST_CHARACTER', 'AI_LABEL_IN_TEXT', 'LANGUAGE_EN', 'GROUNDING', 'CATEGORY_FIT', 'FILENAME_MATCH', 'RELEASE_NEEDED', 'IMAGE_QUALITY', 'SS_OUTCOME', 'SS_MIN_QUALITY', 'SS_MIN_RESOLUTION', 'SIMILARITY_BATCH', 'CONCEPT_SATURATION'];
   const lines = ids.map((id) => {
     const rule = RULES[id];
     const tag = rule.status === 'verify' ? ' [belum pasti — JANGAN jadikan satu-satunya alasan gagal]' : '';
