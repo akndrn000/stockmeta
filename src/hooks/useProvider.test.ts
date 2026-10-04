@@ -1,17 +1,19 @@
 // @vitest-environment jsdom
 // Tes useProvider lewat harness React kecil (react-dom/client + act) — fokus M19:
 // API key tersimpan dites otomatis saat boot dan saat ganti provider (auto-test),
-// tanpa jaringan, tanpa library tes UI.
+// tanpa jaringan, tanpa library tes UI. Plus pemisahan provider per mode
+// (analisis vs metadata): default per mode untuk user baru, migrasi user lama.
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { registry } from '../lib/providers';
 import { blankObservation } from '../lib/observation';
-import { custom } from '../lib/providers/custom';
 import { gemini } from '../lib/providers/gemini';
 import { groq } from '../lib/providers/groq';
+import { openrouter } from '../lib/providers/openrouter';
 import type { ProviderAdapter, TestResult } from '../lib/providers/types';
-import { PROVIDER_LABELS, PROVIDER_ORDER, STATUS_LABELS, useProvider } from './useProvider';
+import type { AppMode } from '../lib/types';
+import { DEFAULT_ANALYSIS_PROVIDER, DEFAULT_PROVIDER, PROVIDER_LABELS, PROVIDER_ORDER, STATUS_LABELS, useProvider } from './useProvider';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -32,8 +34,8 @@ const fakeAdapter: ProviderAdapter = {
 };
 
 const holderRef: { current?: ReturnType<typeof useProvider> } = {};
-function Harness() {
-  const p = useProvider();
+function Harness({ mode }: { mode?: AppMode }) {
+  const p = useProvider(mode);
   // eslint-disable-next-line react-hooks/immutability -- harness pengujian: simpan hasil hook terbaru
   holderRef.current = p;
   return createElement('div');
@@ -45,8 +47,8 @@ let host: HTMLElement;
 
 const flush = () => act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 
-async function mount() {
-  await act(async () => { root.render(createElement(Harness)); });
+async function mount(mode?: AppMode) {
+  await act(async () => { root.render(createElement(Harness, { mode })); });
   await flush();
 }
 
@@ -56,7 +58,7 @@ beforeEach(() => {
   testConnection.mockResolvedValue({ ok: true });
   registry.gemini = fakeAdapter;
   registry.groq = fakeAdapter;                    // default provider (M11)
-  registry.custom = fakeAdapter;
+  registry.openrouter = fakeAdapter;
   holderRef.current = undefined;
   host = document.createElement('div');
   document.body.appendChild(host);
@@ -66,7 +68,7 @@ beforeEach(() => {
 afterEach(async () => {
   registry.gemini = gemini;
   registry.groq = groq;
-  registry.custom = custom;
+  registry.openrouter = openrouter;
   await act(async () => root.unmount());
   host.remove();
 });
@@ -77,7 +79,7 @@ describe('useProvider — auto-test key tersimpan (M19)', () => {
     let settle: ((r: TestResult) => void) | undefined;
     testConnection.mockImplementationOnce(() => new Promise<TestResult>((r) => { settle = r; }));
 
-    await act(async () => { root.render(createElement(Harness)); });
+    await act(async () => { root.render(createElement(Harness, { mode: undefined })); });
     expect(api().provider).toBe('groq');
     expect(api().key).toBe('kunci-tertaruh');
     expect(api().status).toBe('testing');
@@ -88,7 +90,7 @@ describe('useProvider — auto-test key tersimpan (M19)', () => {
     expect(api().status).toBe('ok');
     expect(api().note).toBe('Terhubung — API key disimpan di browser.');
     expect(testConnection).toHaveBeenCalledTimes(1);
-    expect(testConnection).toHaveBeenCalledWith('kunci-tertaruh', { baseUrl: '', model: '' });
+    expect(testConnection).toHaveBeenCalledWith('kunci-tertaruh');
   });
 
   it('key tersimpan sudah mati → auto-test berakhir "Gagal" dengan pesan provider', async () => {
@@ -119,7 +121,7 @@ describe('useProvider — auto-test key tersimpan (M19)', () => {
     expect(api().key).toBe('kunci-gemini');         // yang tampil = yang dites
     expect(api().status).toBe('ok');
     expect(testConnection).toHaveBeenCalledTimes(1);
-    expect(testConnection).toHaveBeenCalledWith('kunci-gemini', { baseUrl: '', model: '' });
+    expect(testConnection).toHaveBeenCalledWith('kunci-gemini');
   });
 
   it('ganti provider tanpa key tersimpan → isi field lama dipertahankan, tanpa auto-test', async () => {
@@ -128,13 +130,13 @@ describe('useProvider — auto-test key tersimpan (M19)', () => {
     expect(api().status).toBe('ok');
     expect(testConnection).toHaveBeenCalledTimes(1);
 
-    await act(async () => { api().setProvider('custom'); });
+    await act(async () => { api().setProvider('openrouter'); });
     await flush();
-    expect(api().provider).toBe('custom');
+    expect(api().provider).toBe('openrouter');
     expect(api().key).toBe('kunci-groq');           // legacy: isi lama dipertahankan
     expect(api().status).toBe('idle');              // reset, belum dites
     expect(testConnection).toHaveBeenCalledTimes(1);
-    expect(localStorage.getItem('stockmeta_provider')).toBe('custom');
+    expect(localStorage.getItem('stockmeta_provider')).toBe('openrouter');
   });
 
   it('tes manual tetap bisa sesudahnya: key yang diketik yang diuji & disimpan', async () => {
@@ -148,53 +150,90 @@ describe('useProvider — auto-test key tersimpan (M19)', () => {
     expect(api().status).toBe('idle');
     await act(async () => { await api().test(); });
     expect(testConnection).toHaveBeenCalledTimes(2);
-    expect(testConnection).toHaveBeenLastCalledWith('baru-diketik', { baseUrl: '', model: '' });
+    expect(testConnection).toHaveBeenLastCalledWith('baru-diketik');
     expect(api().status).toBe('ok');
     expect(localStorage.getItem('stockmeta_gemini_key')).toBe('baru-diketik');
   });
+});
 
-  it('Coming Soon tidak pernah dites', async () => {
-    await mount();
-    await act(async () => { api().setProvider('coming-soon'); });
-    await flush();
-    expect(api().status).toBe('idle');
-    await act(async () => { await api().test(); });
-    expect(testConnection).not.toHaveBeenCalled();
+describe('useProvider — daftar provider', () => {
+  it('urutan: Groq, Gemini, OpenRouter — ketiganya live tanpa placeholder', () => {
+    expect(PROVIDER_ORDER).toEqual(['groq', 'gemini', 'openrouter']);
+  });
+
+  it('label OpenRouter ikut terdaftar', () => {
+    expect(PROVIDER_LABELS.openrouter).toBe('OpenRouter');
+    expect(PROVIDER_LABELS.gemini).toBe('Gemini');
+    expect(PROVIDER_LABELS.groq).toBe('Groq');
+  });
+
+  it('default: analisis → Gemini, metadata/legacy → Groq', () => {
+    expect(DEFAULT_PROVIDER).toBe('groq');
+    expect(DEFAULT_ANALYSIS_PROVIDER).toBe('gemini');
   });
 });
 
-describe('useProvider — daftar provider (M19)', () => {
-  it('urutan: Groq, Gemini, Custom, Coming Soon', () => {
-    expect(PROVIDER_ORDER).toEqual(['groq', 'gemini', 'custom', 'coming-soon']);
+describe('useProvider — provider per mode (analisis vs metadata)', () => {
+  it('user baru tanpa simpanan: analisis default Gemini, metadata default Groq', async () => {
+    await mount('analisis');
+    expect(api().provider).toBe('gemini');
+    expect(api().activeMode).toBe('analisis');
+
+    await act(async () => { root.render(createElement(Harness, { mode: 'metadata' })); });
+    await flush();
+    expect(api().provider).toBe('groq');
+    expect(api().activeMode).toBe('metadata');
   });
 
-  it('label Custom ikut terdaftar', () => {
-    expect(PROVIDER_LABELS.custom).toBe('Custom');
-    expect(PROVIDER_LABELS).toHaveProperty('coming-soon', 'Coming Soon');
-  });
+  it('pilihan per mode tersimpan terpisah; kunci umum user lama tidak ditulis ulang', async () => {
+    localStorage.setItem('stockmeta_provider_analisis', 'openrouter');
+    localStorage.setItem('stockmeta_provider_metadata', 'groq');
+    localStorage.setItem('stockmeta_openrouter_key', 'k-or');
+    localStorage.setItem('stockmeta_groq_key', 'k-groq');
 
-  it('custom tanpa base URL/model → tes gagal jelas tanpa jaringan', async () => {
-    await mount();
-    await act(async () => { api().setProvider('custom'); });
-    await act(async () => { api().setKey('kunci-custom'); });
-    await act(async () => { await api().test(); });
-    expect(api().status).toBe('fail');
-    expect(api().note).toBe('Isi base URL, model, dan API key dulu.');
-    expect(testConnection).not.toHaveBeenCalled();
-  });
-
-  it('custom lengkap → baseUrl/model diteruskan ke adapter + tersimpan', async () => {
-    await mount();
-    await act(async () => { api().setProvider('custom'); });
-    await act(async () => { api().setCustomBaseUrl('https://layanan.contoh/api/v1'); });
-    await act(async () => { api().setCustomModel('model-uji'); });
-    await act(async () => { api().setKey('kunci-custom'); });
-    await act(async () => { await api().test(); });
+    await mount('analisis');
+    expect(api().provider).toBe('openrouter');
+    expect(api().key).toBe('k-or');
     expect(api().status).toBe('ok');
-    expect(testConnection).toHaveBeenCalledWith('kunci-custom', {
-      baseUrl: 'https://layanan.contoh/api/v1', model: 'model-uji'
-    });
-    expect(localStorage.getItem('stockmeta_custom_baseurl')).toBe('https://layanan.contoh/api/v1');
-    expect(localStorage.getItem('stockmeta_custom_model')).toBe('model-uji');
+
+    await act(async () => { root.render(createElement(Harness, { mode: 'metadata' })); });
+    await flush();
+    expect(api().provider).toBe('groq');
+    expect(api().key).toBe('k-groq');               // key mengikuti provider mode aktif
+    expect(api().status).toBe('ok');
+  });
+
+  it('user lama (hanya kunci umum) → pilihannya dihormati di kedua mode', async () => {
+    localStorage.setItem('stockmeta_provider', 'gemini');
+    localStorage.setItem('stockmeta_gemini_key', 'k-lama');
+
+    await mount('analisis');
+    expect(api().provider).toBe('gemini');          // bukan default Gemini-kebetulan: dari kunci umum
+    expect(api().key).toBe('k-lama');
+
+    await act(async () => { root.render(createElement(Harness, { mode: 'metadata' })); });
+    await flush();
+    expect(api().provider).toBe('gemini');
+  });
+
+  it('setProvider dalam mode menulis kunci khusus mode, bukan kunci umum', async () => {
+    await mount('analisis');
+    await act(async () => { api().setProvider('openrouter'); });
+    await flush();
+    expect(localStorage.getItem('stockmeta_provider_analisis')).toBe('openrouter');
+    expect(localStorage.getItem('stockmeta_provider')).toBeNull();
+    expect(localStorage.getItem('stockmeta_provider_metadata')).toBeNull();
+  });
+
+  it('API key tetap satu per provider lintas mode', async () => {
+    localStorage.setItem('stockmeta_provider_analisis', 'gemini');
+    localStorage.setItem('stockmeta_provider_metadata', 'gemini');
+    localStorage.setItem('stockmeta_gemini_key', 'k-sama');
+
+    await mount('analisis');
+    expect(api().key).toBe('k-sama');
+    await act(async () => { root.render(createElement(Harness, { mode: 'metadata' })); });
+    await flush();
+    expect(api().key).toBe('k-sama');               // key yang sama, tidak disimpan dua kali
   });
 });

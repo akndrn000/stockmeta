@@ -8,7 +8,7 @@ import { blankObservation } from '../lib/observation';
 import { registry } from '../lib/providers';
 import { gemini } from '../lib/providers/gemini';
 import { groq } from '../lib/providers/groq';
-import { custom } from '../lib/providers/custom';
+import { openrouter } from '../lib/providers/openrouter';
 import type { JudgeOutput, ProviderAdapter } from '../lib/providers/types';
 import type { Frame } from '../lib/types';
 import { useProvider } from './useProvider';
@@ -36,7 +36,7 @@ const FAIL: JudgeOutput = {
 };
 
 let verdicts: Record<string, JudgeOutput | Error> = {};
-function mockAdapter(id: 'groq' | 'gemini' | 'custom'): ProviderAdapter {
+function mockAdapter(id: 'groq' | 'gemini' | 'openrouter'): ProviderAdapter {
   return {
     id,
     label: id,
@@ -105,12 +105,10 @@ beforeEach(() => {
   verdicts = {};
   localStorage.setItem('stockmeta_groq_key', 'k1');
   localStorage.setItem('stockmeta_gemini_key', 'k2');
-  localStorage.setItem('stockmeta_custom_key', 'k3');
-  localStorage.setItem('stockmeta_custom_baseurl', 'https://contoh.test/v1');
-  localStorage.setItem('stockmeta_custom_model', 'm');
+  localStorage.setItem('stockmeta_openrouter_key', 'k3');
   registry.groq = mockAdapter('groq');
   registry.gemini = mockAdapter('gemini');
-  registry.custom = mockAdapter('custom');
+  registry.openrouter = mockAdapter('openrouter');
   holderRef.current = undefined;
   host = document.createElement('div');
   document.body.appendChild(host);
@@ -121,7 +119,7 @@ beforeEach(() => {
 afterEach(async () => {
   registry.gemini = gemini;
   registry.groq = groq;
-  registry.custom = custom;
+  registry.openrouter = openrouter;
   await act(async () => root.unmount());
   host.remove();
 });
@@ -155,7 +153,7 @@ describe('useJudge', () => {
   });
 
   it('2 pass 1 fail → PERLU DITINJAU', async () => {
-    verdicts = { custom: FAIL };
+    verdicts = { openrouter: FAIL };
     const id = addReadyFrame();
     await ackAndJudge(id);
     const frame = api().s.frames.find((f) => f.id === id) as Frame;

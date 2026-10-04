@@ -1127,6 +1127,77 @@ adalah prompt, bukan ekspektasi tes. Verifikasi akhir: `npm run test` **268/268*
   Adobe menerima-dengan-disclosure, Shutterstock menolak tegas). Perubahan itu masuk
   bersama perbaikan prompt analisis sebelumnya dan belum tercatat di bagian M29.
 
+## Perbaikan (A) sederhanakan provider + (B) provider per mode Analisis/Metadata
+
+Gabungan dua perbaikan dalam satu sesi. Verifikasi: `npm run test` **371/371**,
+`npx tsc --noEmit` 0 error, `npm run lint` 0 temuan, `npm run build` sukses.
+Tanpa e2e, tanpa menjalankan server.
+
+### A. Provider disederhanakan: Custom & Coming Soon dihapus, OpenRouter kembali
+
+- **HAPUS provider `Custom`** (base URL + model + API key manual) sepenuhnya:
+  `src/lib/providers/custom.ts` + `custom.test.ts` dihapus; `ProviderId` kini hanya
+  `"gemini" | "groq" | "openrouter"` (`src/lib/types.ts`); field Base URL & Model dihapus
+  dari `ProviderPanel.tsx`; kunci `stockmeta_custom_key`/`stockmeta_custom_baseurl`/
+  `stockmeta_custom_model` + `read/writeCustom*` dihapus dari `storage.ts`; plumbing
+  `CustomConfig`/`baseUrl`/`model` dihapus dari `providers/types.ts`, `pipeline.ts`,
+  `providers/fallback.ts`, `useBatch.ts`, `useAnalysisBatch.ts`, `useJudge.ts`, `useRisk.ts`,
+  dan `scripts/live-test.ts`. Nilai tersimpan lama `'custom'` → `readProvider()` = `null`
+  (pemanggil memakai default mode).
+- **OpenRouter dikembalikan** (sempat tertimpa saat Custom ditambahkan):
+  `src/lib/providers/openrouter.ts` (**baru**, full adapter: tes koneksi `GET /models`,
+  generate/analisis/observasi/teks/juri/inspeksi-crop, alias `openrouter/free`, ulangi
+  tanpa `response_format` bila ditolak 400/422) + `openrouter.test.ts` (**baru**);
+  masuk `registry`, `PROVIDER_MODELS`, `FALLBACK_ORDER`, `JUDGE_IDS`, dan `live-test`
+  (`OPENROUTER_KEY`). Nilai `'openrouter'` lama yang sempat dipetakan ke `'custom'`
+  kembali terbaca sebagai `openrouter`.
+- **HAPUS opsi Coming Soon** sepenuhnya: `SOON_NOTE`, `isSoon`, dan state `disabled`
+  untuknya dihapus dari `useProvider.ts`, `ProviderPanel.tsx`, dan `Worksheet.tsx`
+  (termasuk badge `segera` di segmented control).
+- Urutan dropdown akhir: **Groq → Gemini → OpenRouter** — ketiganya live, tanpa
+  placeholder non-fungsional. `README.md` tabel provider + FAQ + keamanan ikut
+  diperbarui (3 provider saja).
+
+### B. Provider dipisah untuk Mode Analisis vs Mode Metadata
+
+- `src/lib/storage.ts`: kunci baru **`stockmeta_provider_analisis`** dan
+  **`stockmeta_provider_metadata`** + `read/writeProviderForMode()` — terpisah dari kunci
+  umum `stockmeta_provider` (yang dipertahankan sebagai migrasi user lama). **API key tetap
+  satu per provider** (`readKey`/`writeKey` tidak berubah).
+- `src/hooks/useProvider.ts`: parameter opsional **`activeMode`** — tanpa mode, kontrak lama
+  identik (satu kunci umum, default Groq); dengan mode, boot + `setProvider` memakai kunci
+  khusus mode (kunci umum hanya fallback baca untuk user lama), pindah mode me-restore
+  provider + key + auto-test untuk mode itu.
+- `src/components/ProviderPanel.tsx`: prop opsional `mode` (label `Provider — Analisis /
+  Metadata`); karena `page.tsx` kini memanggil `useProvider(mode)`, panel otomatis
+  menampilkan/menyimpan pilihan khusus mode aktif dan status tes mengikuti mode itu.
+- `src/lib/providers/models.ts` + `gemini.ts`: **`pickGeminiModel(preferNonLite)`** —
+  Mode Analisis (`analyzeImage`) memakai varian **non-lite** (`gemini-3.5-flash`);
+  jalur metadata (`generateForImage` dkk.) tetap lite seperti sekarang.
+- Catatan keterbatasan analisis (`Penilaian 'konten serupa/kompetisi tinggi' bersifat
+  perkiraan AI, bukan data pasti dari database platform — gunakan sebagai referensi awal,
+  bukan keputusan final.`) tampil di `Worksheet.tsx` (di bawah tombol `Jalankan Analisis`)
+  dan di `AnalysisPanel.tsx`.
+- **Default baru hanya untuk user baru**: Mode Analisis → Gemini, Mode Metadata → Groq
+  (`DEFAULT_ANALYSIS_PROVIDER` / `DEFAULT_PROVIDER`); pilihan tersimpan user lama
+  (kunci umum) dihormati di kedua mode dan tidak pernah ditimpa.
+
+### File yang diubah/dihapus
+
+- **Dihapus**: `src/lib/providers/custom.ts`, `src/lib/providers/custom.test.ts`.
+- **Baru**: `src/lib/providers/openrouter.ts`, `src/lib/providers/openrouter.test.ts`.
+- **Diubah**: `src/lib/types.ts`, `src/lib/storage.ts` (+ `storage.test.ts`),
+  `src/lib/providers/models.ts` (+ `models.test.ts`), `src/lib/providers/index.ts`,
+  `src/lib/providers/types.ts`, `src/lib/providers/fallback.ts` (+ `fallback.test.ts`),
+  `src/lib/providers/gemini.ts` (+ `gemini.test.ts`), `src/lib/pipeline.ts`
+  (+ `pipeline.test.ts` penyesuaian id mock), `src/hooks/useProvider.ts`
+  (+ `useProvider.test.ts` tulis ulang: 3 provider + 5 tes per mode),
+  `src/hooks/useBatch.ts`, `src/hooks/useAnalysisBatch.ts`, `src/hooks/useJudge.ts`
+  (+ `useJudge.test.ts`), `src/hooks/useRisk.ts`, `src/components/ProviderPanel.tsx`,
+  `src/components/Worksheet.tsx`, `src/components/AnalysisPanel.tsx`,
+  `src/components/CompliancePanel.tsx`, `src/app/page.tsx`, `scripts/live-test.ts`,
+  `README.md`, `docs/MIGRATION.md` (bagian ini + penyesuaian kontrak Provider/Analisis).
+
 ## Kontrak perilaku (WAJIB sama dengan legacy)
 
 Sumber: `legacy/docs/PROGRESS.md` + `legacy/js/*.js`. Tanda **[BARU]** = perilaku baru yang
@@ -1156,24 +1227,31 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
 
 ### Provider
 
-- Dropdown: **Groq**, **Gemini**, **Coming Soon** (nonaktif: field key + tombol Test disabled,
-  Generate tetap mati, catatan `Provider tambahan akan segera hadir`) **[M11: urutan & default]** —
-  **Groq provider default** saat belum ada pilihan tersimpan; pilihan user disimpan di localStorage
-  (`stockmeta_provider`) dan **dihormati** di kunjungan berikutnya.
+- Dropdown: **Groq**, **Gemini**, **OpenRouter** — ketiganya live, tanpa placeholder
+  non-fungsional. Pilihan provider tersimpan **terpisah per mode** (`stockmeta_provider_analisis`
+  / `stockmeta_provider_metadata`; kunci umum `stockmeta_provider` hanya sebagai migrasi user
+  lama) — **Mode Analisis default Gemini, Mode Metadata default Groq** (hanya untuk user baru;
+  pilihan tersimpan user lama tidak diubah).
 - Catatan per provider di bawah hasil tes **[M11]**: Groq tetap soal limit 8.000 token/menit;
   Gemini: *Kadang lebih sering terkena limit/sibuk dibanding Groq — coba Groq dulu kalau sering gagal.*
 - **Tes koneksi wajib lulus sebelum API key disimpan** ke `localStorage` (kunci
-  `stockmeta_gemini_key` / `stockmeta_groq_key`); key di-restore saat pindah provider tapi status
+  `stockmeta_gemini_key` / `stockmeta_groq_key` / `stockmeta_openrouter_key` — satu per
+  provider, dipakai bersama kedua mode); key di-restore saat pindah provider tapi status
   sengaja reset ke `Belum dites` (harus tes ulang).
-- **Gemini**: model **auto-detect** dari `GET /v1beta/models` (preferensi flash terbaru), bukan
-  hardcode; key salah dilaporkan Gemini sebagai HTTP 400 `API_KEY_INVALID` — jangan cek 401 saja.
+- **Gemini**: model **`gemini-3.5-flash-lite`** (jalur metadata) dan **`gemini-3.5-flash`**
+  non-lite (Mode Analisis via `pickGeminiModel(true)`); key salah dilaporkan Gemini sebagai
+  HTTP 400 `API_KEY_INVALID` — jangan cek 401 saja.
 - **Groq**: model tunggal **`qwen/qwen3.8-27b`**, **tanpa fallback**; pesan error body dibawa utuh
   ke UI.
+- **OpenRouter**: alias tunggal **`openrouter/free`** (OpenRouter memilihkan model vision gratis
+  yang tersedia); `GET /api/v1/models` untuk tes koneksi; `POST /chat/completions` dengan
+  `response_format` JSON, diulangi sekali tanpanya bila ditolak (400/422).
 - API key **hanya di browser** (localStorage), **tidak pernah dikirim ke server** — semua panggilan
   dari `fetch` di client.
 - **Ganti provider bersifat non-destruktif** **[M11: diverifikasi]**: `useProvider.setProvider`
-  hanya mengubah state koneksi (provider/key/status/model) + menulis `stockmeta_provider` —
-  **frame, fileStore, dan metadata tidak disentuh sama sekali**. Generate berikutnya selalu
+  hanya mengubah state koneksi (provider/key/status) + menulis kunci provider mode aktif
+  (`stockmeta_provider_analisis` / `stockmeta_provider_metadata`; pemanggil tanpa mode menulis
+  `stockmeta_provider`) — **frame, fileStore, dan metadata tidak disentuh sama sekali**. Generate berikutnya selalu
   memakai adapter/key/model hasil snapshot saat batch dimulai, sehingga setelah ganti provider
   (wajib tes ulang dulu) prompt & panggilan API memakai provider yang baru dipilih.
 
@@ -1285,6 +1363,9 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
   edit manual & data lama tidak dikunci.
 - Hasil + status + error analisis tersimpan **per platform** (`analysis`/`analysisStatus`/
   `analysisError`), slot metadata tidak tersentuh batch analisis dan sebaliknya.
+- Penilaian `konten serupa/kompetisi tinggi` berlabel perkiraan AI, bukan data pasti database
+  platform — catatan ini tampil di Worksheet (di bawah tombol `Jalankan Analisis`) dan di
+  `AnalysisPanel`.
 
 ### CSV
 

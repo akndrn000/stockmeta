@@ -23,12 +23,6 @@ import type { AppMode } from '../lib/types';
 // useAnalysisBatch menyambungkan keduanya ke alur generate/analisis — jangan membuat
 // instance baru di mana pun.
 export default function Home() {
-  const provider = useProvider();
-  const session = useSession();
-  const batch = useBatch(session, provider);
-  const analysis = useAnalysisBatch(session, provider);
-  const judge = useJudge(session, provider);
-  const risk = useRisk(session, provider);
   // M29: mode Analisis/Metadata — restore sekali dari localStorage (hindari mismatch SSR).
   const [mode, setMode] = useState<AppMode>('metadata');
   useEffect(() => {
@@ -39,6 +33,13 @@ export default function Home() {
     setMode(m);
     writeMode(m);
   }, []);
+  // Provider sadar mode: pilihan + status tes mengikuti mode aktif (analisis vs metadata).
+  const provider = useProvider(mode);
+  const session = useSession();
+  const batch = useBatch(session, provider);
+  const analysis = useAnalysisBatch(session, provider);
+  const judge = useJudge(session, provider);
+  const risk = useRisk(session, provider);
   const anyBusy = batch.busy || analysis.busy || judge.busy;
 
   return (
@@ -57,7 +58,7 @@ export default function Home() {
         mode={mode}
         onModeChange={changeMode}
       />
-      <ProviderPanel api={provider} busy={anyBusy} />
+      <ProviderPanel api={provider} busy={anyBusy} mode={mode} />
 
       {/* M23: gap & padding vertikal diringkas di <640px (sm: kembali ke desktop) */}
       <main className="shell grid grid-cols-1 items-start gap-3 py-3 sm:gap-4 sm:py-4 min-[1120px]:grid-cols-[minmax(0,1.4fr)_minmax(24rem,1fr)] min-[1120px]:py-6 [@media(max-height:500px)]:py-2">

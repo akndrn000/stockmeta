@@ -1,7 +1,8 @@
 // Gemini live — port dari legacy/js/providers-gemini.js (endpoint, format request,
-// pemetaan error dari BODY respons). SATU model (gemini-3.5-flash-lite, lihat models.ts):
-// tanpa deteksi otomatis, tanpa daftar model. 429 dibedakan: limit per menit → di-retry,
-// kuota harian (RESOURCE_EXHAUSTED) → gagal cepat tanpa retry.
+// pemetaan error dari BODY respons). Model default gemini-3.5-flash-lite (lihat models.ts);
+// Mode Analisis memakai varian non-lite via pickGeminiModel(true) — analisis butuh
+// penalaran lebih dalam dibanding sekadar deskripsi objek untuk metadata. 429 dibedakan:
+// limit per menit → di-retry, kuota harian (RESOURCE_EXHAUSTED) → gagal cepat tanpa retry.
 // Key hanya dikirim sebagai query param ke API resmi Google dan TIDAK PERNAH dicetak ke log.
 import { buildAnalysisPrompt, parseAnalysisResponse } from '../analysisPrompt';
 import { buildObservationPrompt, parseObservationResponse } from '../observation';
@@ -11,7 +12,7 @@ import { judgePromptFor, parseJudgeResponse } from '../judge';
 import { buildMetadataPrompt, parseMetadataResponse } from '../prompt';
 import type { ParsedMetadata } from '../prompt';
 import { readBody } from './http';
-import { GEMINI_MODEL } from './models';
+import { GEMINI_MODEL, pickGeminiModel } from './models';
 import { MODEL_RETRY_MAX, ProviderError, dailyQuotaError, isDailyQuota, parseRetryAfter, withRetry } from './retry';
 import type { AnalyzeArgs, CropInspectInput, CropInspectOutput, GenerateArgs, ImageInput, JudgeInput, JudgeOutput, ObserveArgs, ProviderAdapter, TestOpts, TestResult, TextArgs } from './types';
 import { isVisionNotSupportedError } from './types';
@@ -79,11 +80,13 @@ async function testConnection(apiKey: string, opts?: TestOpts): Promise<TestResu
 
 // M29: satu-satunya tempat HTTP generateContent — prompt & parser diinjeksikan pemanggil.
 // Tanpa image = panggilan teks murni (Tahap B/D, juri tanpa gambar, perbaikan).
-async function postChat(opts: { apiKey: string; image?: ImageInput; prompt: string; signal?: AbortSignal }): Promise<string> {
-  const { apiKey, image, prompt, signal } = opts;
+// `model` default = varian lite (jalur metadata TIDAK berubah); pemanggil analisis
+// mengoper pickGeminiModel(true) supaya varian "-lite" dihindari.
+async function postChat(opts: { apiKey: string; image?: ImageInput; prompt: string; signal?: AbortSignal; model?: string }): Promise<string> {
+  const { apiKey, image, prompt, signal, model = GEMINI_MODEL } = opts;
   let res: Response;
   try {
-    res = await fetch(GEMINI_BASE + '/models/' + GEMINI_MODEL + ':generateContent?key=' + encodeURIComponent(apiKey), {
+    res = await fetch(GEMINI_BASE + '/models/' + model + ':generateContent?key=' + encodeURIComponent(apiKey), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -128,10 +131,12 @@ async function generateForImage(args: GenerateArgs): Promise<ParsedMetadata> {
 async function analyzeImage(args: AnalyzeArgs): Promise<AnalysisResult> {
   const { apiKey, image, platform, signal, onWait } = args;
   const prompt = buildAnalysisPrompt({ platform });
+  // Mode Analisis memprioritaskan model non-lite (penalaran lebih dalam).
+  const model = pickGeminiModel(true);
 
   return withRetry(async () => {
     try {
-      const text = await postChat({ apiKey, image, prompt, signal });
+      const text = await postChat({ apiKey, image, prompt, signal, model });
       return parseAnalysisResponse(text);
     } catch (err) { throw withNoVision(err); }
   }, { onWait, signal });

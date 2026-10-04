@@ -47,7 +47,7 @@ function mockAdapter(script: Script = {}, vision = true) {
   const calls = { observe: 0, text: [] as string[], judge: 0 };
   let stageBCalls = 0;
   const adapter: ProviderAdapter = {
-    id: 'custom',
+    id: 'groq',
     label: 'Mock',
     supportsVision: vision,
     testConnection: async () => ({ ok: true }),

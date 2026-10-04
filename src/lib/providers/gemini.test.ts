@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { gemini } from './gemini';
-import { GEMINI_MODEL } from './models';
+import { GEMINI_FULL_MODEL, GEMINI_MODEL } from './models';
 
 const fetchMock = vi.fn();
 
@@ -99,5 +99,15 @@ describe('gemini.generateForImage', () => {
       .mockResolvedValueOnce(jsonRes({ candidates: [{ content: { parts: [{ text: '{"keywords":[]}' }] } }] }));
     await gemini.generateForImage(genArgs);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('gemini.analyzeImage', () => {
+  it('memakai model non-lite (bukan varian -lite) untuk penalaran analisis', async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes({ candidates: [{ content: { parts: [{ text: '{"verdict":"layak","issues":[],"summary":"OK"}' }] } }] }));
+    await gemini.analyzeImage({ apiKey: 'RAHASIA', image: genArgs.image, platform: 'adobe' });
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(url).toContain('/models/' + GEMINI_FULL_MODEL + ':generateContent');
+    expect(url).not.toContain('-lite');
   });
 });

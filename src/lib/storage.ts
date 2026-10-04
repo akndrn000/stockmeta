@@ -8,18 +8,19 @@ import { hasContent } from './metadata';
 const KEY_LS: Partial<Record<ProviderId, string>> = {
   gemini: 'stockmeta_gemini_key',
   groq: 'stockmeta_groq_key',
-  custom: 'stockmeta_custom_key'
+  openrouter: 'stockmeta_openrouter_key'
 };
 
 export const SESS_KEY = 'stockmeta_session';
 export const THEME_KEY = 'stockmeta_theme';
 export const BATCH_DELAY_KEY = 'stockmeta_batch_delay';
 export const PROVIDER_KEY = 'stockmeta_provider';
+/** pilihan provider KHUSUS Mode Analisis (terpisah dari kunci umum di atas) */
+export const PROVIDER_ANALYSIS_KEY = 'stockmeta_provider_analisis';
+/** pilihan provider KHUSUS Mode Metadata (terpisah dari kunci umum di atas) */
+export const PROVIDER_METADATA_KEY = 'stockmeta_provider_metadata';
 export const FALLBACK_KEY = 'stockmeta_fallback';
 export const MODE_KEY = 'stockmeta_mode';
-/** base URL + model provider custom OpenAI-compatible (diisi pengguna, tanpa hardcode layanan) */
-export const CUSTOM_BASE_URL_KEY = 'stockmeta_custom_baseurl';
-export const CUSTOM_MODEL_KEY = 'stockmeta_custom_model';
 /** toggle "Verifikasi ketat" grounding Tahap D (default aktif) */
 export const STRICT_VERIFY_KEY = 'stockmeta_strict_verify';
 /** toggle "kirim gambar ke juri" (default aktif) */
@@ -48,12 +49,17 @@ export function writeKey(provider: ProviderId, key: string): void {
 
 /* ---------------- pilihan provider (M11: default Groq, pilihan user dihormati) ---------------- */
 
+function isProviderId(v: unknown): v is ProviderId {
+  return v === 'gemini' || v === 'groq' || v === 'openrouter';
+}
+
 export function readProvider(): ProviderId | null {
   try {
     const v = ls()?.getItem(PROVIDER_KEY);
-    // migrasi: id lama 'openrouter' dipetakan ke provider custom generik
-    if (v === 'openrouter') return 'custom';
-    return v === 'gemini' || v === 'groq' || v === 'custom' || v === 'coming-soon' ? v : null;
+    // migrasi: 'openrouter' lama yang sempat dipetakan ke 'custom' kembali ke 'openrouter';
+    // 'custom'/'coming-soon' yang sudah dihapus → null (pemanggil memakai default mode)
+    if (v === 'openrouter') return 'openrouter';
+    return isProviderId(v) ? v : null;
   } catch { return null; }
 }
 
@@ -61,22 +67,23 @@ export function writeProvider(provider: ProviderId): void {
   try { ls()?.setItem(PROVIDER_KEY, provider); } catch { /* diabaikan */ }
 }
 
-/* ---------------- konfigurasi provider custom (base URL + model isi pengguna) ---------------- */
+/* ---------------- pilihan provider per mode (analisis vs metadata) ---------------- */
+// API key TETAP satu per provider (readKey/writeKey) — hanya pilihan provider yang dipisah.
 
-export function readCustomBaseUrl(): string {
-  try { return ls()?.getItem(CUSTOM_BASE_URL_KEY) ?? ''; } catch { return ''; }
+function modeKey(mode: AppMode): string {
+  return mode === 'analisis' ? PROVIDER_ANALYSIS_KEY : PROVIDER_METADATA_KEY;
 }
 
-export function writeCustomBaseUrl(baseUrl: string): void {
-  try { ls()?.setItem(CUSTOM_BASE_URL_KEY, baseUrl); } catch { /* diabaikan */ }
+/** pilihan tersimpan KHUSUS mode ini; null bila belum pernah memilih di mode ini. */
+export function readProviderForMode(mode: AppMode): ProviderId | null {
+  try {
+    const v = ls()?.getItem(modeKey(mode));
+    return isProviderId(v) ? v : null;
+  } catch { return null; }
 }
 
-export function readCustomModel(): string {
-  try { return ls()?.getItem(CUSTOM_MODEL_KEY) ?? ''; } catch { return ''; }
-}
-
-export function writeCustomModel(model: string): void {
-  try { ls()?.setItem(CUSTOM_MODEL_KEY, model); } catch { /* diabaikan */ }
+export function writeProviderForMode(mode: AppMode, provider: ProviderId): void {
+  try { ls()?.setItem(modeKey(mode), provider); } catch { /* diabaikan */ }
 }
 
 /* ---------------- fallback antar provider (toggle panel, default: aktif) ---------------- */

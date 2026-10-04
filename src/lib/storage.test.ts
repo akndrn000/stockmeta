@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BATCH_DELAY_DEFAULT_SEC } from './limits';
-import { loadSession, readBatchDelay, readKey, readMode, readProvider, readTheme, removeSession, saveSession, writeBatchDelay, writeKey, writeMode, writeProvider, writeTheme } from './storage';
+import { loadSession, readBatchDelay, readKey, readMode, readProvider, readProviderForMode, readTheme, removeSession, saveSession, writeBatchDelay, writeKey, writeMode, writeProvider, writeProviderForMode, writeTheme } from './storage';
 import type { StoredSession } from './storage';
 import type { Frame } from './types';
 
@@ -39,12 +39,12 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('API key', () => {
-  it('roundtrip per provider, provider tanpa lsKey → ""', () => {
+  it('roundtrip per provider, provider asing → ""', () => {
     writeKey('gemini', 'abc');
-    writeKey('coming-soon', 'x');
+    writeKey('openrouter', 'x');
     expect(readKey('gemini')).toBe('abc');
     expect(readKey('groq')).toBe('');
-    expect(readKey('coming-soon')).toBe('');
+    expect(readKey('openrouter')).toBe('x');
   });
 
   it('groq tidak mengubah key gemini', () => {
@@ -65,10 +65,43 @@ describe('pilihan provider (M11)', () => {
     expect(readProvider()).toBe('gemini');
     writeProvider('groq');
     expect(readProvider()).toBe('groq');
-    writeProvider('coming-soon');
-    expect(readProvider()).toBe('coming-soon');
+    writeProvider('openrouter');
+    expect(readProvider()).toBe('openrouter');
     store.setItem('stockmeta_provider', 'nvidia');
     expect(readProvider()).toBeNull();
+  });
+
+  it("nilai lama 'custom'/'coming-soon' yang sudah dihapus → null", () => {
+    store.setItem('stockmeta_provider', 'custom');
+    expect(readProvider()).toBeNull();
+    store.setItem('stockmeta_provider', 'coming-soon');
+    expect(readProvider()).toBeNull();
+  });
+});
+
+describe('pilihan provider per mode (analisis vs metadata)', () => {
+  it('belum pernah memilih per mode → null', () => {
+    expect(readProviderForMode('analisis')).toBeNull();
+    expect(readProviderForMode('metadata')).toBeNull();
+  });
+
+  it('roundtrip per mode, saling terpisah', () => {
+    writeProviderForMode('analisis', 'gemini');
+    writeProviderForMode('metadata', 'groq');
+    expect(readProviderForMode('analisis')).toBe('gemini');
+    expect(readProviderForMode('metadata')).toBe('groq');
+    // ganti satu mode tidak menyentuh mode lain maupun kunci umum
+    writeProviderForMode('analisis', 'openrouter');
+    expect(readProviderForMode('analisis')).toBe('openrouter');
+    expect(readProviderForMode('metadata')).toBe('groq');
+    expect(readProvider()).toBeNull();
+  });
+
+  it('nilai tak sah → null', () => {
+    store.setItem('stockmeta_provider_analisis', 'custom');
+    expect(readProviderForMode('analisis')).toBeNull();
+    store.setItem('stockmeta_provider_metadata', 'coming-soon');
+    expect(readProviderForMode('metadata')).toBeNull();
   });
 });
 

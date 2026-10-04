@@ -11,7 +11,7 @@ import { hasContent } from '../lib/metadata';
 import { JUDGE_IDEAL_COUNT, renderRulesBlock } from '../lib/platform-rules';
 import { parseMetadataResponse, type ParsedMetadata } from '../lib/prompt';
 import { getProvider } from '../lib/providers';
-import { readBatchDelay, readCustomBaseUrl, readCustomModel, readJudgeImage, readKey, writeJudgeImage } from '../lib/storage';
+import { readBatchDelay, readJudgeImage, readKey, writeJudgeImage } from '../lib/storage';
 import { validateMetadata } from '../lib/validate';
 import type { Frame, JudgeCacheEntry, Platform, ProviderId } from '../lib/types';
 import type { JudgeEntry } from '../lib/types';
@@ -28,7 +28,7 @@ export const PRIVACY_MSG =
 export const PRIVACY_KEY = 'stockmeta_judge_privacy';
 const JUDGES_KEY = 'stockmeta_judges';
 
-const JUDGE_IDS: readonly ProviderId[] = ['groq', 'gemini', 'custom'];
+const JUDGE_IDS: readonly ProviderId[] = ['groq', 'gemini', 'openrouter'];
 
 /** entry cache yang hash-nya masih cocok dengan metadata kini (basi → null) */
 export function judgeEntryOf(frame: Frame, platform: Platform): JudgeCacheEntry | null {
@@ -43,7 +43,7 @@ export function readSelectedJudges(): ProviderId[] {
     if (!raw) return [...JUDGE_IDS];
     const arr: unknown = JSON.parse(raw);
     if (!Array.isArray(arr)) return [...JUDGE_IDS];
-    const ids = arr.filter((x): x is ProviderId => x === 'groq' || x === 'gemini' || x === 'custom');
+    const ids = arr.filter((x): x is ProviderId => x === 'groq' || x === 'gemini' || x === 'openrouter');
     return ids.length ? [...new Set(ids)] : [...JUDGE_IDS];
   } catch { return [...JUDGE_IDS]; }
 }
@@ -127,25 +127,13 @@ export function useJudge(session: Session, provider: ProviderApi, opts?: { delay
     setNotice('');
   }
 
-  /** juri yang benar-benar bisa dipakai (terpilih + key tersimpan + custom terkonfigurasi) */
+  /** juri yang benar-benar bisa dipakai (terpilih + key tersimpan) */
   function activeJudges(): ProviderId[] {
-    return judges.filter((id) => {
-      if (!readKey(id).trim()) return false;
-      if (id === 'custom' && (!readCustomBaseUrl().trim() || !readCustomModel().trim())) return false;
-      return true;
-    });
+    return judges.filter((id) => Boolean(readKey(id).trim()));
   }
 
   function keyFor(id: ProviderId, activeKey: string): string {
     return id === provider.provider ? activeKey : readKey(id);
-  }
-
-  function customFor(id: ProviderId): { baseUrl?: string; model?: string } | undefined {
-    if (id !== 'custom') return undefined;
-    const cfg = id === provider.provider
-      ? provider.getCustomConfig()
-      : { baseUrl: readCustomBaseUrl(), model: readCustomModel() };
-    return { baseUrl: cfg.baseUrl, model: cfg.model };
   }
 
   async function judgeOne(
@@ -174,8 +162,7 @@ export function useJudge(session: Session, provider: ProviderApi, opts?: { delay
         apiKey: activeKey,
         image: await prepareImage(file),
         theme: (frame.tema || snap.tema || '').trim() || undefined,
-        signal,
-        ...customFor(provider.provider)
+        signal
       });
       session.applyObservation(id, observation);
     }
@@ -216,8 +203,7 @@ export function useJudge(session: Session, provider: ProviderApi, opts?: { delay
         rulesBlock,
         hardContext,
         riskContext,
-        signal,
-        ...customFor(jid)
+        signal
       });
       return { provider: jid, output, withoutImage: !useImage };
     }));
@@ -353,8 +339,7 @@ export function useJudge(session: Session, provider: ProviderApi, opts?: { delay
     const metadataText = JSON.stringify(frame.metadata[platform]);
     const text = await adapter.callText({
       apiKey: provider.key.trim(),
-      prompt: buildFixPrompt(metadataText, fixes),
-      ...customFor(provider.provider)
+      prompt: buildFixPrompt(metadataText, fixes)
     });
     const candidate = parseMetadataResponse(text, platform);
     const hard = validateMetadata(platform, { ...frame.metadata[platform], ...candidate } as never, frame.portalName || frame.name);

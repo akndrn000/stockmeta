@@ -2,7 +2,7 @@
 // Jalankan pipeline penuh (observasi → metadata → grounding):
 //   GEMINI_KEY=… npx tsx scripts/live-test.ts gemini foto.jpg adobe "Halloween"
 //   GROQ_KEY=… npx tsx scripts/live-test.ts groq foto.jpg shutterstock
-//   CUSTOM_KEY=… CUSTOM_BASE_URL=… CUSTOM_MODEL=… npx tsx scripts/live-test.ts custom foto.jpg adobe
+//   OPENROUTER_KEY=… npx tsx scripts/live-test.ts openrouter foto.jpg adobe
 // Tambah --judge untuk menilai metadata via juri provider yang sama.
 // Buat 3 fixture PNG kecil (polos merah, polos hijau, pola papan catur) untuk smoke test:
 //   npx tsx scripts/live-test.ts --make-fixtures ./tmp-fixtures
@@ -33,7 +33,7 @@ async function main(): Promise<void> {
   }
   const [providerArg, imagePath, platformArg, themeArg, flag] = argv;
   if (!providerArg || !imagePath || !platformArg) {
-    console.error('Pakai: GEMINI_KEY=… npx tsx scripts/live-test.ts <gemini|groq|custom> <gambar> <adobe|shutterstock> [tema] [--judge]');
+    console.error('Pakai: GEMINI_KEY=… npx tsx scripts/live-test.ts <gemini|groq|openrouter> <gambar> <adobe|shutterstock> [tema] [--judge]');
     process.exit(1);
   }
   const provider = providerArg as ProviderId;
@@ -48,15 +48,12 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   const keyEnv = provider === 'gemini' ? 'GEMINI_KEY'
-    : provider === 'custom' ? 'CUSTOM_KEY' : 'GROQ_KEY';
+    : provider === 'openrouter' ? 'OPENROUTER_KEY' : 'GROQ_KEY';
   const key = process.env[keyEnv];
   if (!key) {
     console.error('Set environment variable ' + keyEnv + ' terlebih dahulu.');
     process.exit(1);
   }
-  // provider custom: base URL + model dari environment (tanpa hardcode layanan)
-  const baseUrl = provider === 'custom' ? (process.env.CUSTOM_BASE_URL ?? '') : undefined;
-  const model = provider === 'custom' ? (process.env.CUSTOM_MODEL ?? '') : undefined;
 
   const buf = await readFile(imagePath);
   const image: ImageInput = {
@@ -64,7 +61,7 @@ async function main(): Promise<void> {
     mimeType: MIME[extname(imagePath).toLowerCase()] ?? 'image/jpeg'
   };
 
-  const test = await adapter.testConnection(key, { baseUrl, model });
+  const test = await adapter.testConnection(key);
   console.log(JSON.stringify({ test }, null, 2));
   if (!test.ok) process.exit(1);
 
@@ -76,7 +73,6 @@ async function main(): Promise<void> {
     platform,
     theme: themeArg,
     strictVerify: true,
-    customConfig: baseUrl !== undefined || model !== undefined ? { baseUrl: baseUrl ?? '', model: model ?? '' } : undefined,
     log: (msg) => console.log('[pipeline]', msg)
   });
   console.log(JSON.stringify({
@@ -98,9 +94,7 @@ async function main(): Promise<void> {
       observation: pipe.observation,
       metadataText: JSON.stringify(pipe.metadata),
       rulesBlock: renderRulesBlock(platform),
-      hardContext: [...hard.errors, ...hard.warnings].map((i) => `${i.rule}: ${i.message}`).join('\n'),
-      baseUrl,
-      model
+      hardContext: [...hard.errors, ...hard.warnings].map((i) => `${i.rule}: ${i.message}`).join('\n')
     });
     console.log(JSON.stringify({ judged }, null, 2));
   }

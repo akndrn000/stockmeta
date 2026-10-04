@@ -1,16 +1,15 @@
 // Registry provider: satu tempat menambah/menonaktifkan provider.
-// 'coming-soon' sengaja undefined → getProvider() = undefined → tombol Generate mati (legacy).
+// Ketiga provider live — tidak ada placeholder non-fungsional.
 import type { ProviderId } from '../types';
-import { custom } from './custom';
 import { gemini } from './gemini';
 import { groq } from './groq';
+import { openrouter } from './openrouter';
 import type { ProviderAdapter } from './types';
 
-export const registry: Record<ProviderId, ProviderAdapter | undefined> = {
+export const registry: Record<ProviderId, ProviderAdapter> = {
   gemini,
   groq,
-  custom,
-  'coming-soon': undefined
+  openrouter
 };
 
 export function getProvider(id: ProviderId): ProviderAdapter | undefined {

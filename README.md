@@ -83,7 +83,7 @@ Panel **Risiko penolakan** mengukur tiap frame dari **piksel asli** yang diungga
 
 1. **Upload** foto ke *Lembar kerja* (drag-drop atau klik area upload).
 2. **Pilih platform**, Adobe Stock atau Shutterstock, di header.
-3. **Pilih provider** (Groq sebagai default, Gemini, atau Custom OpenAI-compatible dengan base URL + model + key sendiri) lalu **tempel API key**.
+3. **Pilih provider** (Groq, Gemini, atau OpenRouter — pilihan tersimpan terpisah untuk Mode Analisis dan Mode Metadata) lalu **tempel API key**.
 4. Klik **Tes koneksi**. Key hanya disimpan kalau tes lulus, dan key yang tersimpan dites ulang otomatis saat halaman dimuat ulang.
 5. Buka **Mode Analisis**, lalu klik **Jalankan Analisis**. Hasil tiap foto tampil di panel *Hasil analisis*.
 6. Pindah ke **Mode Metadata**, isi **tema batch** (opsional, misalnya `Halloween`), lalu klik **Buat metadata**. Setiap frame diamati gambarnya (Tahap A, di-cache), lalu dibuatkan metadata dari hasil pengamatan (Tahap B), diperiksa kepatuhannya (Tahap C), dan diverifikasi grounding-nya bila **Verifikasi ketat** aktif (Tahap D, default aktif).
@@ -112,7 +112,7 @@ Setiap masalah dikelompokkan ke salah satu dari delapan kategori: kualitas gamba
 
 - Penilaian hanya berdasarkan apa yang **terlihat di gambar**. AI diminta tidak mengarang masalah, dan verdict ditampilkan dengan warna, ikon, dan teks sekaligus.
 - Hasil tersimpan **per platform**, jadi analisis Adobe Stock tidak menimpa analisis Shutterstock.
-- Analisis memakai provider, jeda antar foto, retry, dan fallback yang sama dengan Mode Metadata. Tiap foto bisa dianalisis ulang lewat tombol ulang di tile.
+- Analisis memakai provider pilihannya sendiri (default Gemini untuk user baru), jeda antar foto, retry, dan fallback yang sama dengan Mode Metadata. Tiap foto bisa dianalisis ulang lewat tombol ulang di tile.
 - Mode terakhir yang dipakai diingat di browser, dan mode terkunci selama batch berjalan.
 
 > [!WARNING]
@@ -131,13 +131,15 @@ Mode Metadata bekerja dalam 4 tahap per frame (lihat `src/lib/pipeline.ts`):
 
 ## Provider AI
 
-Setiap provider fixed memakai **satu model tetap**, tanpa pemilihan model dinamis (lihat `src/lib/providers/models.ts`). Provider ketiga adalah adapter **Custom OpenAI-compatible** generik: base URL + model + key diisi sendiri (tanpa hardcode nama layanan), tersimpan di browser.
+Setiap provider memakai **satu model tetap**, tanpa pemilihan model dinamis (lihat `src/lib/providers/models.ts`; pengecualian: Mode Analisis memakai varian Gemini non-lite karena butuh penalaran lebih dalam).
 
 | Provider | Model | Batas gratis |
 | --- | --- | --- |
-| **Groq** (default) | `qwen/qwen3.8-27b` | Perkiraan ±8.000 token/menit, dapat berubah sewaktu-waktu. [Dokumentasi limit](https://console.groq.com/docs/rate-limits) |
-| **Gemini** | `gemini-3.5-flash-lite` | Kuota harian gratis; `429` bertanda kuota harian berarti kuota hari itu habis. [Dokumentasi rate limit](https://ai.google.dev/gemini-api/docs/rate-limits) |
-| **Custom** | Diisi sendiri | Mengikuti akunmu di layanan itu. [Contoh yang kompatibel](https://openrouter.ai/docs) |
+| **Groq** (default Mode Metadata) | `qwen/qwen3.8-27b` | Perkiraan ±8.000 token/menit, dapat berubah sewaktu-waktu. [Dokumentasi limit](https://console.groq.com/docs/rate-limits) |
+| **Gemini** (default Mode Analisis) | `gemini-3.5-flash-lite` (metadata) / `gemini-3.5-flash` (analisis) | Kuota harian gratis; `429` bertanda kuota harian berarti kuota hari itu habis. [Dokumentasi rate limit](https://ai.google.dev/gemini-api/docs/rate-limits) |
+| **OpenRouter** | `openrouter/free` (alias — OpenRouter memilihkan model vision gratis yang tersedia) | Free tier ±20 request/hari tanpa isi saldo — cadangan, bukan andalan. [Dokumentasi](https://openrouter.ai/docs) |
+
+Pilihan provider tersimpan **terpisah per mode** (`stockmeta_provider_analisis` vs `stockmeta_provider_metadata`), jadi provider Mode Analisis boleh beda dari Mode Metadata. API key tetap satu per provider — kalau kedua mode memakai Gemini, key-nya sama.
 
 <details>
 <summary><b>Perilaku retry dan fallback</b></summary>
@@ -174,12 +176,12 @@ Ekspor mengikuti template resmi tiap portal (satu sumber kebenaran: `src/lib/pla
 
 ## Keamanan dan Privasi
 
-- **Tanpa server perantara.** Key dan gambar dikirim langsung dari browser ke server provider (`api.groq.com`, `generativelanguage.googleapis.com`, atau endpoint custom pilihanmu). Repo ini tidak memiliki API route backend, dan tidak ada analytics atau pelacak di kode.
+- **Tanpa server perantara.** Key dan gambar dikirim langsung dari browser ke server provider (`api.groq.com`, `generativelanguage.googleapis.com`, atau `openrouter.ai`). Repo ini tidak memiliki API route backend, dan tidak ada analytics atau pelacak di kode.
 - **Yang dikirim ke provider**, baik di Mode Analisis maupun Metadata: API key (sebagai otorisasi), teks prompt, dan gambar dalam format base64.
 - **Inspeksi kualitas detail** mengirim 4 crop JPEG 512px per frame ke provider aktif (bisa dimatikan lewat toggle; estimasi biaya panggilan ditampilkan).
 - **Juri kepatuhan** mengirim gambar + metadata ke **SEMUA juri aktif** — aplikasi meminta konfirmasi privasi sekali sebelum menilai.
-- **API key** disimpan di localStorage browser (`stockmeta_groq_key`, `stockmeta_gemini_key`, `stockmeta_custom_key`) dan hanya ditulis setelah tes koneksi lulus. Konfigurasi custom (`stockmeta_custom_baseurl`, `stockmeta_custom_model`) juga di browser.
-- **Preferensi non-sensitif** juga disimpan di localStorage: sesi (`stockmeta_session`, berisi thumbnail, metadata, observation, dan cache juri — bukan file asli), tema (`stockmeta_theme`), jeda antar foto (`stockmeta_batch_delay`), provider terpilih (`stockmeta_provider`), status fallback (`stockmeta_fallback`), mode aktif (`stockmeta_mode`), juri terpilih, verifikasi ketat, dan status privasi juri.
+- **API key** disimpan di localStorage browser (`stockmeta_groq_key`, `stockmeta_gemini_key`, `stockmeta_openrouter_key`) dan hanya ditulis setelah tes koneksi lulus.
+- **Preferensi non-sensitif** juga disimpan di localStorage: sesi (`stockmeta_session`, berisi thumbnail, metadata, observation, dan cache juri — bukan file asli), tema (`stockmeta_theme`), jeda antar foto (`stockmeta_batch_delay`), provider terpilih per mode (`stockmeta_provider_analisis`, `stockmeta_provider_metadata`, plus `stockmeta_provider` lama sebagai migrasi), status fallback (`stockmeta_fallback`), mode aktif (`stockmeta_mode`), juri terpilih, verifikasi ketat, dan status privasi juri.
 - **Gunakan API key khusus** untuk aplikasi ini (bukan key utamamu) dan batasi haknya di konsol provider.
 
 > [!WARNING]
@@ -201,7 +203,7 @@ Tidak. Aplikasi ini tidak punya backend. Gambar dikirim langsung dari browser ke
 
 <br>
 
-Ya. Kamu membawa key milikmu (Groq, Gemini, atau layanan OpenAI-compatible sendiri lewat provider Custom). Batas pemakaian mengikuti kuota akun provider masing-masing, bukan batas dari StockMeta.
+Ya. Kamu membawa key milikmu (Groq, Gemini, atau OpenRouter). Batas pemakaian mengikuti kuota akun provider masing-masing, bukan batas dari StockMeta.
 
 </details>
 
@@ -279,7 +281,7 @@ src/
                   similarityStore, calibration, riskBatch.test, riskUi.test,
                   categories, metadata, keywords, frames, image, fileStore, types
   lib/quality/    metrics, thresholds, crops, cropInspect, runner
-  lib/providers/  groq, gemini, custom, fallback, retry, models, types, index, http
+  lib/providers/  groq, gemini, openrouter, fallback, retry, models, types, index, http
 ```
 
 </details>
@@ -294,7 +296,7 @@ Skrip ini tidak ikut build. Key hanya dibaca dari environment variable. Menjalan
 ```bash
 GEMINI_KEY=... npx tsx scripts/live-test.ts gemini foto.jpg adobe "Halloween"
 GROQ_KEY=... npx tsx scripts/live-test.ts groq foto.jpg shutterstock --judge
-CUSTOM_KEY=... CUSTOM_BASE_URL=... CUSTOM_MODEL=... npx tsx scripts/live-test.ts custom foto.jpg adobe
+OPENROUTER_KEY=... npx tsx scripts/live-test.ts openrouter foto.jpg adobe
 # 3 fixture PNG kecil untuk smoke teknis (polos + pola):
 npx tsx scripts/live-test.ts --make-fixtures ./tmp-fixtures
 ```

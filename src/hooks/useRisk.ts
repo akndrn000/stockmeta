@@ -13,7 +13,7 @@ import { extractCropImages, runQualityFromFile } from '../lib/quality/runner';
 import { QUALITY_THRESHOLDS } from '../lib/quality/thresholds';
 import { clusterSimilar, titleOverlap, tokenizeKeywords, tokenizeTitle, jaccard, type SimilarInput } from '../lib/similarity';
 import { addHistory, loadHistory, readHistoryEnabled, writeHistoryEnabled } from '../lib/similarityStore';
-import { readBatchDelay, readCustomBaseUrl, readCustomModel, readKey } from '../lib/storage';
+import { readBatchDelay, readKey } from '../lib/storage';
 import { validateMetadata } from '../lib/validate';
 import type { Frame, Platform } from '../lib/types';
 import type { useProvider } from './useProvider';
@@ -272,10 +272,7 @@ export function useRisk(session: Session, provider: ProviderApi) {
               image: c.image,
               region: c.region,
               seed: cropSeedFor(snap.quality.pixelHash, c.region),
-              signal: ac.signal,
-              ...(provider.provider === 'custom'
-                ? { baseUrl: readCustomBaseUrl(), model: readCustomModel() }
-                : {})
+              signal: ac.signal
             });
             if (out) {
               findings.push({

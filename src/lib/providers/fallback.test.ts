@@ -17,7 +17,7 @@ const ARGS = {
   platform: 'adobe' as const
 };
 
-type Id = 'groq' | 'gemini' | 'custom';
+type Id = 'groq' | 'gemini' | 'openrouter';
 
 function fakeAdapter(id: Id, impl: () => Promise<ParsedMetadata>): ProviderAdapter {
   return {
@@ -43,7 +43,7 @@ function setup(opts: {
   keys?: Partial<Record<Id, string>>;
   enabled?: boolean;
 }) {
-  const keys = { groq: 'k-groq', gemini: 'k-gemini', custom: 'k-custom', ...opts.keys };
+  const keys = { groq: 'k-groq', gemini: 'k-gemini', openrouter: 'k-or', ...opts.keys };
   const enabled = opts.enabled ?? true;
   const getAdapter = vi.fn((id: ProviderId): ProviderAdapter | undefined => {
     const impl = id === 'groq' ? opts.primary : opts.others?.[id as Id];
@@ -51,8 +51,7 @@ function setup(opts: {
   });
   const getKey = vi.fn((id: ProviderId): string => keys[id as Id] ?? '');
   const isEnabled = vi.fn(() => enabled);
-  const getCustomConfig = vi.fn(() => ({ baseUrl: 'https://contoh.test/v1', model: 'model-uji' }));
-  return { getAdapter, getKey, isEnabled, getCustomConfig, deps: { getAdapter, getKey, isEnabled, getCustomConfig } };
+  return { getAdapter, getKey, isEnabled, deps: { getAdapter, getKey, isEnabled } };
 }
 
 describe('canFallback', () => {
@@ -114,7 +113,7 @@ describe('generateWithFallback', () => {
     const s = setup({
       primary: async () => { throw dailyQuotaError('Groq', 'Gemini'); },
       others: { gemini: async () => META },
-      keys: { groq: 'k-groq', gemini: '', custom: '' }
+      keys: { groq: 'k-groq', gemini: '', openrouter: '' }
     });
     await expect(generateWithFallback(ARGS, s.deps)).rejects.toThrow('Kuota harian Groq habis');
     expect(s.getAdapter.mock.calls.map((c) => c[0])).toEqual(['groq']);
@@ -133,7 +132,7 @@ describe('generateWithFallback', () => {
     const s = setup({
       primary: async () => { throw dailyQuotaError('Groq', 'Gemini'); },
       others: { gemini: async () => { throw dailyQuotaError('Gemini', 'Groq'); } },
-      keys: { groq: 'k-groq', gemini: 'k-gemini', custom: '' }
+      keys: { groq: 'k-groq', gemini: 'k-gemini', openrouter: '' }
     });
     await expect(generateWithFallback(ARGS, s.deps)).rejects.toThrow('Kuota harian Groq habis');
     expect(s.getAdapter.mock.calls.map((c) => c[0])).toEqual(['groq', 'gemini']);
@@ -141,21 +140,20 @@ describe('generateWithFallback', () => {
 
   it('cadangan tanpa key dilewati → provider cadangan berikutnya yang dipakai', async () => {
     const s = setup({
-      primary: async () => { throw dailyQuotaError('Groq', 'Custom'); },
-      others: { custom: async () => META },
-      keys: { groq: 'k-groq', gemini: '', custom: 'k-cu' }
+      primary: async () => { throw dailyQuotaError('Groq', 'OpenRouter'); },
+      others: { openrouter: async () => META },
+      keys: { groq: 'k-groq', gemini: '', openrouter: 'k-or' }
     });
     const out = await generateWithFallback(ARGS, s.deps);
-    expect(out).toMatchObject({ provider: 'custom', usedFallback: true });
-    expect(s.getAdapter.mock.calls.map((c) => c[0])).toEqual(['groq', 'custom']);  // gemini tanpa key dilewati
+    expect(out).toMatchObject({ provider: 'openrouter', usedFallback: true });
+    expect(s.getAdapter.mock.calls.map((c) => c[0])).toEqual(['groq', 'openrouter']);  // gemini tanpa key dilewati
   });
 });
 
 describe('FALLBACK_ORDER', () => {
-  it('urutan cadangan: Groq, Gemini, Custom — tanpa provider placeholder', () => {
-    expect([...FALLBACK_ORDER]).toEqual(['groq', 'gemini', 'custom']);
+  it('urutan cadangan: Groq, Gemini, OpenRouter — tanpa provider placeholder', () => {
+    expect([...FALLBACK_ORDER]).toEqual(['groq', 'gemini', 'openrouter']);
     expect(new Set(FALLBACK_ORDER).size).toBe(FALLBACK_ORDER.length);
-    expect(FALLBACK_ORDER).not.toContain('coming-soon');
   });
 });
 
@@ -188,7 +186,7 @@ describe('analyzeWithFallback (M29)', () => {
       if (id === 'gemini' && other) return mk('gemini', other);
       return undefined;
     });
-    const getKey = vi.fn((id: ProviderId): string => ({ groq: 'k-groq', gemini: 'k-gemini', custom: '' })[id as Id] ?? '');
+    const getKey = vi.fn((id: ProviderId): string => ({ groq: 'k-groq', gemini: 'k-gemini', openrouter: '' })[id as Id] ?? '');
     const isEnabled = vi.fn(() => true);
     return { getAdapter, getKey, isEnabled, deps: { getAdapter, getKey, isEnabled } };
   }

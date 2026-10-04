@@ -45,7 +45,7 @@ export function useAnalysisBatch(session: Session, provider: ProviderApi, opts?:
   useEffect(() => () => { abortRef.current?.abort(); }, []);
 
   function providerReady(): boolean {
-    return !provider.isSoon && provider.status === 'ok';
+    return provider.status === 'ok';
   }
 
   async function run(ids: number[], platform: Platform) {
@@ -83,8 +83,7 @@ export function useAnalysisBatch(session: Session, provider: ProviderApi, opts?:
             image,
             platform: args.platform,
             signal: args.signal,
-            onWait: args.onWait,
-            customConfig: activeProvider === 'custom' ? provider.getCustomConfig() : undefined
+            onWait: args.onWait
           });
           usedVia = out.usedFallback ? PROVIDER_LABELS[out.provider] : '';
           return out.analysis;

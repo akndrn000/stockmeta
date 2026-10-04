@@ -173,6 +173,12 @@ export function AnalysisPanel({ session }: {
             </p>
           </div>
         )}
+
+        {/* Catatan keterbatasan: penilaian kemiripan/kompetisi = perkiraan AI. */}
+        <p className="text-small leading-relaxed text-text-muted">
+          Penilaian &lsquo;konten serupa/kompetisi tinggi&rsquo; bersifat perkiraan AI, bukan
+          data pasti dari database platform — gunakan sebagai referensi awal, bukan keputusan final.
+        </p>
       </div>
     </Panel>
   );

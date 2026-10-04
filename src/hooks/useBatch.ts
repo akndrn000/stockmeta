@@ -54,7 +54,7 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
 
   // wajib tes dulu; model provider tetap (satu model per provider) sehingga tak perlu dicek
   function providerReady(): boolean {
-    return !provider.isSoon && provider.status === 'ok';
+    return provider.status === 'ok';
   }
 
   // M29: pisahkan frame yang lolos gerbang analisis dari yang belum — yang belum langsung
@@ -85,7 +85,6 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
     // input di-snapshot saat mulai: platform & API key terkunci sampai batch selesai
     const apiKey = provider.key.trim();
     const activeProvider: ProviderId = provider.provider;
-    const customConfig = activeProvider === 'custom' ? provider.getCustomConfig() : undefined;
     const strictVerify = readStrictVerify();
     const delayMs = opts?.delayMs ?? delaySec * 1000;
     let limitHit = false;
@@ -106,9 +105,9 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
           // observation cache sesi: ganti platform tidak memanggil Tahap A ulang
           const cached = session.snapshot().frames.find((f) => f.id === _id)?.observation;
           const out = await withFallback(
-            { provider: activeProvider, apiKey, signal: args.signal, customConfig },
+            { provider: activeProvider, apiKey, signal: args.signal },
             {},
-            (adapter, key, cfg) => runFramePipeline({
+            (adapter, key) => runFramePipeline({
               adapter,
               apiKey: key,
               image,
@@ -116,7 +115,6 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
               theme: args.theme,
               cachedObservation: cached,
               strictVerify,
-              customConfig: cfg,
               signal: args.signal,
               onWait: args.onWait
             })

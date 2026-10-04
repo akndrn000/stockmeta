@@ -1,8 +1,7 @@
 // Kontrak seragam untuk semua provider (lihat codebase-design: satu seam, adapter per provider).
-// Tiap provider fixed (Groq/Gemini) punya TEPAT SATU model (lihat models.ts); provider
-// 'custom' memakai baseUrl + model isi pengguna. supportsVision menandai dukungan
-// gambar — frame pada provider tanpa vision BERHENTI dengan error jelas dan TIDAK
-// PERNAH jatuh ke mode teks-saja.
+// Tiap provider (Groq/Gemini/OpenRouter) punya TEPAT SATU model (lihat models.ts).
+// supportsVision menandai dukungan gambar — frame pada provider tanpa vision BERHENTI
+// dengan error jelas dan TIDAK PERNAH jatuh ke mode teks-saja.
 import type { Observation } from '../observation';
 import type { AnalysisResult } from '../types';
 import type { ParsedMetadata } from '../prompt';
@@ -23,14 +22,6 @@ export type TestResult =
 
 export interface TestOpts {
   signal?: AbortSignal;
-  /** khusus provider custom OpenAI-compatible */
-  baseUrl?: string;
-  model?: string;
-}
-
-export interface CustomConfig {
-  baseUrl: string;
-  model: string;
 }
 
 export interface GenerateArgs {
@@ -40,17 +31,11 @@ export interface GenerateArgs {
   theme?: string;
   signal?: AbortSignal;
   onWait?: (info: WaitInfo) => void;
-  /** khusus custom: diabaikan provider fixed */
-  baseUrl?: string;
-  model?: string;
 }
 
 // M29: argumen analisis — sama seperti GenerateArgs TANPA theme (reviewer tidak butuh tema).
-// `model`/`baseUrl` hanya dipakai provider custom; provider fixed memakai model tunggalnya.
 export interface AnalyzeArgs {
   apiKey: string;
-  model?: string;
-  baseUrl?: string;
   image: ImageInput;
   platform: Platform;
   signal?: AbortSignal;
@@ -63,9 +48,6 @@ export interface TextArgs {
   prompt: string;
   signal?: AbortSignal;
   onWait?: (info: WaitInfo) => void;
-  /** khusus custom */
-  baseUrl?: string;
-  model?: string;
 }
 
 /** Tahap A: gambar nyata + tema sebagai petunjuk (bukan sumber isi) */
@@ -75,9 +57,6 @@ export interface ObserveArgs {
   theme?: string;
   signal?: AbortSignal;
   onWait?: (info: WaitInfo) => void;
-  /** khusus custom */
-  baseUrl?: string;
-  model?: string;
 }
 /* ---------------- juri kepatuhan ---------------- */
 
@@ -119,9 +98,6 @@ export interface JudgeInput {
   riskContext?: string;
   signal?: AbortSignal;
   onWait?: (info: WaitInfo) => void;
-  /** khusus custom */
-  baseUrl?: string;
-  model?: string;
 }
 
 /** pola pesan error API yang berarti endpoint/model tidak mendukung gambar */
@@ -159,8 +135,6 @@ export interface CropInspectInput {
   seed: number;
   signal?: AbortSignal;
   onWait?: (info: WaitInfo) => void;
-  baseUrl?: string;
-  model?: string;
 }
 
 export interface CropInspectOutput {

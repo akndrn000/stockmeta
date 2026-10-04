@@ -9,7 +9,7 @@ import type { AdobeActual, ShutterstockActual } from './calibration';
 
 export type Platform = "adobe" | "shutterstock";
 
-export type ProviderId = "gemini" | "groq" | "custom" | "coming-soon";
+export type ProviderId = "gemini" | "groq" | "openrouter";
 
 export type ConnectionStatus = "idle" | "testing" | "ok" | "fail";
 

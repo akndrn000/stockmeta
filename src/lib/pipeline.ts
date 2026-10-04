@@ -23,7 +23,7 @@ import {
   type ParsedMetadata
 } from './prompt';
 import { ProviderError } from './providers/retry';
-import type { CustomConfig, ImageInput, ProviderAdapter, WaitInfo } from './providers/types';
+import type { ImageInput, ProviderAdapter, WaitInfo } from './providers/types';
 import type { Platform } from './types';
 
 export interface PipelineArgs {
@@ -35,7 +35,6 @@ export interface PipelineArgs {
   /** observation cache sesi — bila ada, Tahap A dilewati (ganti platform tidak observasi ulang) */
   cachedObservation?: Observation;
   strictVerify: boolean;
-  customConfig?: CustomConfig;
   signal?: AbortSignal;
   onWait?: (info: WaitInfo) => void;
   /** log peristiwa (mis. item grounding yang dihapus) — ditampilkan UI */
@@ -58,10 +57,6 @@ export interface PipelineResult {
   regenerated: boolean;
 }
 
-function customOf(args: PipelineArgs): { baseUrl?: string; model?: string } {
-  return args.customConfig ? { baseUrl: args.customConfig.baseUrl, model: args.customConfig.model } : {};
-}
-
 function minKeywords(platform: Platform): number {
   return platform === 'adobe' ? ADOBE_KEYWORDS_MIN : SS_KEYWORDS_MIN;
 }
@@ -75,14 +70,12 @@ function categoryValid(platform: Platform, category: string | undefined): boolea
 
 async function genStageB(args: PipelineArgs, obs: Observation): Promise<{ meta: ParsedMetadata; needsReview: boolean }> {
   const hint = defaultCategoryHint(obs, args.platform);
-  const extra = customOf(args);
   for (let attempt = 0; attempt < 2; attempt++) {
     const text = await args.adapter.callText({
       apiKey: args.apiKey,
       prompt: buildStageBPrompt(args.platform, obs, hint),
       signal: args.signal,
-      onWait: args.onWait,
-      ...extra
+      onWait: args.onWait
     });
     const meta = parseMetadataResponse(text, args.platform);
     // kategori di luar daftar resmi → ditolak lalu retry 1x (parser menandainya categoryAuto)
@@ -117,8 +110,6 @@ export async function runFramePipeline(args: PipelineArgs): Promise<PipelineResu
       { retryable: false, noVision: true }
     );
   }
-  const extra = customOf(args);
-
   // Tahap A — gambar nyata (atau cache sesi)
   let observation = args.cachedObservation;
   let observedFresh = false;
@@ -128,8 +119,7 @@ export async function runFramePipeline(args: PipelineArgs): Promise<PipelineResu
       image: args.image,
       theme: args.theme,
       signal: args.signal,
-      onWait: args.onWait,
-      ...extra
+      onWait: args.onWait
     });
     observedFresh = true;
   }
@@ -149,8 +139,7 @@ export async function runFramePipeline(args: PipelineArgs): Promise<PipelineResu
         apiKey: args.apiKey,
         prompt: buildGroundingPrompt(obs, keywords),
         signal: args.signal,
-        onWait: args.onWait,
-        ...extra
+        onWait: args.onWait
       }));
     let applied = applyGrounding(meta.keywords ?? [], await ground(meta.keywords ?? []));
     if (applied.kept.length < minKeywords(args.platform)) {

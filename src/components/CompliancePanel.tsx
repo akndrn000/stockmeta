@@ -24,7 +24,7 @@ const BADGE_CLS: Record<CombinedBadge, string> = {
   PERLU_DITINJAU: 'border-dashed border-border-strong text-text-secondary'
 };
 
-const JUDGE_IDS = ['groq', 'gemini', 'custom'] as const;
+const JUDGE_IDS = ['groq', 'gemini', 'openrouter'] as const;
 
 export function CompliancePanel({ session, batch, judge }: {
   session: Session;
