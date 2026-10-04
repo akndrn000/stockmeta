@@ -6,6 +6,7 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { registry } from '../lib/providers';
+import { blankObservation } from '../lib/observation';
 import { custom } from '../lib/providers/custom';
 import { gemini } from '../lib/providers/gemini';
 import { groq } from '../lib/providers/groq';
@@ -21,6 +22,7 @@ const fakeAdapter: ProviderAdapter = {
   supportsVision: true,
   testConnection,
   generateForImage: async () => ({}),
+  observeImage: async () => blankObservation(),
   analyzeImage: async () => ({ verdict: 'layak', issues: [], summary: '' }),
   callText: async () => '{}',
   callJudge: async () => ({

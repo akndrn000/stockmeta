@@ -2,6 +2,7 @@
 // → diproses provider lain yang key-nya tersimpan; toggle mati atau tanpa key lain → gagal
 // dengan pesan asli. Adapter & key disuntikkan lewat deps (tanpa jaringan, tanpa localStorage).
 import { describe, expect, it, vi } from 'vitest';
+import { blankObservation } from '../observation';
 import type { ParsedMetadata } from '../prompt';
 import type { AnalysisResult, ProviderId } from '../types';
 import { FALLBACK_ORDER, analyzeWithFallback, canFallback, generateWithFallback } from './fallback';
@@ -25,6 +26,7 @@ function fakeAdapter(id: Id, impl: () => Promise<ParsedMetadata>): ProviderAdapt
     supportsVision: true,
     testConnection: async (): Promise<TestResult> => ({ ok: true }),
     generateForImage: impl,
+    observeImage: async () => blankObservation(),
     analyzeImage: async () => ({ verdict: 'layak', issues: [], summary: '' }),
     callText: async () => '{}',
     callJudge: async () => ({
@@ -173,6 +175,7 @@ describe('analyzeWithFallback (M29)', () => {
       supportsVision: true,
       testConnection: async (): Promise<TestResult> => ({ ok: true }),
       generateForImage: async () => ({}),
+      observeImage: async () => blankObservation(),
       analyzeImage,
       callText: async () => '{}',
       callJudge: async () => ({

@@ -5,6 +5,7 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fileStore } from '../lib/fileStore';
+import { blankObservation } from '../lib/observation';
 import { registry } from '../lib/providers';
 import { gemini } from '../lib/providers/gemini';
 import { groq } from '../lib/providers/groq';
@@ -39,6 +40,7 @@ const fakeAdapter: ProviderAdapter = {
     category_ok: true, suggested_category: null, needs_editorial_or_release: false, confidence: 1
   }),
   generateForImage: async () => ({}),
+  observeImage: async () => blankObservation(),
   analyzeImage: async () => {
     const step = script[Math.min(calls, Math.max(script.length - 1, 0))] ?? {};
     calls++;

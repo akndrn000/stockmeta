@@ -10,6 +10,7 @@ import { useBatch } from '../hooks/useBatch';
 import { useProvider } from '../hooks/useProvider';
 import { useSession } from '../hooks/useSession';
 import { fileStore } from '../lib/fileStore';
+import { blankObservation } from '../lib/observation';
 import { registry } from '../lib/providers';
 import { gemini } from '../lib/providers/gemini';
 import { groq } from '../lib/providers/groq';
@@ -34,6 +35,7 @@ const fakeAdapter: ProviderAdapter = {
   label: 'Gemini',
   supportsVision: true,
   testConnection: async () => ({ ok: true }),
+  observeImage: async () => blankObservation(),
   callText: async () => '{}',
   callJudge: async () => ({
     verdict: 'pass', score: 100, checks: [], unsupported_metadata: [], ip_risks: [],

@@ -6,6 +6,7 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fileStore } from '../lib/fileStore';
+import { blankObservation } from '../lib/observation';
 import { BATCH_DELAY_DEFAULT_SEC, BATCH_DELAY_OPTIONS_SEC } from '../lib/limits';
 import { registry } from '../lib/providers';
 import { gemini } from '../lib/providers/gemini';
@@ -35,7 +36,20 @@ const fakeAdapter: ProviderAdapter = {
   label: 'Gemini',
   supportsVision: true,
   testConnection: async () => ({ ok: true }),
-  callText: async () => '{}',
+  observeImage: async () => blankObservation(),
+  // Pipeline A-D: Tahap B memakai skrip (kategori valid disuntik); grounding kosong.
+  callText: async (args) => {
+    if (args.prompt.includes('Periksa setiap keyword')) return '{"unsupported": []}';
+    const step = script[Math.min(calls, Math.max(script.length - 1, 0))] ?? {};
+    calls++;
+    if (step.pending) {
+      return new Promise<string>((_res, rej) => {
+        args.signal?.addEventListener('abort', () => rej(new Error('Dibatalkan')), { once: true });
+      });
+    }
+    const fallbackCat = args.prompt.includes('SHUTTERSTOCK') ? 'Animals/Wildlife' : 'Animals';
+    return JSON.stringify({ category: fallbackCat, ...(step.meta ?? {}) });
+  },
   callJudge: async () => ({
     verdict: 'pass', score: 100, checks: [], unsupported_metadata: [], ip_risks: [],
     category_ok: true, suggested_category: null, needs_editorial_or_release: false, confidence: 1
@@ -99,6 +113,7 @@ const flush = () => act(async () => { await new Promise((r) => setTimeout(r, 0))
 
 beforeEach(() => {
   localStorage.clear();
+  localStorage.setItem('stockmeta_strict_verify', '0'); // mekanik UI; grounding di pipeline.test.ts
   fileStore.clear();
   script = [];
   calls = 0;
