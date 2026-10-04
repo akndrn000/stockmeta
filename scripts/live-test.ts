@@ -1,23 +1,39 @@
 // Tes live manual — BUKAN bagian build (tidak di-bundle Next, tidak dijalankan test otomatis).
-// Jalankan:
+// Jalankan pipeline penuh (observasi → metadata → grounding):
 //   GEMINI_KEY=… npx tsx scripts/live-test.ts gemini foto.jpg adobe "Halloween"
-//   GROQ_KEY=…  npx tsx scripts/live-test.ts groq foto.jpg shutterstock
-//   OPENROUTER_KEY=… npx tsx scripts/live-test.ts openrouter foto.jpg adobe
+//   GROQ_KEY=… npx tsx scripts/live-test.ts groq foto.jpg shutterstock
+//   CUSTOM_KEY=… CUSTOM_BASE_URL=… CUSTOM_MODEL=… npx tsx scripts/live-test.ts custom foto.jpg adobe
+// Tambah --judge untuk menilai metadata via juri provider yang sama.
+// Buat 3 fixture PNG kecil (polos merah, polos hijau, pola papan catur) untuk smoke test:
+//   npx tsx scripts/live-test.ts --make-fixtures ./tmp-fixtures
+// Fixture hanya untuk smoke teknis — uji impor pertama ke portal TETAP memakai foto asli.
 // Key hanya dibaca dari environment variable — TIDAK PERNAH ditulis ke file atau log.
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
+import { runFramePipeline } from '../src/lib/pipeline';
+import { renderRulesBlock } from '../src/lib/platform-rules';
 import { getProvider } from '../src/lib/providers';
 import type { ImageInput } from '../src/lib/providers/types';
 import type { Platform, ProviderId } from '../src/lib/types';
+import { validateMetadata } from '../src/lib/validate';
+import { makeFixtures } from './fixtures';
 
 const MIME: Record<string, string> = {
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp'
 };
 
+/* ---------------- fixture PNG solid/pola (smoke teknis saja, lihat fixtures.ts) ---------------- */
+
 async function main(): Promise<void> {
-  const [providerArg, imagePath, platformArg, themeArg] = process.argv.slice(2);
+  const argv = process.argv.slice(2);
+  if (argv[0] === '--make-fixtures') {
+    const files = await makeFixtures(argv[1] ?? './tmp-fixtures');
+    console.log('Fixture ditulis: ' + files.join(', '));
+    return;
+  }
+  const [providerArg, imagePath, platformArg, themeArg, flag] = argv;
   if (!providerArg || !imagePath || !platformArg) {
-    console.error('Pakai: GEMINI_KEY=… npx tsx scripts/live-test.ts <gemini|groq|custom> <gambar> <adobe|shutterstock> [tema]');
+    console.error('Pakai: GEMINI_KEY=… npx tsx scripts/live-test.ts <gemini|groq|custom> <gambar> <adobe|shutterstock> [tema] [--judge]');
     process.exit(1);
   }
   const provider = providerArg as ProviderId;
@@ -52,15 +68,42 @@ async function main(): Promise<void> {
   console.log(JSON.stringify({ test }, null, 2));
   if (!test.ok) process.exit(1);
 
-  const result = await adapter.generateForImage({
+  // Pipeline penuh: observasi gambar nyata → metadata teks → grounding ketat.
+  const pipe = await runFramePipeline({
+    adapter,
     apiKey: key,
     image,
     platform,
     theme: themeArg,
-    baseUrl,
-    model
+    strictVerify: true,
+    customConfig: baseUrl !== undefined || model !== undefined ? { baseUrl: baseUrl ?? '', model: model ?? '' } : undefined,
+    log: (msg) => console.log('[pipeline]', msg)
   });
-  console.log(JSON.stringify({ result }, null, 2));
+  console.log(JSON.stringify({
+    observation: pipe.observation,
+    compliance: pipe.compliance,
+    metadata: pipe.metadata,
+    removedUnsupported: pipe.removedUnsupported,
+    categoryNeedsReview: pipe.categoryNeedsReview
+  }, null, 2));
+
+  const hard = validateMetadata(platform, pipe.metadata as never, imagePath.split(/[\\/]/).pop() ?? '');
+  console.log(JSON.stringify({ hard }, null, 2));
+
+  if (flag === '--judge') {
+    const judged = await adapter.callJudge({
+      apiKey: key,
+      image,
+      sendImage: adapter.supportsVision,
+      observation: pipe.observation,
+      metadataText: JSON.stringify(pipe.metadata),
+      rulesBlock: renderRulesBlock(platform),
+      hardContext: [...hard.errors, ...hard.warnings].map((i) => `${i.rule}: ${i.message}`).join('\n'),
+      baseUrl,
+      model
+    });
+    console.log(JSON.stringify({ judged }, null, 2));
+  }
 }
 
 main().catch((err: unknown) => {

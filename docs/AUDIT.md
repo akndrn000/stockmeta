@@ -139,3 +139,38 @@
 - Model default Groq (`qwen/qwen3.8-27b`) & Gemini (`gemini-3.5-flash-lite`) benar-benar mendukung gambar.
 - Kategori lain SS by-subjek (Backgrounds/Textures, Abstract, dst.) belum dibaca dari sumber resmi.
 - Shutterstock property-release untuk landmark (`landmarks_or_private_property`).
+
+## 10. Tindak lanjut implementasi (status: SELESAI di kode, perlu uji portal)
+
+| # | Celah §8 | Status + bukti |
+|---|---|---|
+| 1 | Tidak ada `platform-rules.ts` | SELESAI — `src/lib/platform-rules.ts` (22 RULE_ID + render blok juri), `brands.ts`; test grep `platform-rules.test.ts` |
+| 2 | Validasi tanpa errors/blokir | SELESAI — `validate.ts` → `{errors[], warnings[]}`; ekspor lewati frame ber-error (`csv.ts` planCsv + dialog) |
+| 3 | Tanpa deteksi IP/teknis/AI/bahasa/stem | SELESAI — `brands.ts` + heuristik kapital + `TECH_DATA_PATTERNS` + `AI_LABEL_PATTERN` + kata Indonesia + stem (peringatan) |
+| 4 | Tanpa analisis 4 tahap | SELESAI — `observation.ts` (A+C), `prompt.ts` Tahap B + grounding D, `pipeline.ts`, cache sesi, `supportsVision` + error noVision |
+| 5 | Tanpa juri + konsensus | SELESAI — adapter `callJudge`, `judge.ts` (parse ketat + konsensus), `useJudge.ts` (paralel/serial/batal/cache/privasi), perbaikan-dengan-diff |
+| 6 | CSV SS opsional + override + dialog | SELESAI — kolom E-G bersyarat, `portalName`, `StockMeta_<Platform>_YYYY-MM-DD.csv`, batas 1 MB/5000 baris, dialog pra-unduh |
+| 7 | `Landscape` vs `Landscapes` | MINOR SELESAI — CSV memakai angka 11; tampilan memakai "Landscapes" (`platform-rules.ts`) |
+| 8 | Sanitasi judul | SELESAI — `sanitizeAdobeTitle` saat ekspor + penanda di editor + warning berisi hasil bersih |
+| 9 | UI kepatuhan | SELESAI — `CompliancePanel.tsx` (observasi, juri, matriks, manual portal), badge + filter, toggle Ilustrasi/Editorial, label saran |
+| 10 | Test + live-test + docs | SELESAI — 339 test; `scripts/live-test.ts` (pipeline, `--judge`, `--make-fixtures`); README + AUDIT ini |
+
+### [VERIFIKASI] → lokasi TODO di kode (semuanya peringatan non-pemblokir)
+
+- Judul Adobe >70: `platform-rules.ts` (`ADOBE_TITLE_SUGGEST_MAX`) — warning, bukan error.
+- "Arts"/"Celebrities" + dropdown Submit: `platform-rules.ts` (`SHUTTERSTOCK_CATEGORIES`).
+- Format caption editorial: `CaptionSheet.tsx` (peringatan Editorial) — tool tidak membuat otomatis.
+- CSV menimpa deskripsi bawaan file: `platform-rules.ts` (`SHUTTERSTOCK_MANUAL_STEPS`).
+- Model default dukung gambar: `models.ts`, `groq.ts`, `gemini.ts` (`supportsVision` + komentar).
+- Deskripsi kategori SS lain: `prompt.ts` (`buildShutterstockMetadataPrompt` memakai hint eksplisit spek saja).
+- Property-release landmark SS: `observation.ts` (`PROPERTY_RELEASE`).
+
+### Uji manual yang masih perlu di portal ("Uji impor pertama")
+
+1. Impor 2–3 foto (bukan batch besar) ke Adobe + Shutterstock; pastikan header diterima.
+2. Judul ~100 karakter di Adobe: lolos atau ditolak? (menjawab TODO >70).
+3. Kolom E-G Shutterstock: `Yes` Illustration/Editorial terbaca portal?
+4. Cocokkan dropdown Kategori portal vs daftar aplikasi (khusus "Arts", "Celebrities").
+5. Editorial ber-tanda: format caption manual seperti apa yang diminta portal?
+6. Filename `.jpeg`/`.eps` sama persis (huruf + ekstensi) lolos impor?
+7. Deskripsi bawaan metadata file: tertimpa CSV atau tidak?

@@ -22,7 +22,7 @@
 
 <br>
 
-**2** mode &nbsp;·&nbsp; **3** provider AI &nbsp;·&nbsp; **2** platform stok &nbsp;·&nbsp; **20** frame per batch &nbsp;·&nbsp; **0** server perantara
+**2** mode &nbsp;·&nbsp; **3** provider AI &nbsp;·&nbsp; **2** platform stok &nbsp;·&nbsp; **20** frame per batch &nbsp;·&nbsp; **0** server perantara &nbsp;·&nbsp; juri sampai **3**
 
 <sub>Gambar, hasil analisis, dan metadata pada tangkapan layar adalah data contoh untuk ilustrasi.</sub>
 
@@ -42,9 +42,9 @@ API key milikmu (Groq, Gemini, atau OpenRouter) dikirim dari browser langsung ke
 ```mermaid
 flowchart LR
     A([Upload foto]) --> B[Mode Analisis<br/>cek kelayakan upload]
-    B --> C[Mode Metadata<br/>judul, kata kunci, kategori]
-    C --> D[Edit manual<br/>+ saran validasi]
-    D --> E([Export CSV<br/>Adobe Stock / Shutterstock])
+    B --> C[Mode Metadata<br/>observasi gambar → judul, kata kunci, kategori]
+    C --> D[Edit manual<br/>+ cek keras + juri kepatuhan]
+    D --> E([Dialog ekspor<br/>CSV Adobe Stock / Shutterstock])
 ```
 
 ## Fitur
@@ -56,8 +56,9 @@ flowchart LR
 | **Dua platform** | Adobe Stock dan Shutterstock dalam satu sesi. Hasil tersimpan per platform, jadi berganti platform tidak menghilangkan pekerjaan. |
 | **Batch yang tangguh** | Berurutan, bisa dibatalkan, retry otomatis saat kena limit, dengan status per frame (menunggu, memproses, siap, gagal). |
 | **Fallback antar provider** | Saat kuota harian habis atau terjadi `503` setelah retry habis, frame dialihkan ke provider lain yang key-nya tersimpan. Bisa dimatikan. |
-| **Edit manual** | Judul atau deskripsi, kata kunci berbentuk chip, kategori resmi, tema per foto, dan saran perbaikan yang tidak memblokir. |
-| **Ekspor CSV** | Mengikuti template resmi portal, atau salin per field dengan satu klik. |
+| **Edit manual** | Judul atau deskripsi, kata kunci berbentuk chip, kategori resmi, tema per foto, nama file di portal, toggle Ilustrasi/Editorial (Shutterstock), dan cek keras yang memblokir (error) vs saran (warning). |
+| **Ekspor CSV** | Mengikuti template resmi portal, dialog pra-unduh berisi daftar Filename, hanya baris lolos cek keras yang ditulis, atau salin per field dengan satu klik. |
+| **Juri kepatuhan** | Hingga 3 provider menilai tiap frame per platform (LOLOS / DENGAN CATATAN / TIDAK LOLOS / PERLU DITINJAU) — selalu saran, bukan keputusan platform. |
 | **Jeda antar foto** | Dapat diatur 3, 6, 12, atau 20 detik (default 6) untuk menghindari limit. |
 | **Nyaman dipakai** | Mode siang/malam (mengikuti sistem, bisa di-override) dan sesi tersimpan otomatis di browser. |
 
@@ -65,12 +66,14 @@ flowchart LR
 
 1. **Upload** foto ke *Lembar kerja* (drag-drop atau klik area upload).
 2. **Pilih platform**, Adobe Stock atau Shutterstock, di header.
-3. **Pilih provider** (Groq sebagai default, atau Gemini/OpenRouter) lalu **tempel API key**.
+3. **Pilih provider** (Groq sebagai default, Gemini, atau Custom OpenAI-compatible dengan base URL + model + key sendiri) lalu **tempel API key**.
 4. Klik **Tes koneksi**. Key hanya disimpan kalau tes lulus, dan key yang tersimpan dites ulang otomatis saat halaman dimuat ulang.
 5. Buka **Mode Analisis**, lalu klik **Jalankan Analisis**. Hasil tiap foto tampil di panel *Hasil analisis*.
-6. Pindah ke **Mode Metadata**, isi **tema batch** (opsional, misalnya `Halloween`), lalu klik **Buat metadata**. Progres tampil per frame dan bisa **Batalkan** kapan saja.
-7. **Edit** hasilnya di *Lembar caption*.
-8. **Salin** per field, atau klik **Export CSV** untuk mengunduh file.
+6. Pindah ke **Mode Metadata**, isi **tema batch** (opsional, misalnya `Halloween`), lalu klik **Buat metadata**. Setiap frame diamati gambarnya (Tahap A, di-cache), lalu dibuatkan metadata dari hasil pengamatan (Tahap B), diperiksa kepatuhannya (Tahap C), dan diverifikasi grounding-nya bila **Verifikasi ketat** aktif (Tahap D, default aktif).
+7. **Edit** hasilnya di *Lembar caption* (termasuk **Nama file di portal**). Kotak merah = error cek keras yang memblokir ekspor frame itu; kotak kuning = saran.
+8. Buka panel **Kepatuhan**: periksa pengamatan, jalankan **Periksa kepatuhan** (pilih 1–3 juri), dan opsional **Perbaiki sesuai saran juri** (selalu minta konfirmasi, tidak menimpa diam-diam).
+9. Klik **Export CSV**, periksa dialog (daftar Filename + error/peringatan), lalu **Unduh**.
+10. Kerjakan **Langkah manual di portal** yang tidak bisa lewat CSV (lihat panel Kepatuhan).
 
 > [!NOTE]
 > Pembuatan metadata **digerbang oleh analisis**. Frame yang belum dianalisis pada platform aktif dilewati dengan pesan *"Jalankan Analisis dulu di Mode Analisis"*. Gerbang ini hanya berlaku saat memulai pembuatan; data yang sudah ada tetap bisa diedit manual.
@@ -98,15 +101,26 @@ Setiap masalah dikelompokkan ke salah satu dari delapan kategori: kualitas gamba
 > [!WARNING]
 > Hasil analisis adalah **saran AI, bukan jaminan** diterima atau ditolak. AI tidak punya akses ke database platform, sehingga kemiripan dengan konten lain hanya dapat ditandai sebagai *perlu tinjau*, bukan dipastikan.
 
+## Alur Analisis dan Juri Metadata
+
+Mode Metadata bekerja dalam 4 tahap per frame (lihat `src/lib/pipeline.ts`):
+
+1. **A — Pengamatan:** gambar asli dikirim ke vision AI (diperkecil ~1280px JPEG ~0.8). Hasil JSON (subjek, orang, teks/merek terlihat, kualitas, confidence) di-cache di sesi — ganti platform tidak mengamati ulang. Provider tanpa dukungan gambar menghentikan frame dengan error jelas, tanpa mode teks-saja.
+2. **B — Metadata:** teks observasi (tanpa gambar, tanpa nama file) diubah menjadi judul/deskripsi + keyword + kategori sesuai aturan tiap platform.
+3. **C — Kepatuhan deterministik:** merek terlihat, wajah dikenali, properti privat, media non-foto, indikasi AI, dan confidence rendah menjadi peringatan di panel Kepatuhan.
+4. **D — Verifikasi grounding** (toggle, default aktif): keyword yang tak didukung gambar dihapus secara terlihat; bila sisa di bawah minimum, diregenerasi 1x atau error `keyword tidak cukup`.
+
+**Juri kepatuhan** (`src/lib/judge.ts`, `src/hooks/useJudge.ts`): 1–3 provider menilai metadata + observasi (+ gambar bila toggle aktif) berdasar blok aturan dari `platform-rules.ts`. Satu error cek keras = TIDAK LOLOS apa pun kata juri. Hasil selalu berlabel *"Perkiraan kelolosan (saran, bukan keputusan platform)"*. Tombol **Perbaiki sesuai saran juri** mengirim revisi ke satu provider, melewati cek keras ulang, menampilkan diff, dan meminta konfirmasi — tidak menimpa edit manual diam-diam.
+
 ## Provider AI
 
-Setiap provider memakai **satu model tetap**, tanpa pemilihan model dinamis (lihat `src/lib/providers/models.ts`).
+Setiap provider fixed memakai **satu model tetap**, tanpa pemilihan model dinamis (lihat `src/lib/providers/models.ts`). Provider ketiga adalah adapter **Custom OpenAI-compatible** generik: base URL + model + key diisi sendiri (tanpa hardcode nama layanan), tersimpan di browser.
 
 | Provider | Model | Batas gratis |
 | --- | --- | --- |
 | **Groq** (default) | `qwen/qwen3.8-27b` | Perkiraan ±8.000 token/menit, dapat berubah sewaktu-waktu. [Dokumentasi limit](https://console.groq.com/docs/rate-limits) |
 | **Gemini** | `gemini-3.5-flash-lite` | Kuota harian gratis; `429` bertanda kuota harian berarti kuota hari itu habis. [Dokumentasi rate limit](https://ai.google.dev/gemini-api/docs/rate-limits) |
-| **OpenRouter** (cadangan) | `openrouter/free` | Perkiraan ±20 request/hari tanpa isi saldo, dapat berubah sewaktu-waktu. [Dokumentasi](https://openrouter.ai/docs) |
+| **Custom** | Diisi sendiri | Mengikuti akunmu di layanan itu. [Contoh yang kompatibel](https://openrouter.ai/docs) |
 
 <details>
 <summary><b>Perilaku retry dan fallback</b></summary>
@@ -124,29 +138,30 @@ Berdasarkan `src/lib/providers/retry.ts` dan `src/lib/providers/fallback.ts`:
 
 ## Format CSV
 
-Ekspor mengikuti template resmi tiap portal (lihat `src/lib/csv.ts` dan `src/lib/validate.ts`).
+Ekspor mengikuti template resmi tiap portal (satu sumber kebenaran: `src/lib/platform-rules.ts`; logika di `src/lib/csv.ts`, cek keras di `src/lib/validate.ts`).
 
 | Aturan | **Adobe Stock** | **Shutterstock** |
 | --- | --- | --- |
-| Kolom | `Filename, Title, Keywords, Category, Releases` | `Filename, Description, Keywords, Categories` |
-| Judul / deskripsi | Judul maks 200 karakter (koma aman, sel CSV di-quote) | Deskripsi berupa kalimat utuh, bukan daftar kata |
-| Kategori | Berupa **nomor** (1-21) sesuai daftar resmi Adobe; kolom `Releases` dikosongkan | **1-2 nama** resmi dalam satu sel, dipisah koma |
-| Kata kunci | Satu sel dipisah koma, maksimal 49 (yang paling penting dulu) | Satu sel dipisah koma, maksimal 50 |
-| Nama file | Saran bila melebihi 30 karakter (termasuk ekstensi) | Tidak ada batas khusus di aplikasi |
+| Kolom | `Filename, Title, Keywords, Category, Releases` | `Filename, Description, Keywords, Categories` (+ `Illustration, Mature content, Editorial` bila ada frame mengaktifkan toggle) |
+| Judul / deskripsi | Frasa faktual ≤70 ideal (peringatan di 71–200), maks 200 (error); koma/karakter khusus disanitasi saat ekspor dan ditandai di editor; bukan daftar kata | Satu kalimat natural 60–200 karakter (saran), min 5 kata dan maks 2048 karakter (error); bukan daftar kata |
+| Kategori | Berupa **nomor** (1–21) sesuai daftar resmi Adobe; kolom `Releases` dikosongkan | **1–2 nama** resmi dalam satu sel, dipisah koma |
+| Kata kunci | Unik min 5, maks 49; 10 pertama memuat kata judul; tanpa data teknis | Unik min 7, maks 50; tanpa pengulangan stem; tanpa merek |
+| Nama file | Kolom Filename = **Nama file di portal** (default nama upload), dipakai apa adanya — samakan ejaan + ekstensi (`.jpeg`, `.eps`, …) | Sama — samakan persis dengan portal |
 
-- Judul Adobe yang dihasilkan AI dibatasi 200 karakter saat parsing. Edit manual yang melebihi batas tidak dipotong diam-diam saat ekspor, melainkan memunculkan saran validasi.
-- Hanya baris yang sudah punya isi untuk platform tersebut yang diekspor. File dikirim sebagai UTF-8 dengan BOM dan baris CRLF, plus proteksi injeksi formula untuk sel berawalan `=`, `+`, `-`, atau `@`.
-- Saran validasi lain (kata kunci minimal 5 untuk Adobe dan 7 untuk Shutterstock, deskripsi minimal 5 kata, kategori wajib diisi) bersifat non-pemblokir.
+- File bernama `StockMeta_Adobe_YYYY-MM-DD.csv` / `StockMeta_Shutterstock_YYYY-MM-DD.csv` (tanpa spasi), UTF-8 dengan BOM dan baris CRLF, plus proteksi injeksi formula untuk sel berawalan `=`, `+`, `-`, atau `@`. Maks 1 MB dan 5000 baris.
+- Hanya baris berisi dan **lolos cek keras** yang diekspor; frame ber-error dilewati (tertera di dialog), frame TIDAK LOLOS juri hanya peringatan.
+- Tidak ada pemotongan/penghapusan diam-diam: sanitasi judul dan dedupe keyword selalu terlihat di UI.
 
 > [!IMPORTANT]
-> Impor CSV hasil unduhan ke portal masing-masing **sekali dulu** untuk memastikan formatnya diterima sebelum dipakai untuk banyak file.
+> **Uji impor pertama:** impor 2–3 foto ke portal masing-masing **sekali dulu** untuk memastikan formatnya diterima sebelum dipakai untuk banyak file. Cocokkan juga dropdown Kategori portal dengan daftar di aplikasi, dan periksa apakah judul ~100 karakter lolos impor Adobe.
 
 ## Keamanan dan Privasi
 
-- **Tanpa server perantara.** Key dan gambar dikirim langsung dari browser ke server provider (`api.groq.com`, `generativelanguage.googleapis.com`, `openrouter.ai`). Repo ini tidak memiliki API route backend, dan tidak ada analytics atau pelacak di kode.
+- **Tanpa server perantara.** Key dan gambar dikirim langsung dari browser ke server provider (`api.groq.com`, `generativelanguage.googleapis.com`, atau endpoint custom pilihanmu). Repo ini tidak memiliki API route backend, dan tidak ada analytics atau pelacak di kode.
 - **Yang dikirim ke provider**, baik di Mode Analisis maupun Metadata: API key (sebagai otorisasi), teks prompt, dan gambar dalam format base64.
-- **API key** disimpan di localStorage browser (`stockmeta_groq_key`, `stockmeta_gemini_key`, `stockmeta_openrouter_key`) dan hanya ditulis setelah tes koneksi lulus.
-- **Preferensi non-sensitif** juga disimpan di localStorage: sesi (`stockmeta_session`, berisi thumbnail dan metadata, bukan file asli), tema (`stockmeta_theme`), jeda antar foto (`stockmeta_batch_delay`), provider terpilih (`stockmeta_provider`), status fallback (`stockmeta_fallback`), dan mode aktif (`stockmeta_mode`).
+- **Juri kepatuhan** mengirim gambar + metadata ke **SEMUA juri aktif** — aplikasi meminta konfirmasi privasi sekali sebelum menilai.
+- **API key** disimpan di localStorage browser (`stockmeta_groq_key`, `stockmeta_gemini_key`, `stockmeta_custom_key`) dan hanya ditulis setelah tes koneksi lulus. Konfigurasi custom (`stockmeta_custom_baseurl`, `stockmeta_custom_model`) juga di browser.
+- **Preferensi non-sensitif** juga disimpan di localStorage: sesi (`stockmeta_session`, berisi thumbnail, metadata, observation, dan cache juri — bukan file asli), tema (`stockmeta_theme`), jeda antar foto (`stockmeta_batch_delay`), provider terpilih (`stockmeta_provider`), status fallback (`stockmeta_fallback`), mode aktif (`stockmeta_mode`), juri terpilih, verifikasi ketat, dan status privasi juri.
 - **Gunakan API key khusus** untuk aplikasi ini (bukan key utamamu) dan batasi haknya di konsol provider.
 
 > [!WARNING]
@@ -168,7 +183,7 @@ Tidak. Aplikasi ini tidak punya backend. Gambar dikirim langsung dari browser ke
 
 <br>
 
-Ya. Kamu membawa key milikmu (Groq, Gemini, atau OpenRouter). Batas pemakaian mengikuti kuota akun provider masing-masing, bukan batas dari StockMeta.
+Ya. Kamu membawa key milikmu (Groq, Gemini, atau layanan OpenAI-compatible sendiri lewat provider Custom). Batas pemakaian mengikuti kuota akun provider masing-masing, bukan batas dari StockMeta.
 
 </details>
 
@@ -191,11 +206,11 @@ Limit per menit di-retry otomatis. Bila kuota harian habis, frame dialihkan ke p
 </details>
 
 <details>
-<summary><b>Apakah verdict "Layak" menjamin foto diterima?</b></summary>
+<summary><b>Apakah verdict "Layak" / badge "LOLOS" menjamin foto diterima?</b></summary>
 
 <br>
 
-Tidak. Analisis adalah saran AI atas apa yang terlihat di gambar. Keputusan penerimaan tetap ada pada platform, dan kemiripan dengan konten lain tidak bisa dipastikan oleh AI.
+Tidak. Analisis dan juri adalah saran AI atas apa yang terlihat di gambar. Keputusan penerimaan tetap ada pada platform, dan kemiripan dengan konten lain tidak bisa dipastikan oleh AI.
 
 </details>
 
@@ -238,14 +253,15 @@ Konvensi kode ada di [`AGENTS.md`](./AGENTS.md): satu modul satu seam dengan int
 src/
   app/            layout.tsx, page.tsx, globals.css (token warna), icon.svg
   components/     Header, ModeToggle, ProviderPanel, Worksheet, CaptionSheet,
-                  AnalysisPanel, KeywordEditor, Panel, CopyButton, ThemeToggle,
-                  Footer, InlineScript
-  hooks/          useSession, useProvider, useBatch, useAnalysisBatch, useTheme
-  lib/            batch, csv, prompt, analysisPrompt, validate, storage, limits,
+                  CompliancePanel, AnalysisPanel, KeywordEditor, Panel, CopyButton,
+                  ThemeToggle, Footer, InlineScript
+  hooks/          useSession, useProvider, useBatch, useAnalysisBatch, useJudge, useTheme
+  lib/            batch, csv, prompt, analysisPrompt, observation, pipeline, judge,
+                  validate, brands, platform-rules, storage, limits,
                   categories, metadata, keywords, frames, image, fileStore, types
-  lib/providers/  groq, gemini, openrouter, fallback, retry, models, types, index, http
-scripts/          live-test.ts (tes provider manual, tidak ikut build)
-docs/             DESIGN.md, MIGRATION.md, banner.svg, hero.png,
+  lib/providers/  groq, gemini, custom, fallback, retry, models, types, index, http
+scripts/          live-test.ts (pipeline + juri + fixture manual, tidak ikut build)
+docs/             DESIGN.md, MIGRATION.md, AUDIT.md, banner.svg, hero.png,
                   screenshots-mobile/ dan screenshots-m29/ (bukti audit)
 ```
 
@@ -256,12 +272,14 @@ docs/             DESIGN.md, MIGRATION.md, banner.svg, hero.png,
 
 <br>
 
-Skrip ini tidak ikut build. Key hanya dibaca dari environment variable.
+Skrip ini tidak ikut build. Key hanya dibaca dari environment variable. Menjalankan pipeline penuh (observasi → metadata → grounding + cek keras), opsional dengan `--judge`.
 
 ```bash
 GEMINI_KEY=... npx tsx scripts/live-test.ts gemini foto.jpg adobe "Halloween"
-GROQ_KEY=... npx tsx scripts/live-test.ts groq foto.jpg shutterstock
-OPENROUTER_KEY=... npx tsx scripts/live-test.ts openrouter foto.jpg adobe
+GROQ_KEY=... npx tsx scripts/live-test.ts groq foto.jpg shutterstock --judge
+CUSTOM_KEY=... CUSTOM_BASE_URL=... CUSTOM_MODEL=... npx tsx scripts/live-test.ts custom foto.jpg adobe
+# 3 fixture PNG kecil untuk smoke teknis (polos + pola):
+npx tsx scripts/live-test.ts --make-fixtures ./tmp-fixtures
 ```
 
 </details>
@@ -279,9 +297,9 @@ Atau hubungkan repo ini ke Vercel Dashboard dengan build default `npm run build`
 ## Batasan yang Diketahui
 
 - **Maksimal 20 frame per batch.**
-- **File asli tidak disimpan setelah refresh.** Sesi menyimpan thumbnail dan metadata saja. Untuk generate ulang, upload ulang gambar dengan nama yang sama.
-- **Hasil AI tetap perlu ditinjau manual.** Subjek bisa salah baca dan kata kunci perlu dikurasi. Batas portal (misalnya judul Adobe 200 karakter) hanya berupa saran, kecuali pemotongan 200 karakter pada output mentah model.
-- **Kategori bisa terisi otomatis oleh sistem** bila nama dari model tidak cocok dengan daftar resmi. Hasil seperti ini ditandai dengan saran *"Kategori dipilih otomatis oleh sistem, periksa kembali."*
+- **File asli tidak disimpan setelah refresh.** Sesi menyimpan thumbnail, metadata, observation, dan cache juri saja. Untuk generate ulang, upload ulang gambar dengan nama yang sama.
+- **Hasil AI dan juri tetap perlu ditinjau manual** dan tidak pernah diklaim "dijamin lolos". Batas portal yang keras (judul Adobe >200, keyword di bawah minimum, deskripsi Shutterstock <5 kata/>2048) memblokir ekspor frame itu; sisanya saran.
+- **Kategori bisa terisi otomatis oleh sistem** bila nama dari model tidak cocok dengan daftar resmi. Hasil seperti ini ditandai *"Kategori dipilih otomatis oleh sistem, periksa kembali"* — dan bila tetap di luar daftar setelah retry, kategori dikosongkan + ditandai perlu ditinjau (tidak lolos diam-diam).
 
 ## Kontribusi
 
