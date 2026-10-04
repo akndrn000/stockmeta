@@ -1,15 +1,18 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { AnalysisPanel } from '../components/AnalysisPanel';
+import { CalibrationPanel } from '../components/CalibrationPanel';
 import { CaptionSheet } from '../components/CaptionSheet';
 import { CompliancePanel } from '../components/CompliancePanel';
 import { Footer } from '../components/Footer';
 import { Header } from '../components/Header';
 import { ProviderPanel } from '../components/ProviderPanel';
+import { RiskPanel } from '../components/RiskPanel';
 import { Worksheet } from '../components/Worksheet';
 import { useAnalysisBatch } from '../hooks/useAnalysisBatch';
 import { useBatch } from '../hooks/useBatch';
 import { useJudge } from '../hooks/useJudge';
+import { useRisk } from '../hooks/useRisk';
 import { useProvider } from '../hooks/useProvider';
 import { useSession } from '../hooks/useSession';
 import { readMode, writeMode } from '../lib/storage';
@@ -25,6 +28,7 @@ export default function Home() {
   const batch = useBatch(session, provider);
   const analysis = useAnalysisBatch(session, provider);
   const judge = useJudge(session, provider);
+  const risk = useRisk(session, provider);
   // M29: mode Analisis/Metadata — restore sekali dari localStorage (hindari mismatch SSR).
   const [mode, setMode] = useState<AppMode>('metadata');
   useEffect(() => {
@@ -65,11 +69,16 @@ export default function Home() {
             atau CaptionSheet (mode metadata), bukan dua-duanya sekaligus. */}
         <div className="min-w-0 self-start min-[1120px]:sticky min-[1120px]:top-28">
           {mode === 'analisis' ? (
-            <AnalysisPanel session={session} />
+            <div className="flex min-w-0 flex-col gap-3 sm:gap-4">
+              <AnalysisPanel session={session} />
+              <RiskPanel session={session} risk={risk} />
+            </div>
           ) : (
             <div className="flex min-w-0 flex-col gap-3 sm:gap-4">
               <CaptionSheet session={session} />
               <CompliancePanel session={session} batch={batch} judge={judge} />
+              <RiskPanel session={session} risk={risk} />
+              <CalibrationPanel />
             </div>
           )}
         </div>

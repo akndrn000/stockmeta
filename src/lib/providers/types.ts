@@ -115,6 +115,8 @@ export interface JudgeInput {
   rulesBlock: string;
   /** ringkasan hasil cek keras sebagai konteks */
   hardContext: string;
+  /** fakta risiko deterministik (metrik + outcome + kemiripan) — juri hanya menafsirkan */
+  riskContext?: string;
   signal?: AbortSignal;
   onWait?: (info: WaitInfo) => void;
   /** khusus custom */
@@ -145,4 +147,27 @@ export interface ProviderAdapter {
   callText(args: TextArgs): Promise<string>;
   /** juri kepatuhan: kirim gambar hanya bila supportsVision + input.sendImage */
   callJudge(input: JudgeInput): Promise<JudgeOutput>;
+  /** inspeksi crop detail 100% (opsional; tanpa vision → dilewati). */
+  inspectCrop?(input: CropInspectInput): Promise<CropInspectOutput>;
+}
+
+/** Inspeksi satu crop resolusi asli oleh model vision (temperature 0, seed tetap). */
+export interface CropInspectInput {
+  apiKey: string;
+  image: ImageInput;
+  region: string;
+  seed: number;
+  signal?: AbortSignal;
+  onWait?: (info: WaitInfo) => void;
+  baseUrl?: string;
+  model?: string;
+}
+
+export interface CropInspectOutput {
+  visible_noise: 'none' | 'mild' | 'clear';
+  blur_or_soft: 'none' | 'mild' | 'clear';
+  artifacts_or_halos: 'none' | 'mild' | 'clear';
+  dust_or_sensor_spots: boolean;
+  ai_glitches: string[];
+  notes: string;
 }

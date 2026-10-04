@@ -277,6 +277,25 @@ export function useSession() {
     commit({ ...cur, frames }, true);
   }
 
+  // Risiko penolakan (ESTIMASI): metrik + outcome + similarity + crop + konsep.
+  function applyRisk(id: number, patch: Partial<Frame>) {
+    const cur = mirror.current;
+    const frames = cur.frames.map((f) => (f.id === id ? { ...f, ...patch } : f));
+    commit({ ...cur, frames }, true);
+  }
+
+  function setActual(id: number, patch: Pick<Frame, 'actualAdobe' | 'actualShutterstock'>) {
+    const cur = mirror.current;
+    const frames = cur.frames.map((f) => (f.id === id ? { ...f, ...patch } : f));
+    commit({ ...cur, frames }, true);
+  }
+
+  function setHeld(id: number, held: boolean) {
+    const cur = mirror.current;
+    const frames = cur.frames.map((f) => (f.id === id ? { ...f, held } : f));
+    commit({ ...cur, frames }, true);
+  }
+
   // Baca state terbaru dari dalam callback async batch — `frames` yang lewat lewat closure render
   // bisa basi di tengah batch; mirror selalu sinkron dengan state terakhir.
   function snapshot(): SessionState {
@@ -295,7 +314,7 @@ export function useSession() {
     ...state, notes, setPlatform, select, addFrame, removeFrame, updateFrame,
     updateMetadata, setFrameTema, applyGenerated, failFrame, applyAnalysis, failAnalysis,
     applyObservation, clearObservation, setPortalName, setFrameFlags,
-    applyJudge, clearJudge,
+    applyJudge, clearJudge, applyRisk, setActual, setHeld,
     snapshot, setNote, setTema, newSession
   };
 }

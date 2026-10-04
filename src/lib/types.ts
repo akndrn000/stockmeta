@@ -1,7 +1,11 @@
 // Tipe inti domain StockMeta — satu-satunya sumber bentuk data lintas modul (lihat legacy/js/*.js).
 import type { CombinedBadge, ConsensusResult } from './judge';
 import type { Observation } from './observation';
+import type { CropFinding } from './quality/cropInspect';
+import type { QualityMetrics } from './quality/metrics';
+import type { AdobeAssessment, ShutterstockAssessment } from './outcome';
 import type { JudgeOutput } from './providers/types';
+import type { AdobeActual, ShutterstockActual } from './calibration';
 
 export type Platform = "adobe" | "shutterstock";
 
@@ -63,6 +67,23 @@ export interface Frame {
   editorial?: boolean;
   // Cache juri kepatuhan per platform — invalid otomatis bila hash metadata berubah.
   judge?: Partial<Record<Platform, JudgeCacheEntry>>;
+  // Risiko penolakan (ESTIMASI): metrik deterministik piksel asli + outcome per platform.
+  quality?: QualityMetrics;
+  riskAdobe?: AdobeAssessment;
+  riskShutterstock?: ShutterstockAssessment;
+  // Similarity batch: id anggota klaster (termasuk diri), true bila kandidat terbaik.
+  similarGroup?: string[];
+  similarBest?: boolean;
+  // Kejenuhan konsep (AI, subjektif — bukan data koleksi platform).
+  conceptSaturated?: boolean;
+  conceptNote?: string;
+  // Inspeksi crop detail (ringkas; "tidak tersedia" bila provider tanpa vision).
+  cropFindings?: CropFinding[];
+  cropNote?: string;
+  // Hasil sebenarnya (kalibrasi, opsional) + tahan dari ekspor CSV.
+  actualAdobe?: AdobeActual;
+  actualShutterstock?: ShutterstockActual;
+  held?: boolean;
 }
 
 export interface JudgeEntry {

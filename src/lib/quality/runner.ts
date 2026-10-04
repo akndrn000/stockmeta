@@ -2,7 +2,9 @@
 // frame serial, bitmap dilepaskan, batas ukuran wajar, pesan jelas bila gagal.
 // Fallback ke thread utama bila Worker/OffscreenCanvas tidak tersedia.
 import type { ObservationMediaType } from '../observation';
+import { hashesFromPixels, type HashSet } from '../similarity';
 import { computeQualityMetrics, type PixelFrame, type QualityMetrics } from './metrics';
+import { selectCropRects, type CropRect } from './crops';
 
 export const MAX_FILE_BYTES = 80 * 1024 * 1024;
 
@@ -56,18 +58,38 @@ async function pixelsMainThread(file: File): Promise<PixelFrame> {
   }
 }
 
+/** Hasil sekali decode file asli: metrik + hash kemiripan + rect crop. */
+export interface QualityPack {
+  metrics: QualityMetrics;
+  hashes: HashSet;
+  rects: CropRect[];
+}
+
+function packFromPixels(px: PixelFrame, mediaType: ObservationMediaType): QualityPack {
+  const metrics = computeQualityMetrics(px, mediaType);
+  const hashes = hashesFromPixels(px.data, px.width, px.height);
+  const gray = new Array(px.width * px.height);
+  for (let i = 0; i < px.width * px.height; i++) {
+    const r = (px.data as ArrayLike<number>)[i * 4] ?? 0;
+    const g = (px.data as ArrayLike<number>)[i * 4 + 1] ?? 0;
+    const b = (px.data as ArrayLike<number>)[i * 4 + 2] ?? 0;
+    gray[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+  }
+  return { metrics, hashes, rects: selectCropRects(gray, px.width, px.height) };
+}
+
 /** Hitung metrik kualitas dari file asli (serial per panggilan). */
-export async function runQualityFromFile(file: File, mediaType: ObservationMediaType = 'photo'): Promise<QualityMetrics> {
+export async function runQualityFromFile(file: File, mediaType: ObservationMediaType = 'photo'): Promise<QualityPack> {
   if (file.size > MAX_FILE_BYTES) {
     throw new Error('File terlalu besar (' + Math.round(file.size / 1048576) + ' MB) — batas wajar 80 MB.');
   }
   const w = getWorker();
   if (!w) {
-    return computeQualityMetrics(await pixelsMainThread(file), mediaType);
+    return packFromPixels(await pixelsMainThread(file), mediaType);
   }
   const bmp = await createImageBitmap(file);
   try {
-    const res = await new Promise<QualityMetrics>((resolve, reject) => {
+    const res = await new Promise<QualityPack>((resolve, reject) => {
       const onMsg = (e: MessageEvent): void => {
         w.removeEventListener('message', onMsg);
         const d = e.data as { ok: boolean; w?: number; h?: number; pixels?: ArrayBuffer; error?: string };
@@ -77,7 +99,7 @@ export async function runQualityFromFile(file: File, mediaType: ObservationMedia
         }
         try {
           const pixels = new Uint8ClampedArray(d.pixels as ArrayBuffer);
-          resolve(computeQualityMetrics({ width: d.w as number, height: d.h as number, data: pixels }, mediaType));
+          resolve(packFromPixels({ width: d.w as number, height: d.h as number, data: pixels }, mediaType));
         } catch (err) {
           reject(err instanceof Error ? err : new Error('Gagal menghitung metrik'));
         }
@@ -101,4 +123,25 @@ export function stopQualityWorker(): void {
     worker?.terminate();
   } catch { /* diabaikan */ }
   worker = null;
+}
+
+/** Potong crop dari file asli → ImageInput JPEG (untuk inspeksi vision). */
+export async function extractCropImages(file: File, rects: CropRect[]): Promise<{ region: string; image: { base64: string; mimeType: string } }[]> {
+  const bmp = await createImageBitmap(file);
+  try {
+    const out: { region: string; image: { base64: string; mimeType: string } }[] = [];
+    for (const r of rects) {
+      const cv = document.createElement('canvas');
+      cv.width = r.w;
+      cv.height = r.h;
+      const cx = cv.getContext('2d');
+      if (!cx) continue;
+      cx.drawImage(bmp, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+      const url = cv.toDataURL('image/jpeg', 0.9);
+      out.push({ region: r.region, image: { base64: url.slice(url.indexOf(',') + 1), mimeType: 'image/jpeg' } });
+    }
+    return out;
+  } finally {
+    if (typeof bmp.close === 'function') bmp.close();
+  }
 }

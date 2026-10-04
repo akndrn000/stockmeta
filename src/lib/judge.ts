@@ -30,10 +30,12 @@ export function buildFixPrompt(metadataText: string, fixes: string[]): string {
   ].join('\n');
 }
 
-export function buildJudgePrompt(input: { observation: Observation; metadataText: string; rulesBlock: string; hardContext: string; withoutImage: boolean }): string {
+export function buildJudgePrompt(input: { observation: Observation; metadataText: string; rulesBlock: string; hardContext: string; withoutImage: boolean; riskContext?: string }): string {
   const lines = [
     'Kamu adalah JURI KEPATUHAN metadata stok foto. Nilai HANYA berdasar ATURAN yang diberikan dan isi gambar/observasi.',
     'JANGAN mengarang aturan di luar daftar. Hal di luar aturan = status "n/a", BUKAN gagal.',
+    'FAKTA DETERMINISTIK (metrik piksel asli + outcome + kemiripan) di bawah adalah FAKTA — hanya tafsirkan dan beri saran.',
+    'JANGAN mengubah angka fakta, JANGAN menurunkan risiko yang dihitung dari metrik deterministik (hanya boleh menaikkan/menambah bukti).',
     input.withoutImage
       ? 'Catatan: kamu TIDAK menerima gambar (hanya observasi JSON) — tandai ini dan jangan menghukum metadata karenanya.'
       : 'Kamu menerima gambar + observasi JSON — utamakan isi gambar bila keduanya berbeda.',
@@ -42,6 +44,9 @@ export function buildJudgePrompt(input: { observation: Observation; metadataText
     '',
     'KONTEKS CEK KERAS (deterministik, sudah pasti):',
     input.hardContext || '(tidak ada temuan cek keras)',
+    '',
+    'FAKTA RISIKO DETERMINISTIK (jangan diubah angkanya):',
+    input.riskContext || '(belum ada pengukuran risiko untuk frame ini)',
     '',
     'OBSERVASI GAMBAR (JSON):',
     JSON.stringify(input.observation),
@@ -145,8 +150,39 @@ export function judgePromptFor(input: JudgeInput): string {
     metadataText: input.metadataText,
     rulesBlock: input.rulesBlock,
     hardContext: input.hardContext,
-    withoutImage: !input.sendImage
+    withoutImage: !input.sendImage,
+    riskContext: input.riskContext
   });
+}
+
+/**
+ * Konteks fakta risiko untuk juri: metrik + outcome + klaster (angka, bukan tafsir).
+ * Juri hanya menafsirkan/memberi saran; tidak boleh mengubah angka.
+ */
+export function buildRiskContext(input: {
+  megapixels?: number;
+  sharpnessGlobal?: number;
+  highlightClipPct?: number;
+  shadowClipPct?: number;
+  noiseEstimate?: number;
+  adobeOverall?: string;
+  shutterEstimate?: string;
+  similarGroupSize?: number;
+  cropNote?: string;
+}): string {
+  const lines: string[] = [];
+  if (input.megapixels !== undefined) lines.push('megapiksel=' + input.megapixels);
+  if (input.sharpnessGlobal !== undefined) lines.push('tajam_global=' + Math.round(input.sharpnessGlobal));
+  if (input.highlightClipPct !== undefined) lines.push('highlight=' + input.highlightClipPct + '%');
+  if (input.shadowClipPct !== undefined) lines.push('shadow=' + input.shadowClipPct + '%');
+  if (input.noiseEstimate !== undefined) lines.push('noise=' + input.noiseEstimate);
+  if (input.adobeOverall) lines.push('risiko_adobe=' + input.adobeOverall);
+  if (input.shutterEstimate) lines.push('estimasi_shutterstock=' + input.shutterEstimate);
+  if (input.similarGroupSize !== undefined && input.similarGroupSize > 1) {
+    lines.push('klaster_mirip=' + input.similarGroupSize + ' frame');
+  }
+  if (input.cropNote) lines.push('crop=' + input.cropNote);
+  return lines.length ? lines.join('; ') : '';
 }
 
 /* ---------------- konsensus deterministik ---------------- */

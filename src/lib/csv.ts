@@ -72,6 +72,8 @@ export interface CsvPlan {
   overRows: boolean;
   exportable: Frame[];
   skipped: SkippedFrame[];
+  /** frame ditahan manual (disembunyikan dari ekspor, bukan dihapus) */
+  heldBack: Frame[];
   warnCount: number;
 }
 
@@ -83,8 +85,14 @@ export function planCsv(frames: Frame[], platform: Platform): CsvPlan {
   });
   const exportable: Frame[] = [];
   const skipped: SkippedFrame[] = [];
+  const heldBack: Frame[] = [];
   let warnCount = 0;
   for (const f of withContent) {
+    // Frame ditahan (tombol "tahan frame mirip") disembunyikan dari ekspor, bukan dihapus.
+    if (f.held === true) {
+      heldBack.push(f);
+      continue;
+    }
     const m = f.metadata[platform];
     if (!m) continue;
     const r = validateMetadata(platform, m, portalFileName(f));
@@ -117,6 +125,7 @@ export function planCsv(frames: Frame[], platform: Platform): CsvPlan {
     overRows: exportable.length > CSV_MAX_ROWS,
     exportable,
     skipped,
+    heldBack,
     warnCount
   };
 }

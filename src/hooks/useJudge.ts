@@ -5,7 +5,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { fileStore } from '../lib/fileStore';
 import { prepareImage } from '../lib/image';
-import { buildFixPrompt, consensusJudge, hashMetadata, JUDGE_DISCLAIMER } from '../lib/judge';
+import { buildFixPrompt, buildRiskContext, consensusJudge, hashMetadata, JUDGE_DISCLAIMER } from '../lib/judge';
+import { clampJuryBadge } from '../lib/outcome';
 import { hasContent } from '../lib/metadata';
 import { JUDGE_IDEAL_COUNT, renderRulesBlock } from '../lib/platform-rules';
 import { parseMetadataResponse, type ParsedMetadata } from '../lib/prompt';
@@ -189,6 +190,18 @@ export function useJudge(session: Session, provider: ProviderApi, opts?: { delay
       : '';
     const metadataText = JSON.stringify(metadata);
     const rulesBlock = renderRulesBlock(platform);
+    // FAKTA deterministik untuk juri: metrik + outcome + kemiripan (juri hanya menafsirkan).
+    const riskContext = buildRiskContext({
+      megapixels: frame.quality ? Math.round(frame.quality.megapixels * 100) / 100 : undefined,
+      sharpnessGlobal: frame.quality?.sharpnessGlobal,
+      highlightClipPct: frame.quality ? Math.round(frame.quality.highlightClipPct * 10) / 10 : undefined,
+      shadowClipPct: frame.quality ? Math.round(frame.quality.shadowClipPct * 10) / 10 : undefined,
+      noiseEstimate: frame.quality ? Math.round(frame.quality.noiseEstimate * 100) / 100 : undefined,
+      adobeOverall: frame.riskAdobe?.overall,
+      shutterEstimate: frame.riskShutterstock?.estimate,
+      similarGroupSize: frame.similarGroup?.length,
+      cropNote: frame.cropNote
+    });
 
     const settled = await Promise.allSettled(judgeIds.map(async (jid): Promise<JudgeEntry> => {
       const adapter = getProvider(jid);
@@ -202,6 +215,7 @@ export function useJudge(session: Session, provider: ProviderApi, opts?: { delay
         metadataText,
         rulesBlock,
         hardContext,
+        riskContext,
         signal,
         ...customFor(jid)
       });
@@ -220,10 +234,18 @@ export function useJudge(session: Session, provider: ProviderApi, opts?: { delay
     else session.setNote(id, '');
 
     const consensus = consensusJudge(hard.errors.length, entries.map((e) => e.output));
+    // Risiko tinggi deterministik / error cek keras tidak bisa dianulir juri.
+    const detWorst = frame.riskAdobe && platform === 'adobe'
+      ? frame.riskAdobe.overall
+      : frame.riskShutterstock && platform === 'shutterstock'
+        ? (frame.riskShutterstock.estimate === 'Kemungkinan ditolak' ? 'tinggi'
+          : frame.riskShutterstock.estimate.startsWith('Data licensing') ? 'sedang' : 'rendah')
+        : 'rendah';
+    const badge = clampJuryBadge(consensus.badge, detWorst, hard.errors.length);
     const entry: JudgeCacheEntry = {
       hash: hashMetadata(metadata),
-      badge: consensus.badge,
-      consensus,
+      badge,
+      consensus: { ...consensus, badge },
       judges: entries,
       at: Date.now()
     };

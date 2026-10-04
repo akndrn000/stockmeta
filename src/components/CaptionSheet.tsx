@@ -134,6 +134,13 @@ export function CaptionSheet({ session }: {
   const plan = planCsv(frames, platform);
   const exportRows = plan.exportable.length;
   const canExport = exportRows > 0;
+  // Peringatan pra-unduh: frame berisiko tinggi ikut dihitung (tidak memblokir
+  // kecuali error cek keras). Frame ditahan disembunyikan dari ekspor.
+  const highRiskCount = plan.exportable.filter((f) =>
+    platform === 'adobe'
+      ? f.riskAdobe?.overall === 'tinggi'
+      : f.riskShutterstock?.estimate === 'Kemungkinan ditolak'
+  ).length;
 
   const patchAdobe = (patch: Partial<AdobeMetadata>) => {
     if (frame) updateMetadata(frame.id, 'adobe', patch);
@@ -584,6 +591,14 @@ export function CaptionSheet({ session }: {
             )}
             {plan.warnCount > 0 && (
               <p className="text-small text-warning">{plan.warnCount} peringatan non-pemblokir ikut diekspor apa adanya.</p>
+            )}
+            {plan.heldBack.length > 0 && (
+              <p className="text-small text-text-secondary">{plan.heldBack.length} frame ditahan disembunyikan dari ekspor (bukan dihapus).</p>
+            )}
+            {highRiskCount > 0 && (
+              <p role="note" className="text-small text-warning">
+                {highRiskCount} frame berisiko tinggi ikut diekspor (peringatan, tidak memblokir kecuali error cek keras).
+              </p>
             )}
             <p className="text-small text-text-muted">Hasil juri TIDAK LOLOS hanya peringatan — tidak memblokir unduhan. Lihat panel kepatuhan.</p>
             <div className="flex flex-wrap justify-end gap-2">

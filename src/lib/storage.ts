@@ -253,7 +253,8 @@ function coerceFrame(raw: unknown, platform: Platform): Frame | null {
     ...(typeof o.portalName === 'string' && o.portalName ? { portalName: o.portalName } : {}),
     ...(typeof o.illustration === 'boolean' ? { illustration: o.illustration } : {}),
     ...(typeof o.editorial === 'boolean' ? { editorial: o.editorial } : {}),
-    ...coerceJudgeSlot(o)
+    ...coerceJudgeSlot(o),
+    ...coerceRiskSlot(o)
   };
 }
 
@@ -265,6 +266,29 @@ function coerceObservationSlot(o: Record<string, unknown>): Pick<Frame, 'observa
   const c = v as Record<string, unknown>;
   if (typeof c.main_subject !== 'string' || typeof c.confidence !== 'number') return {};
   return { observation: v as Frame['observation'] };
+}
+
+// Risiko/quality tersimpan: validasi ringan (megapixels angka); rusak → dibuang.
+function coerceRiskSlot(o: Record<string, unknown>): Partial<Frame> {
+  const out: Partial<Frame> = {};
+  const q = o.quality;
+  if (typeof q === 'object' && q !== null && typeof (q as Record<string, unknown>).megapixels === 'number') {
+    out.quality = q as Frame['quality'];
+  }
+  if (typeof o.riskAdobe === 'object' && o.riskAdobe !== null) out.riskAdobe = o.riskAdobe as Frame['riskAdobe'];
+  if (typeof o.riskShutterstock === 'object' && o.riskShutterstock !== null) {
+    out.riskShutterstock = o.riskShutterstock as Frame['riskShutterstock'];
+  }
+  if (Array.isArray(o.similarGroup)) out.similarGroup = (o.similarGroup as unknown[]).map(String);
+  if (typeof o.similarBest === 'boolean') out.similarBest = o.similarBest;
+  if (typeof o.conceptSaturated === 'boolean') out.conceptSaturated = o.conceptSaturated;
+  if (typeof o.conceptNote === 'string') out.conceptNote = o.conceptNote;
+  if (Array.isArray(o.cropFindings)) out.cropFindings = o.cropFindings as Frame['cropFindings'];
+  if (typeof o.cropNote === 'string') out.cropNote = o.cropNote;
+  if (typeof o.actualAdobe === 'string') out.actualAdobe = o.actualAdobe as Frame['actualAdobe'];
+  if (typeof o.actualShutterstock === 'string') out.actualShutterstock = o.actualShutterstock as Frame['actualShutterstock'];
+  if (typeof o.held === 'boolean') out.held = o.held;
+  return out;
 }
 
 // Cache juri tersimpan: badge + hash string wajib; entri rusak dibuang.

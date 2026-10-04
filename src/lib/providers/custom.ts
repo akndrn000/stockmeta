@@ -13,8 +13,9 @@ import { buildMetadataPrompt, parseMetadataResponse } from '../prompt';
 import type { ParsedMetadata } from '../prompt';
 import { readBody } from './http';
 import { MODEL_RETRY_MAX, ProviderError, dailyQuotaError, isDailyQuota, parseRetryAfter, withRetry } from './retry';
-import type { AnalyzeArgs, GenerateArgs, ImageInput, JudgeInput, JudgeOutput, ObserveArgs, ProviderAdapter, TestOpts, TestResult, TextArgs } from './types';
+import type { AnalyzeArgs, CropInspectInput, CropInspectOutput, GenerateArgs, ImageInput, JudgeInput, JudgeOutput, ObserveArgs, ProviderAdapter, TestOpts, TestResult, TextArgs } from './types';
 import { isVisionNotSupportedError } from './types';
+import { buildCropPrompt, parseCropResponse } from '../quality/cropInspect';
 
 export function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.trim().replace(/\/+$/, '');
@@ -200,5 +201,27 @@ export const custom: ProviderAdapter = {
   analyzeImage,
   observeImage,
   callText,
-  callJudge
+  callJudge,
+  inspectCrop
+};
+
+async function inspectCrop(input: CropInspectInput): Promise<CropInspectOutput> {
+  const { base, model } = requireConfig(input.baseUrl, input.model);
+  const prompt = buildCropPrompt(input.region);
+  const text = await withRetry(async () => {
+    try {
+      return await postChat({ apiKey: input.apiKey, base, model, image: input.image, prompt, signal: input.signal });
+    } catch (err) { throw withNoVision(err); }
+  }, { onWait: input.onWait, signal: input.signal });
+  const parsed = parseCropResponse(text);
+  const first = parsed.crops[0];
+  if (!first) throw new Error('Inspeksi crop kosong');
+  return {
+    visible_noise: first.visible_noise,
+    blur_or_soft: first.blur_or_soft,
+    artifacts_or_halos: first.artifacts_or_halos,
+    dust_or_sensor_spots: first.dust_or_sensor_spots,
+    ai_glitches: first.ai_glitches,
+    notes: first.notes
+  };
 };
