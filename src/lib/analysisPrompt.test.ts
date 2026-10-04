@@ -30,6 +30,43 @@ describe('buildAnalysisPrompt', () => {
   it('platform shutterstock disebut', () => {
     expect(buildAnalysisPrompt({ platform: 'shutterstock' })).toContain('Platform target: shutterstock');
   });
+
+  it('prompt Adobe vs Shutterstock BERBEDA substansi (bukan cuma label platform)', () => {
+    const adobe = buildAnalysisPrompt({ platform: 'adobe' });
+    const shutter = buildAnalysisPrompt({ platform: 'shutterstock' });
+    expect(adobe).not.toBe(shutter);
+    // Beda substansi: blok kebijakan AI per platform berbeda paragrap, bukan 1-2 kata.
+    expect(Math.abs(adobe.length - shutter.length)).toBeGreaterThan(50);
+    // Konteks platform eksplisit di badan instruksi, bukan cuma baris "Platform target".
+    expect(adobe).toContain('platform: Adobe Stock');
+    expect(shutter).toContain('platform: Shutterstock');
+  });
+
+  it('kebijakan AI-generated Adobe: diterima + disclosure, BUKAN penolakan', () => {
+    const p = buildAnalysisPrompt({ platform: 'adobe' });
+    expect(p).toContain('ai-generated-disclosure');
+    expect(p).toContain('MENERIMA konten AI-generated DENGAN SYARAT disclosure');
+    expect(p).toContain('BUKAN alasan penolakan');
+    expect(p).toContain('verdict tetap boleh "layak"');
+    // Kalimat tegas penolakan Shutterstock TIDAK boleh muncul di prompt Adobe.
+    expect(p).not.toContain('Shutterstock tidak menerima konten AI-generated dari kontributor.');
+  });
+
+  it('kebijakan AI-generated Shutterstock: ditolak tegas + verdict berpotensi-ditolak', () => {
+    const p = buildAnalysisPrompt({ platform: 'shutterstock' });
+    expect(p).toContain('ai-generated-disclosure');
+    expect(p).toContain('Shutterstock tidak menerima konten AI-generated dari kontributor.');
+    expect(p).toContain('verdict HARUS "berpotensi-ditolak"');
+    expect(p).not.toContain('MENERIMA konten AI-generated DENGAN SYARAT disclosure');
+  });
+
+  it('kedua prompt mewanti-wanti deteksi AI tidak 100% pasti', () => {
+    for (const platform of ['adobe', 'shutterstock'] as const) {
+      const p = buildAnalysisPrompt({ platform });
+      expect(p).toContain('tidak bisa memastikan 100%');
+      expect(p).toContain('JANGAN menebak asal-asalan');
+    }
+  });
 });
 
 describe('parseAnalysisResponse', () => {

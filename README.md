@@ -46,6 +46,7 @@ Kontributor foto stok membutuhkan metadata yang akurat untuk setiap foto: judul,
 | **Edit manual** | Judul atau deskripsi, kata kunci berbentuk chip, kategori resmi, tema per foto, dan saran perbaikan yang tidak memblokir. |
 | **Ekspor CSV** | Mengikuti template resmi portal, atau salin per field dengan satu klik. |
 | **Jeda antar foto** | Dapat diatur 3, 6, 12, atau 20 detik (default 6) untuk menghindari limit. |
+| **Mode Analisis** | Nilai kelayakan upload per foto per platform (`layak` / `berpotensi-ditolak` / `perlu-tinjau`) beserta alasannya, berdampingan dengan Mode Metadata. |
 | **Nyaman dipakai** | Mode siang/malam (mengikuti sistem, bisa di-override) dan sesi tersimpan otomatis di browser. |
 
 ## Cara Pakai
@@ -93,14 +94,14 @@ Ekspor mengikuti template resmi masing-masing portal (lihat `src/lib/csv.ts` dan
 | Aturan | **Adobe Stock** | **Shutterstock** |
 | --- | --- | --- |
 | Kolom | `Filename, Title, Keywords, Category, Releases` | `Filename, Description, Keywords, Categories` |
-| Judul / deskripsi | Judul maks 200 karakter (koma aman, sel CSV di-quote) | Deskripsi berupa kalimat utuh, bukan daftar kata |
+| Judul / deskripsi | Judul maks 200 karakter (koma aman, sel CSV di-quote) | Deskripsi berupa kalimat utuh maks 2048 karakter, bukan daftar kata |
 | Kategori | Berupa **nomor** (1-21) sesuai daftar resmi Adobe; kolom `Releases` dikosongkan | **1-2 nama** resmi dalam satu sel, dipisah koma |
 | Kata kunci | Satu sel dipisah koma, maksimal 49 (yang paling penting dulu) | Satu sel dipisah koma, maksimal 50 |
 | Nama file | Saran bila melebihi 30 karakter (termasuk ekstensi) | Tidak ada batas khusus di aplikasi |
 
 - Judul Adobe yang dihasilkan AI dibatasi 200 karakter saat parsing. Edit manual yang melebihi batas tidak dipotong diam-diam saat ekspor, melainkan memunculkan saran validasi.
 - Hanya baris yang sudah punya isi untuk platform tersebut yang diekspor. File dikirim sebagai UTF-8 dengan BOM dan baris CRLF, plus proteksi injeksi formula untuk sel berawalan `=`, `+`, `-`, atau `@`.
-- Saran validasi lain (kata kunci minimal 5 untuk Adobe dan 7 untuk Shutterstock, deskripsi minimal 5 kata, kategori wajib diisi) bersifat non-pemblokir.
+- Saran validasi lain (kata kunci minimal 5 untuk Adobe dan 7 untuk Shutterstock, deskripsi minimal 5 kata dan maksimal 2048 karakter, kategori wajib diisi) bersifat non-pemblokir.
 
 > [!IMPORTANT]
 > Sebaiknya impor CSV hasil unduhan ke portal masing-masing **sekali dulu** untuk memastikan formatnya diterima sebelum dipakai untuk banyak file.
@@ -194,7 +195,7 @@ docs/             DESIGN.md, MIGRATION.md, banner dan tangkapan layar README
 
 - **Maksimal 20 frame per batch.**
 - **File asli tidak disimpan setelah refresh.** Sesi menyimpan thumbnail dan metadata saja. Untuk generate ulang, upload ulang gambar dengan nama yang sama.
-- **Hasil AI tetap perlu ditinjau manual.** Subjek bisa salah baca dan kata kunci perlu dikurasi. Batas portal (misalnya judul Adobe 200 karakter) hanya berupa saran, kecuali pemotongan 200 karakter pada output mentah model.
+- **Hasil AI tetap perlu ditinjau manual.** Subjek bisa salah baca dan kata kunci perlu dikurasi. Batas portal (judul Adobe maks 200 karakter, kata kunci maks 49 untuk Adobe / 50 untuk Shutterstock, deskripsi Shutterstock maks 2048 karakter) hanya berupa saran, kecuali pemotongan 200 karakter pada output mentah model.
 - **Kategori bisa terisi otomatis oleh sistem** bila nama dari model tidak cocok dengan daftar resmi. Hasil seperti ini ditandai dengan saran *"Kategori dipilih otomatis oleh sistem, periksa kembali."*
 
 ## Kontribusi

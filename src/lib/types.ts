@@ -67,8 +67,9 @@ export type AnalysisIssueCategory =
   | 'watermark-logo'
   | 'hak-cipta-merek'
   | 'properti-model-release'
-  | 'komposisi'
+  |   'komposisi'
   | 'nilai-komersial'
+  | 'ai-generated-disclosure'
   | 'lainnya';
 
 export interface AnalysisIssue {

@@ -13,6 +13,7 @@ export const ANALYSIS_CATEGORIES: readonly AnalysisIssueCategory[] = [
   'properti-model-release',
   'komposisi',
   'nilai-komersial',
+  'ai-generated-disclosure',
   'lainnya'
 ];
 
@@ -25,13 +26,36 @@ export const ANALYSIS_CATEGORY_LABELS: Record<AnalysisIssueCategory, string> = {
   'properti-model-release': 'Properti / model release',
   'komposisi': 'Komposisi',
   'nilai-komersial': 'Nilai komersial',
+  'ai-generated-disclosure': 'AI-generated disclosure',
   'lainnya': 'Lainnya'
 };
 
+const PLATFORM_LABEL: Record<Platform, string> = {
+  'adobe': 'Adobe Stock',
+  'shutterstock': 'Shutterstock'
+};
+
 export function buildAnalysisPrompt({ platform }: { platform: Platform }): string {
+  const label = PLATFORM_LABEL[platform];
+  // Kebijakan AI-generated BERBEDA per platform — ini bagian yang sengaja tidak sama.
+  const aiPolicy = platform === 'adobe'
+    ? [
+      'KEBIJAKAN AI-GENERATED (platform: Adobe Stock): Adobe Stock MENERIMA konten AI-generated DENGAN SYARAT disclosure saat upload.',
+      'Kalau gambar terindikasi dibuat/dibantu AI (tekstur tidak natural, artefak khas AI generator, anatomi/fisika tidak masuk akal, detail latar meleleh/duplikat, dsb), tambahkan issue kategori "ai-generated-disclosure" dengan catatan agar kontributor memberi disclosure saat upload.',
+      'Indikasi AI-generated BUKAN alasan penolakan — verdict tetap boleh "layak" kalau tidak ada masalah lain, cukup sertakan catatan disclosure tersebut.'
+    ]
+    : [
+      'KEBIJAKAN AI-GENERATED (platform: Shutterstock): Shutterstock tidak menerima konten AI-generated dari kontributor.',
+      'Kalau gambar terindikasi dibuat/dibantu AI (tekstur tidak natural, artefak khas AI generator, anatomi/fisika tidak masuk akal, detail latar meleleh/duplikat, dsb), verdict HARUS "berpotensi-ditolak" dengan issue kategori "ai-generated-disclosure" dan deskripsi tegas: "Shutterstock tidak menerima konten AI-generated dari kontributor."'
+    ];
   const lines = [
-    'Kamu adalah REVIEWER STOCK PHOTO yang menilai KELAYAKAN UPLOAD gambar ini ke ' + platform + '.',
+    'Kamu adalah REVIEWER STOCK PHOTO yang menilai KELAYAKAN UPLOAD gambar ini ke ' + label + ' (platform: ' + label + ').',
     'Tugasmu HANYA menilai — JANGAN membuat judul, deskripsi, atau kata kunci.',
+    'Penilaian ini KHUSUS untuk platform: ' + label + ' — terapkan kebijakan platform tersebut, bukan platform lain.',
+    '',
+    ...aiPolicy,
+    '',
+    'PENTING soal deteksi AI-generated: kamu (AI vision) tidak bisa memastikan 100% apakah sebuah gambar AI-generated atau bukan. Tandai HANYA kalau ada indikasi visual yang cukup jelas seperti contoh di atas — JANGAN menebak asal-asalan dari firasat tanpa bukti visual.',
     '',
     'Periksa kriteria penolakan umum industri stock photo berikut (hanya yang benar-benar terlihat):',
     '- Kualitas teknis: fokus/blur, noise berlebih, exposure buruk (terlalu gelap/terang), artefak kompresi, chromatic aberration yang terlihat jelas.',

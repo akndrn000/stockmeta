@@ -1103,6 +1103,30 @@ export CSV berfungsi identik saat mode metadata aktif; M29 hanya MENAMBAH.
   `npm run build` sukses. Bukti screenshot: `docs/screenshots-m29/mode-analisis.png` &
   `mode-metadata.png` (halaman awal kosong, mode gelap).
 
+## Perbaikan pasca-M29 (M30) — prompt metadata jujur soal batas, bukan tahap migrasi baru
+
+Audit menemukan teks prompt metadata (`buildMetadataPrompt`) masih menyuruh model hal yang
+sudah tidak benar sejak M24/M28, sementara dua tes `prompt.test.ts` (yang menulis spek
+M24/M28 dengan benar) gagal — **kodenya yang basi, bukan tesnya**, jadi yang diperbaiki
+adalah prompt, bukan ekspektasi tes. Verifikasi akhir: `npm run test` **268/268**,
+`npx tsc --noEmit` 0, `npm run lint` 0, `npm run build` sukses.
+
+- `src/lib/prompt.ts` (`parseMetadataResponse`): potong judul non-Adobe `slice(0, 200)`
+  literal → **`slice(0, MAX_TITLE_CSV)`** (nilai sama 200, angka kini tunggal di `limits.ts`;
+  `MAX_TITLE_CSV` memang sudah diimpor).
+- `src/lib/prompt.ts` (`buildMetadataPrompt`, Adobe): instruksi `TANPA koma (ganti koma
+  dengan kata sambung atau spasi)` **dihapus** — koma aman sejak M24 (CSV di-quote di
+  `csv.ts`/`metadata.ts`). Penggantinya: `koma dibiarkan (JANGAN dihapus atau diganti)`,
+  batas `maks 200 karakter` tetap disebut via `MAX_TITLE_CSV`.
+- Prompt kini menyampaikan batas asli ke model (ini yang meloloskan 2 tes lama tanpa
+  mengubah tesnya): Adobe `keywords ... (maksimal 49 kata, yang paling penting dulu)`;
+  Shutterstock `satu-dua kalimat deskriptif ... maksimal 2048 karakter` (kata "sekitar"
+  yang tidak akurat dibuang — parser/validator memakai 2048 eksak).
+- Koreksi tabel M29: `AnalysisIssueCategory` kini **9 kategori** (tambah
+  `ai-generated-disclosure` + kebijakan AI per platform di `buildAnalysisPrompt` —
+  Adobe menerima-dengan-disclosure, Shutterstock menolak tegas). Perubahan itu masuk
+  bersama perbaikan prompt analisis sebelumnya dan belum tercatat di bagian M29.
+
 ## Kontrak perilaku (WAJIB sama dengan legacy)
 
 Sumber: `legacy/docs/PROGRESS.md` + `legacy/js/*.js`. Tanda **[BARU]** = perilaku baru yang
