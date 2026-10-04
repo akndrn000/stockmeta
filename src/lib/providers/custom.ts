@@ -5,13 +5,15 @@
 // Tes koneksi = GET {base}/models (ringan, tanpa biaya token).
 // Key dikirim lewat header Authorization dan TIDAK PERNAH dicetak ke log.
 import { buildAnalysisPrompt, parseAnalysisResponse } from '../analysisPrompt';
+import { buildObservationPrompt, parseObservationResponse } from '../observation';
+import type { Observation } from '../observation';
 import type { AnalysisResult } from '../types';
 import { judgePromptFor, parseJudgeResponse } from '../judge';
 import { buildMetadataPrompt, parseMetadataResponse } from '../prompt';
 import type { ParsedMetadata } from '../prompt';
 import { readBody } from './http';
 import { MODEL_RETRY_MAX, ProviderError, dailyQuotaError, isDailyQuota, parseRetryAfter, withRetry } from './retry';
-import type { AnalyzeArgs, GenerateArgs, ImageInput, JudgeInput, JudgeOutput, ProviderAdapter, TestOpts, TestResult, TextArgs } from './types';
+import type { AnalyzeArgs, GenerateArgs, ImageInput, JudgeInput, JudgeOutput, ObserveArgs, ProviderAdapter, TestOpts, TestResult, TextArgs } from './types';
 import { isVisionNotSupportedError } from './types';
 
 export function normalizeBaseUrl(baseUrl: string): string {
@@ -164,6 +166,18 @@ async function callText(args: TextArgs): Promise<string> {
   return withRetry(async () => postChat({ apiKey, base, model, prompt, signal }), { onWait, signal });
 }
 
+async function observeImage(args: ObserveArgs): Promise<Observation> {
+  const { apiKey, image, theme, signal, onWait } = args;
+  const { base, model } = requireConfig(args.baseUrl, args.model);
+  const prompt = buildObservationPrompt(theme);
+  return withRetry(async () => {
+    try {
+      const text = await postChat({ apiKey, base, model, image, prompt, signal });
+      return parseObservationResponse(text);
+    } catch (err) { throw withNoVision(err); }
+  }, { onWait, signal });
+}
+
 async function callJudge(input: JudgeInput): Promise<JudgeOutput> {
   const { apiKey, signal, onWait } = input;
   const { base, model } = requireConfig(input.baseUrl, input.model);
@@ -184,6 +198,7 @@ export const custom: ProviderAdapter = {
   testConnection,
   generateForImage,
   analyzeImage,
+  observeImage,
   callText,
   callJudge
 };

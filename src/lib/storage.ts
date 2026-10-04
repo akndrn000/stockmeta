@@ -20,6 +20,10 @@ export const MODE_KEY = 'stockmeta_mode';
 /** base URL + model provider custom OpenAI-compatible (diisi pengguna, tanpa hardcode layanan) */
 export const CUSTOM_BASE_URL_KEY = 'stockmeta_custom_baseurl';
 export const CUSTOM_MODEL_KEY = 'stockmeta_custom_model';
+/** toggle "Verifikasi ketat" grounding Tahap D (default aktif) */
+export const STRICT_VERIFY_KEY = 'stockmeta_strict_verify';
+/** toggle "kirim gambar ke juri" (default aktif) */
+export const JUDGE_IMAGE_KEY = 'stockmeta_judge_image';
 
 function ls(): Storage | null {
   try { return typeof localStorage === 'undefined' ? null : localStorage; }
@@ -243,8 +247,23 @@ function coerceFrame(raw: unknown, platform: Platform): Frame | null {
     tema: typeof o.tema === 'string' ? o.tema : '',
     status, error, metadata,
     // M29: slot analisis (sesi lama tidak punya → undefined = belum pernah dianalisis)
-    ...coerceAnalysisSlots(o)
+    ...coerceAnalysisSlots(o),
+    // Pipeline A-D: observation platform-independen (rusak → dibuang, bukan sesi dibuang)
+    ...coerceObservationSlot(o),
+    ...(typeof o.portalName === 'string' && o.portalName ? { portalName: o.portalName } : {}),
+    ...(typeof o.illustration === 'boolean' ? { illustration: o.illustration } : {}),
+    ...(typeof o.editorial === 'boolean' ? { editorial: o.editorial } : {})
   };
+}
+
+// Observation tersimpan: validasi ringan (main_subject + confidence angka); entri rusak
+// dibuang supaya cache basi tidak meracuni Tahap B.
+function coerceObservationSlot(o: Record<string, unknown>): Pick<Frame, 'observation'> {
+  const v = o.observation;
+  if (typeof v !== 'object' || v === null) return {};
+  const c = v as Record<string, unknown>;
+  if (typeof c.main_subject !== 'string' || typeof c.confidence !== 'number') return {};
+  return { observation: v as Frame['observation'] };
 }
 
 // Slot analisis per platform — 'memproses' tidak pernah bertahan setelah reload.
@@ -363,4 +382,22 @@ export function readBatchDelay(): number {
 export function writeBatchDelay(sec: number): void {
   try { ls()?.setItem(BATCH_DELAY_KEY, String(delayOptions.includes(sec) ? sec : BATCH_DELAY_DEFAULT_SEC)); }
   catch { /* abaikan */ }
+}
+
+/* ---------------- toggle verifikasi ketat & gambar juri (default aktif) ---------------- */
+
+export function readStrictVerify(): boolean {
+  try { return ls()?.getItem(STRICT_VERIFY_KEY) !== '0'; } catch { return true; }
+}
+
+export function writeStrictVerify(enabled: boolean): void {
+  try { ls()?.setItem(STRICT_VERIFY_KEY, enabled ? '1' : '0'); } catch { /* diabaikan */ }
+}
+
+export function readJudgeImage(): boolean {
+  try { return ls()?.getItem(JUDGE_IMAGE_KEY) !== '0'; } catch { return true; }
+}
+
+export function writeJudgeImage(enabled: boolean): void {
+  try { ls()?.setItem(JUDGE_IMAGE_KEY, enabled ? '1' : '0'); } catch { /* diabaikan */ }
 }

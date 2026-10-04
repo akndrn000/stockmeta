@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { ADOBE_CATEGORIES, SHUTTERSTOCK_CATEGORIES } from './categories';
 import { MAX_DESCRIPTION, MAX_KEYWORDS_ADOBE, MAX_TITLE_CSV } from './limits';
-import { buildMetadataPrompt, parseMetadataResponse } from './prompt';
+import type { Observation } from './observation';
+import {
+  buildGroundingPrompt,
+  buildMetadataPrompt,
+  buildStageBPrompt,
+  parseGroundingResponse,
+  parseMetadataResponse
+} from './prompt';
 
 describe('buildMetadataPrompt', () => {
   it('adobe: platform target, aturan anti-generic, daftar kategori + format title', () => {
@@ -121,5 +128,59 @@ describe('parseMetadataResponse', () => {
     const p = parseMetadataResponse(JSON.stringify({ title: 'Kopi, '.repeat(50) }), 'adobe');
     expect(p.title).toContain(',');
     expect(p.title!.length).toBeLessThanOrEqual(MAX_TITLE_CSV);
+  });
+
+  it('adobe: kategori ANGKA 1-21 dipetakan ke label resmi', () => {
+    expect(parseMetadataResponse(JSON.stringify({ category: 13 }), 'adobe').category).toBe('People');
+    expect(parseMetadataResponse(JSON.stringify({ category: 8 }), 'adobe').category).toBe('Graphic Resources');
+    const bad = parseMetadataResponse(JSON.stringify({ category: 99 }), 'adobe');
+    expect(bad.categoryAuto).toBe(true);
+  });
+});
+
+describe('Tahap B — prompt dari observation (tanpa gambar)', () => {
+  const obs: Observation = {
+    media_type: 'photo',
+    main_subject: 'red panda',
+    secondary_subjects: ['bamboo'],
+    people: { count: 0, recognizable_face: false, visible_actions: [] },
+    setting: 'mountain forest',
+    time_or_lighting: 'daylight',
+    viewpoint_composition: [] as string[],
+    colors: ['green'],
+    mood_concepts: [] as string[],
+    copy_space: false,
+    isolated_background: false,
+    visible_text: [] as string[],
+    visible_brands_logos: [] as string[],
+    landmarks_or_private_property: [] as string[],
+    possible_ai_look: false,
+    quality_issues: [] as string[],
+    confidence: 0.9,
+    theme_mismatch: false
+  };
+
+  it('adobe: aturan title/keyword/kategori + isi observasi, tanpa nama file', () => {
+    const p = buildStageBPrompt('adobe', obs, null);
+    expect(p).toContain('red panda');
+    expect(p).toContain('TANPA koma');
+    expect(p).toContain('TANPA awalan "photo of"');
+    expect(p).toContain('ANGKA 1-21');
+    expect(p).not.toContain('foto123.jpg');
+  });
+
+  it('shutterstock: satu kalimat + 1-2 nama persis + tanpa nama file', () => {
+    const p = buildStageBPrompt('shutterstock', obs, 'Nature');
+    expect(p).toContain('SATU kalimat natural');
+    expect(p).toContain('1-2 nama PERSIS');
+    expect(p).toContain('"Nature"');
+    expect(p).not.toContain('foto123.jpg');
+  });
+
+  it('grounding: prompt + parser unsupported', () => {
+    const g = buildGroundingPrompt(obs, ['red panda', 'bamboo']);
+    expect(g).toContain('red panda');
+    expect(parseGroundingResponse('```json\n{"unsupported": ["bamboo"]}\n```')).toEqual(['bamboo']);
+    expect(() => parseGroundingResponse('{"unsupported": "bukan-array"}')).toThrow();
   });
 });

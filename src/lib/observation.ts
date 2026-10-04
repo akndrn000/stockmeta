@@ -21,7 +21,6 @@ export interface ObservationPeople {
   recognizable_face: boolean;
   visible_actions: string[];
 }
-
 export interface Observation {
   media_type: ObservationMediaType;
   main_subject: string;
@@ -259,4 +258,31 @@ export function defaultCategoryHint(obs: Observation, platform: Platform): strin
     return 'Backgrounds/Textures';
   }
   return null;
+}
+
+/**
+ * Observation kosong untuk TEST saja (fixture canary). JANGAN dipakai sebagai fallback
+ * produksi — gagal permanen observasi = status gagal, bukan metadata kosong.
+ */
+export function blankObservation(): Observation {
+  return {
+    media_type: 'unknown',
+    main_subject: '',
+    secondary_subjects: [],
+    people: { count: 0, recognizable_face: false, visible_actions: [] },
+    setting: '',
+    time_or_lighting: '',
+    viewpoint_composition: [],
+    colors: [],
+    mood_concepts: [],
+    copy_space: false,
+    isolated_background: false,
+    visible_text: [],
+    visible_brands_logos: [],
+    landmarks_or_private_property: [],
+    possible_ai_look: false,
+    quality_issues: [],
+    confidence: 0,
+    theme_mismatch: false
+  };
 }

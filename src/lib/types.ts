@@ -1,4 +1,5 @@
 // Tipe inti domain StockMeta — satu-satunya sumber bentuk data lintas modul (lihat legacy/js/*.js).
+import type { Observation } from './observation';
 
 export type Platform = "adobe" | "shutterstock";
 
@@ -51,6 +52,13 @@ export interface Frame {
   analysis?: Partial<Record<Platform, AnalysisResult>>;
   analysisStatus?: Partial<Record<Platform, FrameStatus>>;
   analysisError?: Partial<Record<Platform, string>>;
+  // Pipeline A-D: observation vision 1x per frame (platform-independen, di-cache di sesi).
+  observation?: Observation;
+  // Nama file di portal (default = nama file upload; dipakai apa adanya di CSV).
+  portalName?: string;
+  // Toggle Shutterstock per frame (default mati).
+  illustration?: boolean;
+  editorial?: boolean;
 }
 
 // M29 — Mode Analisis (berdampingan dengan Mode Metadata, bukan pengganti).

@@ -1,8 +1,26 @@
 // Prompt anti-generic + parser hasil model — port setia dari legacy/js/prompt-builder.js dan
 // parseJsonLoose + normalisasi di providers-gemini.js/app.js (tanpa panggilan jaringan).
+// Tahap B memakai builder observasi-di-bawah (teks saja, tanpa gambar); builder lama
+// buildMetadataPrompt dipertahankan untuk jalur legacy (live-test).
 import { getCategories, normCat } from './categories';
 import { cleanAdobeTitle } from './metadata';
+import {
+  ADOBE_CATEGORIES,
+  ADOBE_KEYWORDS_MAX,
+  ADOBE_KEYWORDS_TARGET_MAX,
+  ADOBE_KEYWORDS_TARGET_MIN,
+  ADOBE_TITLE_SUGGEST_MAX,
+  ADOBE_TITLE_WORDS_FIRST_N,
+  SS_DESCRIPTION_MIN_WORDS,
+  SS_DESCRIPTION_TARGET_MAX_CHARS,
+  SS_DESCRIPTION_TARGET_MIN_CHARS,
+  SS_KEYWORDS_MAX,
+  SS_KEYWORDS_MIN,
+  SS_KEYWORDS_TARGET_MAX,
+  SS_KEYWORDS_TARGET_MIN
+} from './platform-rules';
 import { MAX_DESCRIPTION, MAX_KEYWORDS, MAX_KEYWORDS_ADOBE, MAX_TITLE_CSV } from './limits';
+import type { Observation } from './observation';
 import type { Platform } from './types';
 
 export function buildMetadataPrompt({ platform, theme }: { platform: Platform; theme?: string }): string {
@@ -100,9 +118,14 @@ export function parseMetadataResponse(raw: string, platform: Platform): ParsedMe
   // M11: model kadang memakai key `categories` (Shutterstock) — terima `category` dulu, lalu aliasnya.
   const catRaw = pick(obj, 'category') ?? pick(obj, 'categories');
   const list = getCategories(platform);
-  const norm = (Array.isArray(catRaw) ? catRaw : [catRaw])
-    .map((x) => normCat(x, list))
-    .find(Boolean);
+  // Tahap B meminta ANGKA 1-21 untuk Adobe — petakan kembali ke label resmi.
+  const asLabel = (x: unknown): string | null => {
+    if (typeof x === 'number' && platform === 'adobe' && Number.isInteger(x)) {
+      return ADOBE_CATEGORIES.find((c) => c.adobeNumber === x)?.label ?? null;
+    }
+    return normCat(x, list);
+  };
+  const norm = (Array.isArray(catRaw) ? catRaw : [catRaw]).map(asLabel).find(Boolean);
   if (norm) {
     out.category = norm;
   } else {
@@ -122,4 +145,94 @@ export function parseMetadataResponse(raw: string, platform: Platform): ParsedMe
   if (typeof d === 'string' && d.trim()) out.description = d.trim().slice(0, MAX_DESCRIPTION);
 
   return out;
+}
+
+/* ---------------- Tahap B: metadata dari observation JSON (teks, tanpa gambar) ---------------- */
+
+function obsBlock(obs: Observation): string {
+  return 'OBSERVASI GAMBAR (satu-satunya sumber isi):\n' + JSON.stringify(obs);
+}
+
+const NO_GUESS = 'Jangan menebak nama orang, merek, lokasi, atau hal yang tidak ada di observasi. ' +
+  'Setiap keyword harus bisa ditelusuri ke observasi di atas. Bahasa: English.';
+
+/**
+ * Adobe: title frasa faktual ≤70 ideal tanpa koma/bukan daftar kata/tanpa photo-of/AI/merek;
+ * keywords 25-35 (maks 49) urut relevansi, 10 pertama memuat kata title, tanpa data teknis;
+ * category angka 1-21 berdasar SUBJEK UTAMA.
+ */
+export function buildAdobeMetadataPrompt(obs: Observation, categoryHint: number | null): string {
+  const cats = getCategories('adobe');
+  return [
+    'Buat metadata ADOBE STOCK dari observasi di bawah. ' + NO_GUESS,
+    obsBlock(obs),
+    '',
+    `title = SATU frasa faktual tentang subjek utama, ideal ≤${ADOBE_TITLE_SUGGEST_MAX} karakter, TANPA koma, TANPA kutip/titik koma/emoji, BUKAN daftar kata, TANPA awalan "photo of"/"photograph of", TANPA merek/nama orang/artis/karakter, TANPA kata AI.`,
+    `keywords = array ${ADOBE_KEYWORDS_TARGET_MIN}-${ADOBE_KEYWORDS_TARGET_MAX} (maksimal ${ADOBE_KEYWORDS_MAX}), urut relevansi; ${ADOBE_TITLE_WORDS_FIRST_N} pertama MEMUAT kata dari title. Urutan: subjek literal → aksi/setting → warna/komposisi (copy space, isolated) → konsep/mood yang didukung gambar. TANPA data teknis (ISO, mm, f/, megapixel, nama kamera, resolusi).`,
+    'category = SATU ANGKA 1-21 berdasar SUBJEK UTAMA (bukan suasana): ' + cats.join(', ') + '.'
+      + (categoryHint !== null ? ` Petunjuk: media datar ini umumnya ${categoryHint} (Graphic Resources).` : ''),
+    '',
+    'Format JSON: {"title": string, "keywords": array, "category": number}',
+    'Keluarkan HANYA JSON valid, tanpa teks tambahan, tanpa markdown code block.'
+  ].join('\n');
+}
+
+/**
+ * Shutterstock: description SATU kalimat natural 60-200 karakter (min 5 kata);
+ * keywords 25-45 unik tanpa stem berulang tanpa merek hanya yang terlihat;
+ * categories 1-2 nama persis resmi berdasar subjek utama.
+ */
+export function buildShutterstockMetadataPrompt(obs: Observation, categoryHint: string | null): string {
+  const cats = getCategories('shutterstock');
+  return [
+    'Buat metadata SHUTTERSTOCK dari observasi di bawah. ' + NO_GUESS,
+    obsBlock(obs),
+    '',
+    `description = SATU kalimat natural menjawab siapa/apa/di mana/kapan/mengapa sejauh terlihat; panjang ${SS_DESCRIPTION_TARGET_MIN_CHARS}-${SS_DESCRIPTION_TARGET_MAX_CHARS} karakter, minimal ${SS_DESCRIPTION_MIN_WORDS} kata; unik dan spesifik; TANPA emoji/karakter khusus/merek.`,
+    `keywords = array ${SS_KEYWORDS_TARGET_MIN}-${SS_KEYWORDS_TARGET_MAX} UNIK (minimal ${SS_KEYWORDS_MIN}, maksimal ${SS_KEYWORDS_MAX}); TANPA pengulangan kata/stem yang sama; TANPA merek; HANYA yang terlihat di observasi.`,
+    'categories = array 1-2 nama PERSIS dari: ' + cats.join(', ') + '.'
+      + (categoryHint !== null ? ` Petunjuk: media ini cocok "${categoryHint}".` : ''),
+    '',
+    'Format JSON: {"description": string, "keywords": array, "categories": array}',
+    'Keluarkan HANYA JSON valid, tanpa teks tambahan, tanpa markdown code block.'
+  ].join('\n');
+}
+
+export function buildStageBPrompt(platform: Platform, obs: Observation, categoryHint: string | number | null): string {
+  return platform === 'adobe'
+    ? buildAdobeMetadataPrompt(obs, typeof categoryHint === 'number' ? categoryHint : null)
+    : buildShutterstockMetadataPrompt(obs, typeof categoryHint === 'string' ? categoryHint : null);
+}
+
+/* ---------------- Tahap D: verifikasi grounding ---------------- */
+
+export function buildGroundingPrompt(obs: Observation, keywords: readonly string[]): string {
+  return [
+    'Periksa setiap keyword di bawah terhadap OBSERVASI gambar. Kembalikan HANYA keyword yang TIDAK didukung observasi (tidak terlihat/tidak tersirat kuat).',
+    'Observasi: ' + JSON.stringify(obs),
+    'Keywords: ' + JSON.stringify(keywords),
+    '',
+    'Format JSON: {"unsupported": string[]}',
+    'Keluarkan HANYA JSON valid, tanpa teks tambahan, tanpa markdown code block.'
+  ].join('\n');
+}
+
+function groundingError(message: string): Error {
+  return Object.assign(new Error(message), { kind: 'json' });
+}
+
+/** Parser Tahap D — {unsupported: string[]}; rusak → error kind 'json' (di-retry). */
+export function parseGroundingResponse(raw: string): string[] {
+  const s = String(raw).trim()
+    .replace(/^```[a-z]*\s*/i, '')
+    .replace(/\s*```$/, '');
+  const a = s.indexOf('{'), b = s.lastIndexOf('}');
+  if (a === -1 || b <= a) throw groundingError('JSON tidak valid');
+  let json: unknown;
+  try { json = JSON.parse(s.slice(a, b + 1)); }
+  catch { throw groundingError('JSON tidak valid'); }
+  if (typeof json !== 'object' || json === null) throw groundingError('JSON tidak valid');
+  const list = (json as Record<string, unknown>).unsupported;
+  if (!Array.isArray(list)) throw groundingError('Hasil grounding tidak valid: unsupported bukan array');
+  return list.map((x) => String(x ?? '').trim()).filter(Boolean);
 }

@@ -4,6 +4,8 @@
 // kuota harian (RESOURCE_EXHAUSTED) → gagal cepat tanpa retry.
 // Key hanya dikirim sebagai query param ke API resmi Google dan TIDAK PERNAH dicetak ke log.
 import { buildAnalysisPrompt, parseAnalysisResponse } from '../analysisPrompt';
+import { buildObservationPrompt, parseObservationResponse } from '../observation';
+import type { Observation } from '../observation';
 import type { AnalysisResult } from '../types';
 import { judgePromptFor, parseJudgeResponse } from '../judge';
 import { buildMetadataPrompt, parseMetadataResponse } from '../prompt';
@@ -11,7 +13,7 @@ import type { ParsedMetadata } from '../prompt';
 import { readBody } from './http';
 import { GEMINI_MODEL } from './models';
 import { MODEL_RETRY_MAX, ProviderError, dailyQuotaError, isDailyQuota, parseRetryAfter, withRetry } from './retry';
-import type { AnalyzeArgs, GenerateArgs, ImageInput, JudgeInput, JudgeOutput, ProviderAdapter, TestOpts, TestResult, TextArgs } from './types';
+import type { AnalyzeArgs, GenerateArgs, ImageInput, JudgeInput, JudgeOutput, ObserveArgs, ProviderAdapter, TestOpts, TestResult, TextArgs } from './types';
 import { isVisionNotSupportedError } from './types';
 
 export const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
@@ -139,6 +141,17 @@ async function callText(args: TextArgs): Promise<string> {
   return withRetry(async () => postChat({ apiKey, prompt, signal }), { onWait, signal });
 }
 
+async function observeImage(args: ObserveArgs): Promise<Observation> {
+  const { apiKey, image, theme, signal, onWait } = args;
+  const prompt = buildObservationPrompt(theme);
+  return withRetry(async () => {
+    try {
+      const text = await postChat({ apiKey, image, prompt, signal });
+      return parseObservationResponse(text);
+    } catch (err) { throw withNoVision(err); }
+  }, { onWait, signal });
+}
+
 async function callJudge(input: JudgeInput): Promise<JudgeOutput> {
   const { apiKey, signal, onWait } = input;
   const prompt = judgePromptFor(input);
@@ -160,6 +173,7 @@ export const gemini: ProviderAdapter = {
   testConnection,
   generateForImage,
   analyzeImage,
+  observeImage,
   callText,
   callJudge
 };

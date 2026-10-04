@@ -6,9 +6,10 @@ import { MISSING_FILE_MSG, runBatch, type BatchSummary } from '../lib/batch';
 import { fileStore } from '../lib/fileStore';
 import { prepareImage } from '../lib/image';
 import { defaultMetadata, hasContent } from '../lib/metadata';
+import { runFramePipeline, type PipelineResult } from '../lib/pipeline';
 import { getProvider } from '../lib/providers';
-import { generateWithFallback } from '../lib/providers/fallback';
-import { readBatchDelay, writeBatchDelay } from '../lib/storage';
+import { withFallback } from '../lib/providers/fallback';
+import { readBatchDelay, readStrictVerify, writeBatchDelay } from '../lib/storage';
 import { BATCH_DELAY_DEFAULT_SEC } from '../lib/limits';
 import type { Platform, ProviderId } from '../lib/types';
 import { PROVIDER_LABELS, type useProvider } from './useProvider';
@@ -84,13 +85,15 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
     // input di-snapshot saat mulai: platform & API key terkunci sampai batch selesai
     const apiKey = provider.key.trim();
     const activeProvider: ProviderId = provider.provider;
+    const customConfig = activeProvider === 'custom' ? provider.getCustomConfig() : undefined;
+    const strictVerify = readStrictVerify();
     const delayMs = opts?.delayMs ?? delaySec * 1000;
     let limitHit = false;
     // provider yang akhirnya memproses frame terakhir (fallback antar provider) → tampil di catatan
     let usedVia = '';
 
     try {
-      const result = await runBatch({
+      const result = await runBatch<PipelineResult>({
         frameIds: ids,
         platform,
         delayMs,
@@ -100,18 +103,26 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
           if (!file) throw new Error(MISSING_FILE_MSG);
           const image = await prepareImage(file);
           if (!getProvider(activeProvider)) throw new Error('Provider tidak tersedia');
-          const out = await generateWithFallback({
-            provider: activeProvider,
-            apiKey,
-            image,
-            platform: args.platform,
-            theme: args.theme,
-            signal: args.signal,
-            onWait: args.onWait,
-            customConfig: activeProvider === 'custom' ? provider.getCustomConfig() : undefined
-          });
+          // observation cache sesi: ganti platform tidak memanggil Tahap A ulang
+          const cached = session.snapshot().frames.find((f) => f.id === _id)?.observation;
+          const out = await withFallback(
+            { provider: activeProvider, apiKey, signal: args.signal, customConfig },
+            {},
+            (adapter, key, cfg) => runFramePipeline({
+              adapter,
+              apiKey: key,
+              image,
+              platform: args.platform,
+              theme: args.theme,
+              cachedObservation: cached,
+              strictVerify,
+              customConfig: cfg,
+              signal: args.signal,
+              onWait: args.onWait
+            })
+          );
           usedVia = out.usedFallback ? PROVIDER_LABELS[out.provider] : '';
-          return out.meta;
+          return out.value;
         },
         getImage: (id) => fileStore.get(id),
         getTheme: (id) => {
@@ -134,9 +145,17 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
           const detik = Math.round(info.waitMs / 1000);
           session.setNote(id, `Menunggu limit reset (percobaan ${info.attempt + 1}/${info.maxAttempts}, ~${detik} dtk)`);
         },
-        onSuccess: (id, meta) => {
-          session.applyGenerated(id, platform, meta);
-          session.setNote(id, usedVia ? `Diproses via ${usedVia} (fallback)` : '');
+        onSuccess: (id, pipe) => {
+          session.applyGenerated(id, platform, pipe.metadata);
+          // cache observation (Tahap A 1x per frame); sanitasi/dedupe selalu terlihat
+          if (pipe.observedFresh) session.applyObservation(id, pipe.observation);
+          const bits: string[] = [];
+          if (usedVia) bits.push(`Diproses via ${usedVia} (fallback)`);
+          if (pipe.removedUnsupported.length) {
+            bits.push(`Verifikasi ketat menghapus: ${pipe.removedUnsupported.join(', ')}`);
+          }
+          if (pipe.categoryNeedsReview) bits.push('Kategori perlu ditinjau manual.');
+          session.setNote(id, bits.join(' · '));
           setProgress((p) => ({ ...p, done: p.done + 1 }));
         },
         onError: (id, message) => {
@@ -203,6 +222,33 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
       return;
     }
     setRegenConfirm(null);
+    void run([id], platform);
+  }
+
+  // "Analisis ulang gambar": hapus cache observation lalu jalankan pipeline penuh
+  // (Tahap A vision dipanggil lagi). "Buat ulang metadata" memakai cache yang ada.
+  function reobserveFrame(id: number) {
+    if (busyRef.current) return;
+    setNotice('');
+    const platform = session.platform;
+    if (!providerReady()) {
+      setNotice(NEED_TEST_MSG);
+      return;
+    }
+    const f = session.snapshot().frames.find((x) => x.id === id);
+    if (!f) return;
+    if (f.analysisStatus?.[platform] !== 'siap') {
+      setRegenConfirm(null);
+      session.failFrame(id, platform, NEED_ANALYSIS_MSG);
+      return;
+    }
+    const filled = hasContent(platform, f.metadata[platform] ?? defaultMetadata(platform));
+    if (filled && regenConfirm !== id) {
+      setRegenConfirm(id);
+      return;
+    }
+    setRegenConfirm(null);
+    session.clearObservation(id);
     void run([id], platform);
   }
 
@@ -280,6 +326,7 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
     regenAllConfirm,
     startBatch,
     regenerateFrame,
+    reobserveFrame,
     regenerateAll,
     cancel,
     dismissRegen,

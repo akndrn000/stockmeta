@@ -109,8 +109,15 @@ export async function analyzeWithFallback(
 
 // M29: mesin fallback generik — generate metadata & analisis memakai jalur yang sama:
 // provider aktif dulu, gagal layak-fallback (kuota harian/503) → coba cadangan ber-key.
-async function withFallback<T>(
-  opts: { provider: ProviderId; apiKey: string; signal?: AbortSignal; customConfig?: CustomConfig },
+export interface FallbackCallOpts {
+  provider: ProviderId;
+  apiKey: string;
+  signal?: AbortSignal;
+  customConfig?: CustomConfig;
+}
+
+export async function withFallback<T>(
+  opts: FallbackCallOpts,
   deps: FallbackDeps,
   call: (adapter: ProviderAdapter, apiKey: string, customConfig?: CustomConfig) => Promise<T>
 ): Promise<{ value: T; provider: ProviderId; usedFallback: boolean }> {

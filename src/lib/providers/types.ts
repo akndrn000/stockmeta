@@ -9,6 +9,8 @@ import type { ParsedMetadata } from '../prompt';
 import type { Platform, ProviderId } from '../types';
 import type { WaitInfo } from './retry';
 
+export type { WaitInfo };
+
 /** base64 MURNI tanpa prefix data: */
 export interface ImageInput {
   base64: string;
@@ -66,6 +68,17 @@ export interface TextArgs {
   model?: string;
 }
 
+/** Tahap A: gambar nyata + tema sebagai petunjuk (bukan sumber isi) */
+export interface ObserveArgs {
+  apiKey: string;
+  image: ImageInput;
+  theme?: string;
+  signal?: AbortSignal;
+  onWait?: (info: WaitInfo) => void;
+  /** khusus custom */
+  baseUrl?: string;
+  model?: string;
+}
 /* ---------------- juri kepatuhan ---------------- */
 
 export type JudgeVerdict = 'pass' | 'pass_with_notes' | 'fail';
@@ -126,6 +139,8 @@ export interface ProviderAdapter {
   generateForImage(args: GenerateArgs): Promise<ParsedMetadata>;
   /** M29: nilai kelayakan upload (reviewer), bukan metadata. */
   analyzeImage(args: AnalyzeArgs): Promise<AnalysisResult>;
+  /** Tahap A: pengamatan vision dari gambar nyata (bukan dari nama file/tema). */
+  observeImage(args: ObserveArgs): Promise<Observation>;
   /** panggilan teks murni (Tahap B/D, juri tanpa gambar, perbaikan) */
   callText(args: TextArgs): Promise<string>;
   /** juri kepatuhan: kirim gambar hanya bila supportsVision + input.sendImage */

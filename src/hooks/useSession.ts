@@ -177,8 +177,7 @@ export function useSession() {
   }
 
   // Aksi M8 — frame gagal: pesan error asli untuk platform itu; slot metadata tidak diubah.
-  function failFrame(id: number, platform: Platform, message: string) {
-    const cur = mirror.current;
+  function failFrame(id: number, platform: Platform, message: string) {    const cur = mirror.current;
     let hit = false;
     const frames = cur.frames.map((f) => {
       if (f.id !== id) return f;
@@ -187,6 +186,38 @@ export function useSession() {
       return { ...f, status: { ...f.status, [platform]: status }, error: { ...f.error, [platform]: message } };
     });
     if (!hit) return;
+    commit({ ...cur, frames }, true);
+  }
+
+  // Pipeline A-D: simpan observation vision ke cache sesi (platform-independen).
+  function applyObservation(id: number, observation: Frame['observation']) {
+    const cur = mirror.current;
+    const frames = cur.frames.map((f) => (f.id === id ? { ...f, observation } : f));
+    commit({ ...cur, frames }, true);
+  }
+
+  // "Analisis ulang gambar": hapus cache observation (Tahap A dipanggil lagi).
+  function clearObservation(id: number) {
+    const cur = mirror.current;
+    const frames = cur.frames.map((f) => {
+      if (f.id !== id) return f;
+      const next = { ...f };
+      delete next.observation;
+      return next;
+    });
+    commit({ ...cur, frames }, true);
+  }
+
+  // Nama file di portal (default = nama upload); toggle Shutterstock per frame.
+  function setPortalName(id: number, portalName: string) {
+    const cur = mirror.current;
+    const frames = cur.frames.map((f) => (f.id === id ? { ...f, portalName } : f));
+    commit({ ...cur, frames }, false);
+  }
+
+  function setFrameFlags(id: number, patch: Pick<Frame, 'illustration' | 'editorial'>) {
+    const cur = mirror.current;
+    const frames = cur.frames.map((f) => (f.id === id ? { ...f, ...patch } : f));
     commit({ ...cur, frames }, true);
   }
 
@@ -243,6 +274,7 @@ export function useSession() {
   return {
     ...state, notes, setPlatform, select, addFrame, removeFrame, updateFrame,
     updateMetadata, setFrameTema, applyGenerated, failFrame, applyAnalysis, failAnalysis,
+    applyObservation, clearObservation, setPortalName, setFrameFlags,
     snapshot, setNote, setTema, newSession
   };
 }
