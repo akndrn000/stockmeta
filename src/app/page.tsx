@@ -2,12 +2,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AnalysisPanel } from '../components/AnalysisPanel';
 import { CaptionSheet } from '../components/CaptionSheet';
+import { CompliancePanel } from '../components/CompliancePanel';
 import { Footer } from '../components/Footer';
 import { Header } from '../components/Header';
 import { ProviderPanel } from '../components/ProviderPanel';
 import { Worksheet } from '../components/Worksheet';
 import { useAnalysisBatch } from '../hooks/useAnalysisBatch';
 import { useBatch } from '../hooks/useBatch';
+import { useJudge } from '../hooks/useJudge';
 import { useProvider } from '../hooks/useProvider';
 import { useSession } from '../hooks/useSession';
 import { readMode, writeMode } from '../lib/storage';
@@ -22,6 +24,7 @@ export default function Home() {
   const session = useSession();
   const batch = useBatch(session, provider);
   const analysis = useAnalysisBatch(session, provider);
+  const judge = useJudge(session, provider);
   // M29: mode Analisis/Metadata — restore sekali dari localStorage (hindari mismatch SSR).
   const [mode, setMode] = useState<AppMode>('metadata');
   useEffect(() => {
@@ -32,7 +35,7 @@ export default function Home() {
     setMode(m);
     writeMode(m);
   }, []);
-  const anyBusy = batch.busy || analysis.busy;
+  const anyBusy = batch.busy || analysis.busy || judge.busy;
 
   return (
     // M11/M12: tanpa tinggi yang dipaksa ke viewport & tanpa overflow tersembunyi —
@@ -64,7 +67,10 @@ export default function Home() {
           {mode === 'analisis' ? (
             <AnalysisPanel session={session} />
           ) : (
-            <CaptionSheet session={session} />
+            <div className="flex min-w-0 flex-col gap-3 sm:gap-4">
+              <CaptionSheet session={session} />
+              <CompliancePanel session={session} batch={batch} judge={judge} />
+            </div>
           )}
         </div>
       </main>

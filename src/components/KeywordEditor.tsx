@@ -54,6 +54,12 @@ export function KeywordEditor({ keywords, min, max = MAX_KEYWORDS, onChange, dis
             <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-text-muted tabular-nums">
               {n}/{max}
             </span>
+            <span
+              className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-text-muted tabular-nums"
+              title={`Batas aktif platform ini: ${min}–${max}`}
+            >
+              batas {min}–{max}
+            </span>
             {n < min && (
               <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-warning tabular-nums">
                 min {min}

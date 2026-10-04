@@ -13,6 +13,8 @@ import type { useSession } from '../hooks/useSession';
 import { fileStore } from '../lib/fileStore';
 import { buildLimitMessage, filterIncomingFiles } from '../lib/frames';
 import { makeThumbnail } from '../lib/image';
+import { judgeEntryOf } from '../hooks/useJudge';
+import { BADGE_LABEL, type CombinedBadge } from '../lib/judge';
 import { ACCEPTED_TYPES, BATCH_DELAY_OPTIONS_SEC, MAX_FRAMES } from '../lib/limits';
 import type { AppMode, Frame, FrameStatus, Platform } from '../lib/types';
 import { Panel } from './Panel';
@@ -399,6 +401,7 @@ export function Worksheet({ session, provider, batch, mode = 'metadata', analysi
   const busy = modeBusy;
   const [dragOver, setDragOver] = useState(false);
   const [limitMsg, setLimitMsg] = useState('');
+  const [badgeFilter, setBadgeFilter] = useState<'semua' | CombinedBadge>('semua');
   const inputRef = useRef<HTMLInputElement>(null);
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const full = frames.length >= MAX_FRAMES;
@@ -490,7 +493,22 @@ export function Worksheet({ session, provider, batch, mode = 'metadata', analysi
       title="Lembar kerja"
       meta={`${pad2(frames.length)} / ${MAX_FRAMES} frame`}
       actions={
-        <NewSessionButton hasFrames={frames.length > 0} disabled={anyBusy} onConfirm={resetSession} />
+        <span className="flex items-center gap-2">
+          {/* filter frame berdasar badge kepatuhan */}
+          <select
+            aria-label="Filter frame berdasar badge kepatuhan"
+            title="Filter frame berdasar badge kepatuhan"
+            value={badgeFilter}
+            onChange={(e) => setBadgeFilter(e.target.value as 'semua' | CombinedBadge)}
+            className="h-8 rounded-md border border-border-control bg-surface-elevated px-2 text-small font-semibold text-text-secondary"
+          >
+            <option value="semua">Semua badge</option>
+            {(Object.keys(BADGE_LABEL) as CombinedBadge[]).map((b) => (
+              <option key={b} value={b}>{BADGE_LABEL[b]}</option>
+            ))}
+          </select>
+          <NewSessionButton hasFrames={frames.length > 0} disabled={anyBusy} onConfirm={resetSession} />
+        </span>
       }
     >
       <div
@@ -602,7 +620,9 @@ export function Worksheet({ session, provider, batch, mode = 'metadata', analysi
             (kanan, mulai 82px) = 111px < 120px. */}
         {frames.length > 0 && (
           <ul className="grid grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))] gap-2">
-            {frames.map((frame, i) => {
+            {frames
+              .filter((f) => badgeFilter === 'semua' || judgeEntryOf(f, platform)?.badge === badgeFilter)
+              .map((frame, i) => {
               const hasFile = fileStore.has(frame.id);
               // M29: di mode analisis tile menampilkan STATUS ANALISIS tanpa mengubah
               // logika FrameTile (frame tampilan: status/error ditukar dari slot analisis).

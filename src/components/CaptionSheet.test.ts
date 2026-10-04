@@ -133,7 +133,7 @@ describe('CaptionSheet — struktur field tetap ada walau belum ada frame (M14)'
     addFrames(1);                                                 // auto terpilih, slot masih kosong
     csv = findBtn('Export CSV')!;
     expect(csv.getAttribute('aria-disabled')).toBe('true');
-    expect(csv.title).toContain('Belum ada metadata');
+    expect(csv.title).toContain('Belum ada baris lolos cek keras');
     act(() => { csv.click(); });
     expect(createObjectURL).not.toHaveBeenCalled();               // tanpa guard ini akan mengunduh
   });
@@ -141,13 +141,17 @@ describe('CaptionSheet — struktur field tetap ada walau belum ada frame (M14)'
   it('begitu ada frame terpilih (otomatis setelah upload), field aktif berisi datanya', () => {
     const [id] = addFrames(1);
     act(() => {
-      api().s.updateMetadata(id, 'adobe', { title: 'Judul terisi', category: 'Animals' });
+      api().s.updateMetadata(id, 'adobe', {
+        title: 'Red panda eating bamboo in forest',
+        keywords: ['red panda', 'bamboo', 'forest', 'eating', 'wildlife'],
+        category: 'Animals'
+      });
     });
     expect(text()).toContain(`Frame 01 / 01`);
 
     const ta = host.querySelector('#caption-title') as HTMLTextAreaElement;
     expect(ta.disabled).toBe(false);
-    expect(ta.value).toBe('Judul terisi');
+    expect(ta.value).toBe('Red panda eating bamboo in forest');
 
     const cat = host.querySelector('#caption-category') as HTMLSelectElement;
     expect(cat.disabled).toBe(false);
@@ -156,8 +160,19 @@ describe('CaptionSheet — struktur field tetap ada walau belum ada frame (M14)'
     expect(host.querySelector('[aria-label="Salin Judul"]')!.hasAttribute('disabled')).toBe(false);
 
     const csv = findBtn('Export CSV')!;
-    expect(csv.getAttribute('aria-disabled')).toBeNull();         // slot berisi → ekspor aktif
-    expect(csv.title).toContain('Ekspor metadata');
+    expect(csv.getAttribute('aria-disabled')).toBeNull();         // lolos cek keras → ekspor aktif
+    expect(csv.title).toContain('Periksa daftar file');
+  });
+
+  it('slot berisi tapi error cek keras → Export CSV nonaktif sampai diperbaiki', () => {
+    const [id] = addFrames(1);
+    act(() => {
+      api().s.updateMetadata(id, 'adobe', { title: 'Judul terisi', category: 'Animals' });
+    });
+    const csv = findBtn('Export CSV')!;
+    expect(csv.getAttribute('aria-disabled')).toBe('true');
+    expect(csv.title).toContain('Belum ada baris lolos cek keras');
+    expect(text()).toContain('Tidak lolos cek keras');
   });
 
   it('frame terpilih tapi belum digenerate → field aktif, Export CSV tetap nonaktif', () => {
@@ -165,7 +180,7 @@ describe('CaptionSheet — struktur field tetap ada walau belum ada frame (M14)'
     expect((host.querySelector('#caption-title') as HTMLTextAreaElement).disabled).toBe(false);
     const csv = findBtn('Export CSV')!;
     expect(csv.getAttribute('aria-disabled')).toBe('true');
-    expect(csv.title).toContain('Belum ada metadata');
+    expect(csv.title).toContain('Belum ada baris lolos cek keras');
   });
 });
 
@@ -298,10 +313,10 @@ describe('CaptionSheet — keterangan sebaris dengan label (M18)', () => {
     expect(ta.previousElementSibling!.contains(note!)).toBe(true);
     expect(ta.className).not.toContain('pb-6');
     expect(ta.getAttribute('aria-describedby')).toBe('caption-desc-note');
-    // Hint statis dihapus dari tampilan; validasi min 5 kata tetap hidup via
-    // blok "Saran perbaikan" (desc 2 kata → saran muncul)
+    // Hint statis dihapus dari tampilan; validasi min 5 kata kini ERROR pemblokir
+    // (desc 2 kata → kotak cek keras muncul)
     expect(text()).not.toContain('tulis satu-dua kalimat deskriptif utuh');
-    expect(text()).toContain('Saran perbaikan');
+    expect(text()).toContain('Tidak lolos cek keras');
     expect(text()).toContain('Deskripsi minimal 5 kata (baru 2).');
   });
 
