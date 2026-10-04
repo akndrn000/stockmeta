@@ -1,5 +1,7 @@
 // Tipe inti domain StockMeta — satu-satunya sumber bentuk data lintas modul (lihat legacy/js/*.js).
+import type { CombinedBadge, ConsensusResult } from './judge';
 import type { Observation } from './observation';
+import type { JudgeOutput } from './providers/types';
 
 export type Platform = "adobe" | "shutterstock";
 
@@ -59,6 +61,23 @@ export interface Frame {
   // Toggle Shutterstock per frame (default mati).
   illustration?: boolean;
   editorial?: boolean;
+  // Cache juri kepatuhan per platform — invalid otomatis bila hash metadata berubah.
+  judge?: Partial<Record<Platform, JudgeCacheEntry>>;
+}
+
+export interface JudgeEntry {
+  provider: ProviderId;
+  output: JudgeOutput;
+  withoutImage: boolean;
+}
+
+export interface JudgeCacheEntry {
+  /** hash slot metadata saat dinilai — beda hash = cache basi */
+  hash: string;
+  badge: CombinedBadge;
+  consensus: ConsensusResult;
+  judges: JudgeEntry[];
+  at: number;
 }
 
 // M29 — Mode Analisis (berdampingan dengan Mode Metadata, bukan pengganti).

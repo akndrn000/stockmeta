@@ -7,6 +7,29 @@ import type { JudgeCheck, JudgeCheckStatus, JudgeInput, JudgeOutput, JudgeVerdic
 /** Label baku hasil — selalu saran, bukan keputusan platform. */
 export const JUDGE_DISCLAIMER = 'Perkiraan kelolosan (saran, bukan keputusan platform)';
 
+/** hash djb2 slot metadata — cache juri invalid saat metadata berubah */
+export function hashMetadata(metadata: unknown): string {
+  const s = JSON.stringify(metadata ?? null);
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(16);
+}
+
+/** Prompt perbaikan: metadata + fix gabungan → revisi (hasil wajib cek keras ulang). */
+export function buildFixPrompt(metadataText: string, fixes: string[]): string {
+  return [
+    'Perbaiki metadata stok foto di bawah mengikuti SARAN PERBAIKAN juri. Ubah seminimal mungkin; JANGAN menambah fakta baru yang tidak ada di metadata.',
+    '',
+    'METADATA:',
+    metadataText,
+    '',
+    'SARAN PERBAIKAN:',
+    fixes.length ? fixes.map((f) => '- ' + f).join('\n') : '(tidak ada saran spesifik — rapikan sesuai aturan umum)',
+    '',
+    'Keluarkan HANYA JSON valid dengan field yang sama (title/description/keywords/category atau categories), tanpa teks tambahan, tanpa markdown code block.'
+  ].join('\n');
+}
+
 export function buildJudgePrompt(input: { observation: Observation; metadataText: string; rulesBlock: string; hardContext: string; withoutImage: boolean }): string {
   const lines = [
     'Kamu adalah JURI KEPATUHAN metadata stok foto. Nilai HANYA berdasar ATURAN yang diberikan dan isi gambar/observasi.',

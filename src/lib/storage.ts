@@ -252,7 +252,8 @@ function coerceFrame(raw: unknown, platform: Platform): Frame | null {
     ...coerceObservationSlot(o),
     ...(typeof o.portalName === 'string' && o.portalName ? { portalName: o.portalName } : {}),
     ...(typeof o.illustration === 'boolean' ? { illustration: o.illustration } : {}),
-    ...(typeof o.editorial === 'boolean' ? { editorial: o.editorial } : {})
+    ...(typeof o.editorial === 'boolean' ? { editorial: o.editorial } : {}),
+    ...coerceJudgeSlot(o)
   };
 }
 
@@ -264,6 +265,23 @@ function coerceObservationSlot(o: Record<string, unknown>): Pick<Frame, 'observa
   const c = v as Record<string, unknown>;
   if (typeof c.main_subject !== 'string' || typeof c.confidence !== 'number') return {};
   return { observation: v as Frame['observation'] };
+}
+
+// Cache juri tersimpan: badge + hash string wajib; entri rusak dibuang.
+function coerceJudgeSlot(o: Record<string, unknown>): Pick<Frame, 'judge'> {
+  const v = o.judge;
+  if (typeof v !== 'object' || v === null) return {};
+  const c = v as Record<string, unknown>;
+  const out: NonNullable<Frame['judge']> = {};
+  for (const p of ['adobe', 'shutterstock'] as const) {
+    const e = c[p];
+    if (typeof e !== 'object' || e === null) continue;
+    const r = e as Record<string, unknown>;
+    if (typeof r.hash !== 'string' || typeof r.badge !== 'string') continue;
+    if (!['LOLOS', 'LOLOS_DENGAN_CATATAN', 'TIDAK_LOLOS', 'PERLU_DITINJAU'].includes(r.badge)) continue;
+    out[p] = e as NonNullable<Frame['judge']>[typeof p];
+  }
+  return Object.keys(out).length ? { judge: out } : {};
 }
 
 // Slot analisis per platform — 'memproses' tidak pernah bertahan setelah reload.

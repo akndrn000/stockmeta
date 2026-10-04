@@ -221,6 +221,26 @@ export function useSession() {
     commit({ ...cur, frames }, true);
   }
 
+  // Cache juri kepatuhan per platform (hash metadata ikut tersimpan).
+  function applyJudge(id: number, platform: Platform, entry: NonNullable<Frame['judge']>[Platform]) {
+    const cur = mirror.current;
+    const frames = cur.frames.map((f) => (
+      f.id === id ? { ...f, judge: { ...f.judge, [platform]: entry } } : f
+    ));
+    commit({ ...cur, frames }, true);
+  }
+
+  function clearJudge(id: number, platform: Platform) {
+    const cur = mirror.current;
+    const frames = cur.frames.map((f) => {
+      if (f.id !== id || !f.judge?.[platform]) return f;
+      const judge = { ...f.judge };
+      delete judge[platform];
+      return { ...f, judge };
+    });
+    commit({ ...cur, frames }, true);
+  }
+
   // Aksi M29 — hasil analisis masuk: selalu ada verdict → analysisStatus 'siap';
   // error analisis dibersihkan; persist langsung (sama seperti applyGenerated).
   function applyAnalysis(id: number, platform: Platform, result: AnalysisResult) {
@@ -275,6 +295,7 @@ export function useSession() {
     ...state, notes, setPlatform, select, addFrame, removeFrame, updateFrame,
     updateMetadata, setFrameTema, applyGenerated, failFrame, applyAnalysis, failAnalysis,
     applyObservation, clearObservation, setPortalName, setFrameFlags,
+    applyJudge, clearJudge,
     snapshot, setNote, setTema, newSession
   };
 }
