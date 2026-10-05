@@ -73,6 +73,30 @@ describe('ProviderPanel — satu kontrol segmented untuk semua lebar', () => {
     for (const r of radios()) {
       expect(r.className.split(/\s+/)).not.toContain('hidden');
     }
+    // segmen setinggi input/tombol (h-10, bukan min-h-11) agar kolom sejajar
+    for (const r of radios()) {
+      expect(r.className.split(/\s+/)).toContain('h-10');
+      expect(r.className.split(/\s+/)).not.toContain('min-h-11');
+    }
+  });
+
+  it('M28: kesejajaran 0px — kontainer segmen tanpa chrome layout, badge setinggi kontrol', () => {
+    render(stubApi());
+    const g = group();
+    const cls = g.className.split(/\s+/);
+    // padding/border kontainer menambah tinggi total (dulu 50px vs input 40px) —
+    // garis visual 1px wajib via ring inset (0px biaya layout), bukan border/padding
+    for (const banned of ['p-1', 'p-0.5', 'border', 'border-border']) {
+      expect(cls).not.toContain(banned);
+    }
+    expect(cls).toContain('ring-1');
+    // chip status: span tidak kena min-height 44px global → tinggi eksplisit via CSS
+    const badge = host.querySelector('span[role="status"]') as HTMLElement;
+    expect(badge.className.split(/\s+/)).toContain('provider-status');
+    expect(badge.className.split(/\s+/)).toContain('h-10');
+    // spacer tak terlihat pengimbang baris label di ≥1120px (top sejajar input)
+    const spacer = host.querySelector('span[aria-hidden="true"].hidden') as HTMLElement | null;
+    expect(spacer).not.toBeNull();
   });
 
   it('aria-checked mengikuti provider aktif', () => {

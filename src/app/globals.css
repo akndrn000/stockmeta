@@ -14,13 +14,16 @@
   --bg-secondary: #090f0b;
   --surface: #0b120d;
   --surface-elevated: #101a13;
-  --border: #1b3d28;
-  --border-strong: #244b32;
+  --border: #35794e;
+  --border-strong: #3a7c51;
   /* M17b: BATAS KONTROL — hanya untuk elemen interaktif (input/textarea/select/button).
      ≥3:1 terhadap semua permukaan tempat kontrol duduk (bg, bg-secondary, surface,
-     surface-elevated) agar batas komponen identifiable (SC 1.4.11); --border yang redup
-     tetap untuk garis pembatas struktural non-interaktif sesuai brief. */
-  --border-control: #3a7c51;
+     surface-elevated) agar batas komponen identifiable (SC 1.4.11).
+     M29: SEMUA garis halaman wajib hijau terbaca (hue ≈140–148°, saturasi ≥34%)
+     dengan kontras ≥3:1 di kedua mode — --border/--border-strong/--border-control
+     kini tiga tingkat hijau berurutan (3,39 / 3,55 / 4,86 vs permukaan terketat
+     --surface-elevated). Garis semantik --error/--warning dipertahankan. */
+  --border-control: #47955f;
   --accent: #20e875;
   --accent-hover: #35f58a;
   --text: #e8f2eb;
@@ -52,9 +55,9 @@
   --bg-secondary: #e7ece9;
   --surface: #fafcfb;
   --surface-elevated: #ffffff;
-  --border: #c7d3cb;
-  --border-strong: #a3b4aa;
-  --border-control: #718380;
+  --border: #35855a;
+  --border-strong: #2e7a4e;
+  --border-control: #2f6e49;
   --accent: #0b7a41;
   --accent-hover: #095f34;
   --text: #0e1a13;
@@ -268,6 +271,20 @@
   select,
   textarea {
     font-size: 16px;
+  }
+}
+
+/* M28: chip status provider (baris koneksi) — <span>, bukan button/input, sehingga
+   TIDAK kena min-height 44px mode sentuh di atas. Tingginya disamakan eksplisit
+   (40px desktop, 44px sentuh) supaya identik 0px dengan grup segmen provider,
+   input API key, dan tombol Tes koneksi yang sebaris dengannya. Jangan beri
+   padding vertikal tambahan pada badge ini. */
+.provider-status {
+  height: 40px;
+}
+@media (max-width: 1119px), (pointer: coarse) {
+  .provider-status {
+    height: 44px;
   }
 }
 
