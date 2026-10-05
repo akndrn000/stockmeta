@@ -5,7 +5,6 @@
 // M13: tiap tile punya ikon "buat ulang metadata" (frame gagal & siap) + konfirmasi popover
 // "Timpa hasil yang ada?" yang menempel pada tile — menggantikan tombolnya di CaptionSheet.
 import { useEffect, useRef, useState } from 'react';
-import { SOON_NOTE } from '../hooks/useProvider';
 import type { useBatch } from '../hooks/useBatch';
 import type { useProvider } from '../hooks/useProvider';
 import type { useSession } from '../hooks/useSession';
@@ -406,17 +405,15 @@ export function Worksheet({ session, provider, batch }: {
     if (noteTimer.current) clearTimeout(noteTimer.current);
   }
 
-  const providerOk = !provider.isSoon && provider.status === 'ok';
+  const providerOk = provider.status === 'ok';
   const generateDisabled =
-    frames.length === 0 || provider.isSoon || provider.status !== 'ok';
+    frames.length === 0 || provider.status !== 'ok';
   const generateHint =
     frames.length === 0
       ? 'Tambah minimal satu gambar untuk mengaktifkan pembuatan.'
-      : provider.isSoon
-        ? SOON_NOTE
-        : provider.status !== 'ok'
-          ? 'Tes koneksi provider dulu.'
-          : '';
+      : provider.status !== 'ok'
+        ? 'Tes koneksi provider dulu.'
+        : '';
 
   // alasan ikon "buat ulang" nonaktif per tile (M13) — urutan: file hilang > batch jalan > provider
   const regenHint = (hasFile: boolean): string =>
@@ -424,11 +421,9 @@ export function Worksheet({ session, provider, batch }: {
       ? 'File asli hilang setelah sesi di-restore — upload ulang gambar ini dulu.'
       : busy
         ? 'Batch sedang berjalan — tunggu selesai.'
-        : provider.isSoon
-          ? SOON_NOTE
-          : !providerOk
-            ? 'Tes koneksi provider dulu.'
-            : '';
+        : !providerOk
+          ? 'Tes koneksi provider dulu.'
+          : '';
 
   const done = frames.filter((f) => f.status[platform] === 'siap').length;
   const failed = frames.filter((f) => f.status[platform] === 'gagal').length;

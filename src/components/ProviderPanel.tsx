@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { PROVIDER_LABELS, PROVIDER_ORDER, STATUS_LABELS } from '../hooks/useProvider';
 import type { useProvider } from '../hooks/useProvider';
 import { readFallback, writeFallback } from '../lib/storage';
@@ -13,8 +13,7 @@ type ProviderApi = ReturnType<typeof useProvider>;
 const LIMIT_TIP: Record<ProviderId, string> = {
   groq: 'Limit gratis Groq ketat (8.000 token/menit).',
   gemini: 'Kuota gratis Gemini longgar (Flash-Lite); 429 harian → lanjutkan besok.',
-  openrouter: 'Free tier OpenRouter ±20 request/hari — cadangan, bukan andalan.',
-  'coming-soon': 'Provider tambahan akan segera hadir.'
+  openrouter: 'Free tier OpenRouter ±20 request/hari — cadangan, bukan andalan.'
 };
 
 // Label field: kecil, tegas, uppercase — dipakai identik di seluruh halaman.
@@ -37,6 +36,21 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
     writeFallback(on);
   }
 
+  // Satu kontrol segmented untuk SEMUA lebar layar (3 segmen sama lebar, satu
+  // baris, tanpa turun baris). Navigasi panah kiri/kanan + roving tabindex
+  // mengikuti pola radiogroup; fokus terlihat via :focus-visible global.
+  const segRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  function focusSeg(i: number) {
+    segRefs.current[i]?.focus();
+  }
+  function stepSeg(dir: 1 | -1) {
+    if (testing || busy) return;
+    const cur = PROVIDER_ORDER.indexOf(api.provider);
+    const next = (cur + dir + PROVIDER_ORDER.length) % PROVIDER_ORDER.length;
+    api.setProvider(PROVIDER_ORDER[next]);
+    focusSeg(next);
+  }
+
   return (
     <section
       aria-label="Koneksi provider"
@@ -47,12 +61,8 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
             satu baris flex dengan input mengisi sisa ruang mulai 1120px (sama dengan
             ambang dua kolom di bawahnya). */}
         <div className="flex flex-col gap-2 min-[1120px]:flex-row min-[1120px]:items-end min-[1120px]:gap-4 sm:gap-3">
-          {/* M23: di bawah lg provider berupa <select> native tunggal (pola yang sama
-              seperti slot/kategori di Worksheet/CaptionSheet) — jauh lebih ringkas
-              vertikal daripada grid 2×2. ≥1024px (lg:) grid segmented seperti semula;
-              ambang lg dipilih supaya rentang desktop 1024–1119px tidak berubah sama
-              sekali. Satu DOM dipilih per breakpoint (hidden), perilaku & teks sama.
-              M26: satu baris label dipakai bersama select & grid — "PROVIDER" +
+          {/* Provider memakai satu segmented control di semua lebar (lihat bawah);
+              M26: satu baris label dipakai bersama kontrol — "PROVIDER" +
               checkbox fallback tanpa teks di sampingnya. */}
           <div
             className="flex min-w-0 flex-col gap-1.5"
@@ -84,75 +94,48 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
                 />
               </label>
             </span>
-            <div className="relative lg:hidden">
-              <select
-                id="provider-select"
-                value={api.provider}
-                disabled={testing || busy}
-                aria-labelledby="provider-label"
-                onChange={(e) => api.setProvider(e.target.value as ProviderId)}
-                className="h-10 w-full appearance-none rounded border border-border-control bg-surface-elevated px-3 py-2 pr-8 text-body font-semibold text-text transition-colors duration-150 hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {PROVIDER_ORDER.map((p) => (
-                  <option key={p} value={p} disabled={p === 'coming-soon'}>
-                    {PROVIDER_LABELS[p]}
-                  </option>
-                ))}
-              </select>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 16 16"
-                fill="none"
-                aria-hidden="true"
-                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
-              >
-                <path
-                  d="M4 6l4 4 4-4"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </div>
-            {/* Provider — segmented control (bukan dropdown): pelat aktif isian aksen,
-                opsi "Coming Soon" tampil redup + badge kecil + cursor not-allowed.
-                M19: 4 segmen — 2 kolom × 2 baris di 1024–1119px (teks "OpenRouter" muat
-                tanpa meluber); ≥1120px jadi inline-flex. M23: `max-lg:hidden` (bukan
-                `hidden lg:grid`) agar cascade ≥1024px persis seperti semula.
-                M26: label dipakai bersama dengan select di atas (satu #provider-label). */}
+            {/* Provider — SATU segmented control untuk semua lebar layar: tiga
+                segmen sama lebar (grid 3 kolom), selalu satu baris tanpa wrap,
+                memenuhi lebar kolom; teks mengecil + ellipsis di layar sempit
+                ("OpenRouter" muat di 360px); tinggi sentuh ≥44px. */}
             <div
-              role="group"
-              aria-labelledby="provider-label"
-              className="grid w-full grid-cols-2 gap-1 rounded-lg border border-border bg-surface-elevated p-1 max-lg:hidden min-[1120px]:inline-flex min-[1120px]:w-fit"
+              role="radiogroup"
+              aria-label="Provider"
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  stepSeg(1);
+                } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  stepSeg(-1);
+                }
+              }}
+              className="grid w-full grid-cols-3 gap-1 rounded-lg border border-border bg-surface-elevated p-1"
             >
-              {PROVIDER_ORDER.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  aria-pressed={api.provider === p}
-                  disabled={testing || busy || p === 'coming-soon'}
-                  onClick={() => api.setProvider(p)}
-                  className={`inline-flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-1 text-small font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50 min-[1120px]:justify-start min-[1120px]:px-3 ${
-                    api.provider === p
-                      ? 'bg-accent text-accent-contrast'
-                      : p === 'coming-soon'
-                        ? 'text-text-muted'
+              {PROVIDER_ORDER.map((p, i) => {
+                const checked = api.provider === p;
+                return (
+                  <button
+                    key={p}
+                    ref={(el) => {
+                      segRefs.current[i] = el;
+                    }}
+                    type="button"
+                    role="radio"
+                    aria-checked={checked}
+                    tabIndex={testing || busy ? -1 : checked ? 0 : -1}
+                    disabled={testing || busy}
+                    onClick={() => api.setProvider(p)}
+                    className={`inline-flex min-h-11 min-w-0 items-center justify-center rounded-md px-2 text-xs font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50 sm:text-small ${
+                      checked
+                        ? 'bg-accent text-accent-contrast'
                         : 'text-text-secondary hover:bg-accent-tint hover:text-text'
-                  }`}
-                >
-                  {/* teks boleh wrap (HP) — jangan truncate */}
-                  <span className="min-w-0 text-center leading-tight min-[1120px]:text-left">
-                    {PROVIDER_LABELS[p]}
-                  </span>
-                  {p === 'coming-soon' && (
-                    <span className="hidden rounded-full border border-current px-1.5 py-px font-mono text-meta font-bold uppercase tracking-[0.06em] opacity-80 min-[1120px]:inline">
-                      segera
-                    </span>
-                  )}
-                </button>
-              ))}
+                    }`}
+                  >
+                    <span className="truncate">{PROVIDER_LABELS[p]}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -167,10 +150,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
                 type={showKey ? 'text' : 'password'}
                 value={api.key}
                 onChange={(e) => api.setKey(e.target.value)}
-                disabled={api.isSoon}
-                placeholder={
-                  api.isSoon ? 'Belum tersedia' : 'tempel API key di sini'
-                }
+                placeholder="tempel API key di sini"
                 autoComplete="off"
                 spellCheck={false}
                 autoCapitalize="none"
@@ -179,7 +159,6 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
               <button
                 type="button"
                 onClick={() => setShowKey((v) => !v)}
-                disabled={api.isSoon}
                 aria-label={showKey ? 'Sembunyikan API key' : 'Tampilkan API key'}
                 title={showKey ? 'Sembunyikan API key' : 'Tampilkan API key'}
                 className="absolute inset-y-0 right-0 grid w-10 place-items-center rounded-r-md text-text-muted transition-colors duration-150 hover:text-accent-text disabled:cursor-not-allowed disabled:opacity-50"
@@ -226,8 +205,8 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
           >
             <button
               type="button"
-              onClick={api.test}
-              disabled={api.isSoon || testing || busy}
+            onClick={api.test}
+            disabled={testing || busy}
               aria-busy={testing}
               className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-border-control bg-surface px-3 text-small font-semibold text-text transition-colors duration-150 hover:border-accent/70 hover:bg-accent-tint hover:text-text disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-border-control disabled:hover:bg-surface disabled:hover:text-text sm:px-4 sm:text-body min-[1120px]:w-auto"
             >

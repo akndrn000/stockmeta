@@ -5,7 +5,7 @@ import { INDONESIAN_KEYWORD_RATIO_LIMIT, indonesianKeywordRatio, looksIndonesian
 import type { ParsedMetadata } from './prompt';
 import type { Platform } from './types';
 
-export function textForPlatform(meta: ParsedMetadata, platform: Platform): string {
+function textForPlatform(meta: ParsedMetadata, platform: Platform): string {
   return platform === 'adobe' ? (meta.title ?? '') : (meta.description ?? '');
 }
 

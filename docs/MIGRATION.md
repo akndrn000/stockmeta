@@ -1,5 +1,7 @@
 # Migrasi StockMeta: HTML/JS → Next.js + TypeScript + Tailwind
 
+> Gambar bukti audit sebelum pembersihan sudah dihapus; riwayatnya tetap ada di git.
+
 Referensi perilaku: `legacy/` (dibaca saja — **jangan diubah, jangan ikut di-build**).
 `legacy/` dikecualikan dari `tsconfig.json` (`exclude`) dan ESLint (`globalIgnores`).
 

@@ -43,7 +43,8 @@ export function writeKey(provider: ProviderId, key: string): void {
 export function readProvider(): ProviderId | null {
   try {
     const v = ls()?.getItem(PROVIDER_KEY);
-    return v === 'gemini' || v === 'groq' || v === 'openrouter' || v === 'coming-soon' ? v : null;
+    // nilai warisan 'coming-soon' (pra-penghapusan placeholder) dianggap tak sah → default
+    return v === 'gemini' || v === 'groq' || v === 'openrouter' ? v : null;
   } catch { return null; }
 }
 

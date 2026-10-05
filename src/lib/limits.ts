@@ -27,7 +27,6 @@ export const MIN_DESCRIPTION_WORDS = 5;
 // Aturan keyword Fase 3–4 — satu sumber angka (jangan tulis literal di logika/UI).
 // (M34: sistem grup A–E dihapus; tersisa rentang konsep tema di bawah.)
 // Konsep turunan tema: 5–10 bila cocok, 0 bila tidak.
-export const THEME_CONCEPT_MIN = 5;
 export const THEME_CONCEPT_MAX = 10;
 // Deteksi bahasa Fase 3: >20% keyword Indonesia → regenerasi sekali.
 export const INDONESIAN_KEYWORD_RATIO_LIMIT = 0.2;

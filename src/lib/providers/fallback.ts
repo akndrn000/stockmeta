@@ -10,7 +10,7 @@ import { ProviderError } from './retry';
 import type { WaitInfo } from './retry';
 import type { ImageInput, ProviderAdapter } from './types';
 
-/** Urutan provider cadangan (di luar provider aktif; 'coming-soon' sengaja tidak ada). */
+/** Urutan provider cadangan (di luar provider aktif). */
 export const FALLBACK_ORDER: readonly ProviderId[] = ['groq', 'gemini', 'openrouter'];
 
 /** Kandidat layak fallback: 429 kuota harian ATAU 503 setelah retry habis. */
