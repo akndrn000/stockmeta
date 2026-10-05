@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { THEME_MAX_LENGTH, THEME_MIN_LENGTH } from './limits';
+import { THEME_MAX_LENGTH } from './limits';
 import { effectiveTheme, normalizeTheme, validateTheme } from './theme';
 
 describe('normalizeTheme', () => {
@@ -9,13 +9,10 @@ describe('normalizeTheme', () => {
   });
 });
 
-describe('validateTheme — tema kini wajib', () => {
-  it('kosong → tidak valid dengan pesan wajib', () => {
-    expect(validateTheme('')).toEqual({
-      ok: false,
-      message: `Tema utama wajib diisi (${THEME_MIN_LENGTH}–${THEME_MAX_LENGTH} karakter).`
-    });
-    expect(validateTheme('   ')).toMatchObject({ ok: false });
+describe('validateTheme — tema opsional', () => {
+  it('kosong → valid (generate jalan tanpa tema)', () => {
+    expect(validateTheme('')).toEqual({ ok: true, message: '' });
+    expect(validateTheme('   ')).toEqual({ ok: true, message: '' });
   });
 
   it('terlalu pendek / terlalu panjang → tidak valid', () => {
@@ -40,8 +37,8 @@ describe('effectiveTheme — override per frame atau tema batch', () => {
     expect(effectiveTheme('Batch Theme')).toBe('Batch Theme');
   });
 
-  it('keduanya kosong → kosong (tidak valid)', () => {
+  it('keduanya kosong → kosong (tetap valid karena opsional)', () => {
     expect(effectiveTheme('', '')).toBe('');
-    expect(validateTheme(effectiveTheme('', ''))).toMatchObject({ ok: false });
+    expect(validateTheme(effectiveTheme('', ''))).toEqual({ ok: true, message: '' });
   });
 });

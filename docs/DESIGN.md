@@ -25,9 +25,9 @@ tanpa warna hard-coded di komponen.
 | `--bg-secondary` | `bg-bg-secondary` | `#090f0b` | Chrome (Header, ProviderPanel, dropzone kosong) |
 | `--surface` | `bg-surface` | `#0b120d` | Panel/tile/badan dokumen |
 | `--surface-elevated` | `bg-surface-elevated` | `#101a13` | Isian, popover, kotak saran |
-| `--border` | `border-border` | `#1b3d28` | Garis struktur & kontrol (hairline) |
-| `--border-strong` | `border-border-strong` | `#244b32` | Batas lebih tegas: badge netral, teks sekunder pada hover sekunder (mode terang `#a3b4aa`) |
-| `--border-control` | `border-border-control` | `#3a7c51` | **Batas elemen interaktif** (input/textarea/select/button) — ≥3:1 terhadap semua permukaan (SC 1.4.11); mode terang `#718380` (M17b) |
+| `--border` | `border-border` | `#35794e` | Garis struktur hijau (hairline) — ≥3:1 di kedua mode; mode terang `#35855a` (M29) |
+| `--border-strong` | `border-border-strong` | `#3a7c51` | Batas lebih tegas: badge netral, hover sekunder (mode terang `#2e7a4e`) (M29) |
+| `--border-control` | `border-border-control` | `#47955f` | **Batas elemen interaktif** (input/textarea/select/button) — ≥3:1 terhadap semua permukaan (SC 1.4.11); mode terang `#2f6e49` (M29) |
 | `--accent` | `bg-accent`, `border-accent` | `#20e875` | Hijau fosfor — isian tombol utama & elemen menyala |
 | `--accent-hover` | `bg-accent-hover` | `#35f58a` | Hover tombol aksen |
 | `--text` | `text-text` | `#e8f2eb` | Teks utama |
@@ -302,10 +302,16 @@ Aturan audit (cara M25/M27 memverifikasi, wajib diulang tiap mengubah responsif)
   terpilih, wordmark, badge, dan fokus isian kini memakai isian/border aksen yang bersih —
   glow-soft/glow-text/glow-input/glow-ok dihapus, `--glow` satu-satunya token glow.
 - **Batas kontrol dipisah dari garis struktur (M17b)**: token `--border-control`
-  (`#3a7c51` gelap / `#718380` terang) dipakai khusus di kelas input/textarea/select/button
-  sehingga batas elemen interaktif mencapai ≈3,5:1 (gelap) / ≈3,3:1 (terang), sementara
-  `--border` yang tetap redup (≈1,6:1) hanya untuk pemisah struktural non-interaktif —
-  kedua peran tidak lagi berbagi satu token. `--border` global TIDAK diubah.
+  dipakai khusus di kelas input/textarea/select/button sehingga batas elemen interaktif
+  mencapai ≥3:1 — kedua peran tidak lagi berbagi satu token.
+- **Semua garis wajib hijau terbaca di kedua mode (M29, revisi M17b)**: `--border`
+  (`#35794e` gelap / `#35855a` terang), `--border-strong` (`#3a7c51` / `#2e7a4e`),
+  `--border-control` (`#47955f` / `#2f6e49`) — hue ≈140–148°, saturasi ≥34% (bukan
+  abu-abu), kontras minimum terhadap permukaan terketat masing-masing mode: gelap
+  3,39 / 3,55 / 4,86 dan terang 3,78 / 4,38 / 5,10 (diukur WCAG vs `--surface-elevated`).
+  Garis semantik `--error`/`--warning` dipertahankan (makna fungsional). `border-transparent`
+  hanya sebagai cadangan layout tak terlihat (CopyButton idle) — semua garis yang
+  terlihat memakai token hijau atau semantik.
 - **Hover isian = `hover:border-accent/60`** (lebih tenang dari fokus penuh), hover kontrol
   netral = `hover:border-border-control` / `bg-accent-tint` (salin: `hover:border-accent/70`);
   `--accent-dim` tidak diperlukan lagi.
@@ -338,3 +344,20 @@ Aturan audit (cara M25/M27 memverifikasi, wajib diulang tiap mengubah responsif)
   counter hanya muncul bila memang ada kuota (judul, deskripsi, kata kunci).
 - Verifikasi M18: `vitest` **188/188**, `tsc --noEmit` **0**, `eslint` **0**, `next build`
   sukses, `impeccable detect --json src` → **`[]`** (exit 0).
+
+## Keputusan sadar M29
+
+- **Semua garis/border halaman = hijau di kedua mode** — audit `border-*`/`ring-*` di
+  seluruh `src/components`: tidak ada warna hard-coded; semua garis dekoratif lewat
+  `--border`/`--border-strong`/`--border-control`/`--accent*`, semua garis makna lewat
+  `--success`/`--error`/`--warning`. Token netral lama yang keabu-abuan
+  (`#1b3d28`/`#244b32` gelap; `#c7d3cb`/`#a3b4aa`/`#718380` terang — saturasi ≤12%,
+  kontras serendah 1,29:1) diganti hijau jenuh (saturasi ≥34%) dengan kontras ≥3:1
+  terhadap semua permukaan (daftar angka di "Keputusan sadar M17", butir M29).
+- **Mode terang disamakan prinsipnya dengan mode malam** — tiga tingkat hijau berurutan
+  (struktur < tegas < kontrol), boleh beda kejenuhan/kecerahan antar mode asal hue tetap
+  ≈140–148° dan terbaca jelas sebagai hijau.
+- **Semantik dipertahankan**: `border-error`/`border-warning` (termasuk varian `/40`),
+  teks status, dan kotak `role="alert"` tidak diubah menjadi hijau.
+- Verifikasi M29: ukur kontras WCAG via skrip (bukan perkiraan), screenshot kedua mode,
+  `vitest`, `tsc --noEmit`, `eslint`, `next build` sukses.

@@ -258,28 +258,32 @@ describe('select "Jeda antar foto"', () => {
 });
 
 describe('keterangan bantu dihapus (M14)', () => {
-  it('Tema utama wajib (bukan opsional) & Jeda antar foto tanpa baris penjelasan', () => {
+  it('Tema utama opsional tanpa bintang & Jeda antar foto tanpa baris penjelasan', () => {
     expect(host.textContent).toContain('Tema utama');
     expect(host.textContent).not.toContain('(opsional)');
-    expect(host.querySelector('#tema-batch')!.getAttribute('aria-required')).toBe('true');
+    const label = host.querySelector('label[for="tema-batch"]')!;
+    expect(label.textContent?.replace(/\s+/g, ' ').trim()).toBe('Tema utama');
+    expect(host.querySelector('#tema-batch')!.getAttribute('aria-required')).toBeNull();
+    expect((host.querySelector('#tema-batch') as HTMLInputElement).placeholder).toBe('mis. panen raya, pasar pagi');
     expect(host.textContent).toContain('Jeda antar foto');
     expect(host.textContent).not.toContain('Berlaku untuk seluruh batch');
     expect(host.textContent).not.toContain('Naikkan jika sering muncul');
   });
 
-  it('tema kosong → generate ditolak dengan pesan + sorotan aria-invalid pada input tema', async () => {
+  it('tema kosong → generate tetap jalan normal tanpa tema', async () => {
     addFrames(1);
     await ready();
     act(() => api().s.setTema(''));
-    script = [{ meta: { title: 'x' } }];
+    script = [{ meta: { title: 'Unthemed result', keywords: [...KW30] } }];
 
     const btn = Array.from(host.querySelectorAll('button')).find((b) => (b.textContent ?? '').trim() === 'Buat metadata')!;
     act(() => { btn.click(); });
     await flush();
 
-    expect(calls).toBe(0);
-    expect(host.textContent).toContain('Tema utama wajib diisi');
-    expect(host.querySelector('#tema-batch')!.getAttribute('aria-invalid')).toBe('true');
+    expect(calls).toBe(1);
+    expect(host.textContent).not.toContain('Tema utama wajib diisi');
+    expect(host.querySelector('#tema-batch')!.getAttribute('aria-invalid')).toBeNull();
+    expect(api().s.frames[0].status.adobe).toBe('siap');
   });
 
   it('grid thumbnail: auto-fill minmax intrinsik, tanpa kolom per breakpoint (M19)', () => {

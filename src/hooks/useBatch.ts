@@ -64,7 +64,8 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
     return provider.status === 'ok';
   }
 
-  /** Fase 1: tolak generate bila ada tema efektif tak valid — kembalikan pesan atau null bila lolos. */
+  /** Tolak generate bila ada tema efektif tak valid — kosong selalu lolos
+      (tema opsional); kembalikan pesan atau null bila lolos. */
   function checkThemes(ids: number[]): string | null {
     const snap = session.snapshot();
     for (const id of ids) {

@@ -1,6 +1,7 @@
-// Validasi tema batch/per frame — fungsi murni tanpa DOM/React (Fase 1).
-// Tema kini WAJIB: tema efektif sebuah frame = tema per frame (bila diisi) atau tema batch.
-// "Tema untuk frame ini" tetap boleh kosong sebagai override.
+// Validasi tema batch/per frame — fungsi murni tanpa DOM/React.
+// Tema OPSIONAL (desain awal fitur): kosong = valid, generate jalan tanpa tema.
+// Format (2–60 karakter) HANYA diperiksa bila user memang mengisi sesuatu.
+// "Tema untuk frame ini" boleh kosong sebagai override (konsisten seperti semula).
 import { THEME_MAX_LENGTH, THEME_MIN_LENGTH } from './limits';
 
 export interface ThemeValidation {
@@ -20,15 +21,10 @@ export function effectiveTheme(batchTheme: string, frameTheme?: string): string 
   return normalizeTheme(batchTheme);
 }
 
-/** Validasi tema efektif: panjang 2–60 karakter setelah normalisasi. */
+/** Validasi tema: kosong selalu VALID (opsional); isi diperiksa 2–60 karakter. */
 export function validateTheme(raw: string): ThemeValidation {
   const v = normalizeTheme(raw);
-  if (!v) {
-    return {
-      ok: false,
-      message: `Tema utama wajib diisi (${THEME_MIN_LENGTH}–${THEME_MAX_LENGTH} karakter).`
-    };
-  }
+  if (!v) return { ok: true, message: '' };
   if (v.length < THEME_MIN_LENGTH) {
     return {
       ok: false,

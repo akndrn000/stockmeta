@@ -60,7 +60,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
         {/* M19: mobile disusun vertikal selebar penuh (provider → input → tombol → status);
             satu baris flex dengan input mengisi sisa ruang mulai 1120px (sama dengan
             ambang dua kolom di bawahnya). */}
-        <div className="flex flex-col gap-2 min-[1120px]:flex-row min-[1120px]:items-end min-[1120px]:gap-4 sm:gap-3">
+        <div className="flex flex-col gap-2 min-[1120px]:flex-row min-[1120px]:items-stretch min-[1120px]:gap-4 sm:gap-3">
           {/* Provider memakai satu segmented control di semua lebar (lihat bawah);
               M26: satu baris label dipakai bersama kontrol — "PROVIDER" +
               checkbox fallback tanpa teks di sampingnya. */}
@@ -97,7 +97,14 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
             {/* Provider — SATU segmented control untuk semua lebar layar: tiga
                 segmen sama lebar (grid 3 kolom), selalu satu baris tanpa wrap,
                 memenuhi lebar kolom; teks mengecil + ellipsis di layar sempit
-                ("OpenRouter" muat di 360px); tinggi sentuh ≥44px. */}
+                ("OpenRouter" muat di 360px); tinggi sentuh ≥44px.
+                M28: kontainer TANPA padding/border layout (ring inset sebagai
+                garis visual 1px, 0px biaya layout) sehingga tinggi totalnya
+                PERSIS sama dengan tombol segmen di dalamnya (h-10 = 40px;
+                44px di mode sentuh via min-height global) — dan identik dengan
+                input API key / tombol Tes koneksi / chip status di sampingnya.
+                Jangan kembalikan padding/border ke kontainer ini: tiap 1px chrome
+                menambah tinggi total dan merusak kesejajaran 0px. */}
             <div
               role="radiogroup"
               aria-label="Provider"
@@ -110,7 +117,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
                   stepSeg(-1);
                 }
               }}
-              className="grid w-full grid-cols-3 gap-1 rounded-lg border border-border bg-surface-elevated p-1"
+              className="grid w-full grid-cols-3 gap-1 rounded-lg bg-surface-elevated ring-1 ring-inset ring-border"
             >
               {PROVIDER_ORDER.map((p, i) => {
                 const checked = api.provider === p;
@@ -126,7 +133,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
                     tabIndex={testing || busy ? -1 : checked ? 0 : -1}
                     disabled={testing || busy}
                     onClick={() => api.setProvider(p)}
-                    className={`inline-flex min-h-11 min-w-0 items-center justify-center rounded-md px-2 text-xs font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50 sm:text-small ${
+                    className={`inline-flex h-10 min-w-0 items-center justify-center rounded-md px-2 text-xs font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50 sm:text-small ${
                       checked
                         ? 'bg-accent text-accent-contrast'
                         : 'text-text-secondary hover:bg-accent-tint hover:text-text'
@@ -198,11 +205,18 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
           </div>
 
           {/* Tes koneksi (sekunder) + chip status — M19: mobile tombol selebar penuh
-              dengan chip status di baris bawahnya; ≥1120px kembali sejajar di kanan. */}
+              dengan chip status di baris bawahnya; ≥1120px kembali sejajar di kanan.
+              M28: kolom ini memakai spacer tak terlihat setinggi baris label
+              Provider/API key + gap-1.5 yang sama, sehingga tombol & chip mulai
+              tepat sejajar (top sama) dengan grup segmen & input di ≥1120px. */}
           <div
-            className="flex w-full flex-col items-start gap-2 min-[1120px]:w-auto min-[1120px]:flex-row min-[1120px]:items-center"
+            className="flex w-full flex-col items-start gap-2 min-[1120px]:w-auto min-[1120px]:gap-1.5"
             title={busy ? 'Batch berjalan — tes koneksi setelah selesai' : undefined}
           >
+            <span aria-hidden="true" className="hidden min-[1120px]:block text-meta select-none">
+              &nbsp;
+            </span>
+            <div className="flex w-full flex-col items-start gap-2 min-[1120px]:w-auto min-[1120px]:flex-row min-[1120px]:items-center">
             <button
               type="button"
             onClick={api.test}
@@ -221,7 +235,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
               role="status"
               aria-live="polite"
               title={api.note}
-              className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-meta font-medium uppercase tracking-[0.06em] transition-colors duration-150 ${
+              className={`provider-status inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-meta font-medium uppercase tracking-[0.06em] transition-colors duration-150 ${
                 api.status === 'ok'
                   ? 'border-success/40 bg-success-tint text-success'
                   : api.status === 'fail'
@@ -245,6 +259,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
               />
               {STATUS_LABELS[api.status]}
             </span>
+            </div>
           </div>
         </div>
       </div>

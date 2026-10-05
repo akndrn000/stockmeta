@@ -394,20 +394,21 @@ describe('useBatch — buat ulang semua (M11)', () => {
   });
 });
 
-describe('useBatch — tema wajib (Fase 1)', () => {
-  it('tema efektif kosong → startBatch ditolak tanpa panggilan, pesan + themeError jelas', async () => {
+describe('useBatch — tema opsional', () => {
+  it('tema efektif kosong → generate tetap jalan normal tanpa tema', async () => {
     addFrames(2);
     await ready();
     act(() => api().s.setTema(''));   // kosongkan lagi setelah ready
-    script = [{ meta: { title: 'x' } }];
+    script = [{ meta: { title: 'Unthemed result', keywords: [...KW30] } }];
 
     act(() => api().b.startBatch());
     await flush();
 
-    expect(calls).toBe(0);
-    expect(api().b.notice).toContain('Tema utama wajib diisi');
-    expect(api().b.themeError).toContain('Tema utama wajib diisi');
-    expect(api().s.frames[0].status.adobe).toBe('menunggu');
+    expect(calls).toBe(2);
+    expect(api().b.themeError).toBeNull();
+    expect(api().b.notice).not.toContain('Tema utama');
+    expect(api().s.frames[0].status.adobe).toBe('siap');
+    expect(api().s.frames[1].status.adobe).toBe('siap');
   });
 
   it('override per frame dipakai — batch valid menutupi frame kosong, override tak valid menolak', async () => {
@@ -433,15 +434,25 @@ describe('useBatch — tema wajib (Fase 1)', () => {
     expect(calls).toBe(1);
   });
 
-  it('regenerateAll ditolak bila satu frame pun tak valid', async () => {
+  it('regenerateAll dengan tema kosong tetap jalan (minta konfirmasi dulu)', async () => {
     addFrames(2);
     await ready();
     act(() => api().s.setTema(''));
+    script = [
+      { meta: { title: 'Unthemed result', keywords: [...KW30] } },
+      { meta: { title: 'Unthemed result', keywords: [...KW30] } }
+    ];
     act(() => api().b.regenerateAll());
     await flush();
-    expect(api().b.regenAllConfirm).toBeNull();
+    expect(api().b.regenAllConfirm).toBe('adobe');   // konfirmasi dulu
     expect(calls).toBe(0);
-    expect(api().b.notice).toContain('Tema utama wajib diisi');
+
+    act(() => api().b.regenerateAll());              // ya, ganti semua
+    await flush();
+    expect(api().b.regenAllConfirm).toBeNull();
+    expect(calls).toBe(2);
+    expect(api().s.frames[0].status.adobe).toBe('siap');
+    expect(api().s.frames[1].status.adobe).toBe('siap');
   });
 });
 
