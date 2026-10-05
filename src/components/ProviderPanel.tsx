@@ -16,9 +16,11 @@ const LIMIT_TIP: Record<ProviderId, string> = {
   openrouter: 'Free tier OpenRouter ±20 request/hari — cadangan, bukan andalan.'
 };
 
-// Label field: kecil, tegas, uppercase — dipakai identik di seluruh halaman.
+// Label field: kecil, tegas, uppercase — hijau satu hue di kedua mode
+// (accent-text: terang #20e875 / siang #0a6633; hijau persis sama gagal 4.5:1
+// untuk teks kecil — lihat laporan kontras).
 const LABEL =
-  'text-meta font-semibold uppercase tracking-[0.06em] text-text-muted';
+  'text-meta font-semibold uppercase tracking-[0.06em] text-accent-text';
 
 export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean }) {
   const [showKey, setShowKey] = useState(false);
@@ -54,7 +56,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
   return (
     <section
       aria-label="Koneksi provider"
-      className="border-b border-border bg-bg-secondary"
+      className="border-b border-line bg-bg-secondary"
     >
       <div className="shell flex flex-col gap-2 py-2 sm:gap-3 sm:py-3">
         {/* M19: mobile disusun vertikal selebar penuh (provider → input → tombol → status);
@@ -117,7 +119,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
                   stepSeg(-1);
                 }
               }}
-              className="grid w-full grid-cols-3 gap-1 rounded-lg bg-surface-elevated ring-1 ring-inset ring-border"
+              className="grid w-full grid-cols-3 gap-1 rounded-md bg-surface-elevated ring-1 ring-inset ring-line"
             >
               {PROVIDER_ORDER.map((p, i) => {
                 const checked = api.provider === p;
@@ -136,7 +138,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
                     className={`inline-flex h-10 min-w-0 items-center justify-center rounded-md px-2 text-xs font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50 sm:text-small ${
                       checked
                         ? 'bg-accent text-accent-contrast'
-                        : 'text-text-secondary hover:bg-accent-tint hover:text-text'
+                        : 'text-accent-text hover:bg-accent-tint hover:text-text'
                     }`}
                   >
                     <span className="truncate">{PROVIDER_LABELS[p]}</span>
@@ -146,11 +148,47 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
             </div>
           </div>
 
-          {/* API key */}
+          {/* API key — label sebaris dengan chip status (satu wadah flex,
+              gap-2 = 8px; wrap hanya bila sempit agar turun rapi, bukan
+              terpotong/menimpa kolom Provider). */}
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <label htmlFor="apikey" className={LABEL}>
-              API key
-            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <label htmlFor="apikey" className={LABEL}>
+                API key
+              </label>
+              {/* Chip status seukuran label: text-meta + tracking sama, tanpa h-10
+                  (h-auto! mengalahkan height 40/44px .provider-status), padding
+                  ringkas px-2 py-0.5, dot 6px, border/radius tetap. Warna + teks
+                  tiap state tidak berubah; tooltip = pesan tes terakhir. */}
+              <span
+                role="status"
+                aria-live="polite"
+                title={api.note}
+                className={`provider-status inline-flex h-auto! shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-meta font-medium uppercase tracking-[0.06em] leading-none transition-colors duration-150 ${
+                  api.status === 'ok'
+                    ? 'border-success/40 bg-success-tint text-success'
+                    : api.status === 'fail'
+                      ? 'border-error/40 bg-error-tint text-error'
+                      : api.status === 'testing'
+                        ? 'border-accent/40 bg-accent-tint text-accent-text'
+                        : 'border-line bg-surface text-accent-text'
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                    api.status === 'ok'
+                      ? 'bg-success'
+                      : api.status === 'fail'
+                        ? 'bg-error'
+                        : api.status === 'testing'
+                          ? 'bg-accent'
+                          : 'bg-text-muted'
+                  }`}
+                />
+                {STATUS_LABELS[api.status]}
+              </span>
+            </div>
             <div className="relative">
               <input
                 id="apikey"
@@ -161,7 +199,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
                 autoComplete="off"
                 spellCheck={false}
                 autoCapitalize="none"
-                className="h-10 w-full rounded-md border border-border-control bg-surface-elevated px-3 py-2 pr-10 font-mono text-body text-text transition-colors duration-150 placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-10 w-full rounded-md border border-line bg-surface-elevated px-3 py-2 pr-10 font-mono text-body text-text transition-colors duration-150 placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
               />
               <button
                 type="button"
@@ -204,11 +242,10 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
             </div>
           </div>
 
-          {/* Tes koneksi (sekunder) + chip status — M19: mobile tombol selebar penuh
-              dengan chip status di baris bawahnya; ≥1120px kembali sejajar di kanan.
-              M28: kolom ini memakai spacer tak terlihat setinggi baris label
-              Provider/API key + gap-1.5 yang sama, sehingga tombol & chip mulai
-              tepat sejajar (top sama) dengan grup segmen & input di ≥1120px. */}
+          {/* Tes koneksi (sekunder) — badge status pindah sebaris label API key;
+              kolom ini tinggal spacer + tombol. M19: mobile tombol selebar penuh;
+              ≥1120px tombol di kanan sejajar top dengan input (spacer setinggi
+              baris label + gap-1.5 sama). Input melebar via flex-1 kolom API key. */}
           <div
             className="flex w-full flex-col items-start gap-2 min-[1120px]:w-auto min-[1120px]:gap-1.5"
             title={busy ? 'Batch berjalan — tes koneksi setelah selesai' : undefined}
@@ -216,50 +253,16 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
             <span aria-hidden="true" className="hidden min-[1120px]:block text-meta select-none">
               &nbsp;
             </span>
-            <div className="flex w-full flex-col items-start gap-2 min-[1120px]:w-auto min-[1120px]:flex-row min-[1120px]:items-center">
             <button
               type="button"
             onClick={api.test}
             disabled={testing || busy}
               aria-busy={testing}
-              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-border-control bg-surface px-3 text-small font-semibold text-text transition-colors duration-150 hover:border-accent/70 hover:bg-accent-tint hover:text-text disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-border-control disabled:hover:bg-surface disabled:hover:text-text sm:px-4 sm:text-body min-[1120px]:w-auto"
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-line bg-surface px-3 text-small font-semibold text-accent-text transition-colors duration-150 hover:border-accent/70 hover:bg-accent-tint hover:text-text disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-line disabled:hover:bg-surface disabled:hover:text-accent-text sm:px-4 sm:text-body min-[1120px]:w-auto"
             >
               {testing && <span className="spinner" aria-hidden="true" />}
               {testing ? 'Menguji…' : 'Tes koneksi'}
             </button>
-            {/* Chip status "Belum dites" — M19 (G.1): gayanya DISERAGAMKAN dengan chip
-                status di header (pil + dot), bukan bracket putus-putus. Teks asli tetap
-                dibaca pembaca layar lewat role="status". M26: pesan hasil tes terakhir
-                (sukses/gagal) tetap bisa dibaca lewat tooltip badge ini. */}
-            <span
-              role="status"
-              aria-live="polite"
-              title={api.note}
-              className={`provider-status inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-meta font-medium uppercase tracking-[0.06em] transition-colors duration-150 ${
-                api.status === 'ok'
-                  ? 'border-success/40 bg-success-tint text-success'
-                  : api.status === 'fail'
-                    ? 'border-error/40 bg-error-tint text-error'
-                    : api.status === 'testing'
-                      ? 'border-accent/40 bg-accent-tint text-accent-text'
-                      : 'border-border bg-surface text-text-secondary'
-              }`}
-            >
-              <span
-                aria-hidden="true"
-                className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                  api.status === 'ok'
-                    ? 'bg-success'
-                    : api.status === 'fail'
-                      ? 'bg-error'
-                      : api.status === 'testing'
-                        ? 'bg-accent'
-                        : 'bg-text-muted'
-                }`}
-              />
-              {STATUS_LABELS[api.status]}
-            </span>
-            </div>
           </div>
         </div>
       </div>

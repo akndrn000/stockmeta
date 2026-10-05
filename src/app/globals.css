@@ -24,6 +24,14 @@
      kini tiga tingkat hijau berurutan (3,39 / 3,55 / 4,86 vs permukaan terketat
      --surface-elevated). Garis semantik --error/--warning dipertahankan. */
   --border-control: #47955f;
+  /* Garis tunggal lintas mode: SATU hijau persis sama di siang & malam
+     (tidak di-override di blok terang). #35855a = nilai tengah yang lolos
+     3:1 di SEMUA latar (gelap min 3,95 vs surface-elevated; terang min 3,78
+     vs --bg) — hijau terang aksen (#20e875) hanya 1,37 di latar terang jadi
+     tidak bisa dipakai sebagai garis tunggal. Semua garis netral
+     (border/divider/ring/fokus) lewat var(--line); garis makna
+     (--success/--error/--warning, isian aksen) tidak berubah. */
+  --line: #35855a;
   --accent: #20e875;
   --accent-hover: #35f58a;
   --text: #e8f2eb;
@@ -42,7 +50,9 @@
   --warning-tint: rgba(244, 200, 75, 0.12);
   --error-tint: rgba(240, 100, 100, 0.14);
   --error-contrast: #140606;
-  --focus: #20e875;
+  /* Fokus = garis tunggal (2px via outline global + 1px border + 1px ring inset
+     di isian). Sama persis di kedua mode, 3:1 terpenuhi di semua permukaan. */
+  --focus: var(--line);
   /* Glow HANYA untuk tombol utama — statis, bukan animasi (M17) */
   --glow: 0 0 16px rgba(32, 232, 117, 0.2);
 }
@@ -74,7 +84,8 @@
   --warning-tint: rgba(138, 90, 0, 0.1);
   --error-tint: rgba(179, 38, 30, 0.08);
   --error-contrast: #ffffff;
-  --focus: #0b6b33;
+  /* --focus & --line TIDAK di-override di sini: satu nilai persis sama di
+     kedua mode (lihat blok :root di atas). */
   --glow: none;
 }
 
@@ -86,6 +97,7 @@
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
   --color-border-control: var(--border-control);
+  --color-line: var(--line);
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-text: var(--accent-text);
@@ -157,8 +169,8 @@
   input:focus-visible,
   textarea:focus-visible,
   select:focus-visible {
-    border-color: var(--accent);
-    box-shadow: inset 0 0 0 1px var(--accent);
+    border-color: var(--line);
+    box-shadow: inset 0 0 0 1px var(--line);
   }
 }
 
@@ -222,7 +234,7 @@
 .spinner {
   width: 12px;
   height: 12px;
-  border: 2px solid var(--border-strong);
+  border: 2px solid var(--line);
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spinner-rotate 0.7s linear infinite;
@@ -299,7 +311,7 @@
    SATU-satunya elemen dengan scroll internal (pengecualian terdokumentasi di MIGRATION). */
 .scroll-slim {
   scrollbar-width: thin;
-  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-color: var(--line) transparent;
 }
 .scroll-slim::-webkit-scrollbar {
   width: 6px;
@@ -309,7 +321,7 @@
   background: transparent;
 }
 .scroll-slim::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
+  background: var(--line);
   /* pengecualian radius 2-tingkat: elemen non-teks kecil, sama seperti dot brand (3px) */
   border-radius: 3px;
 }
@@ -322,7 +334,7 @@
    --border-strong dengan ruang dalam supaya tetap terbaca sebagai bilah, bukan garis. */
 html {
   scrollbar-width: thin;
-  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-color: var(--line) transparent;
 }
 ::-webkit-scrollbar {
   width: 10px;
@@ -332,7 +344,7 @@ html {
   background: var(--bg);
 }
 ::-webkit-scrollbar-thumb {
-  background-color: var(--border-strong);
+  background-color: var(--line);
   border: 3px solid var(--bg);
   border-radius: 999px;
 }

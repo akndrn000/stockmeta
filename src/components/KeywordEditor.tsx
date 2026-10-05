@@ -51,7 +51,7 @@ export function KeywordEditor({ keywords, min, max = MAX_KEYWORDS, onChange, dis
             <span id="kw-count" className="flex shrink-0 items-center gap-1.5">
               {/* M16: badge meta kecil (penghitung, min, penuh) = teks polos tanpa kotak —
                   hanya badge STATUS (berwarna aktif) yang memakai garis 2px. */}
-              <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-text-muted tabular-nums">
+              <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-accent-text tabular-nums">
                 {n}/{max}
               </span>
               {n < min && (
@@ -82,7 +82,7 @@ export function KeywordEditor({ keywords, min, max = MAX_KEYWORDS, onChange, dis
           {keywords.map((k, i) => (
             <li
               key={`${k.toLowerCase()}-${i}`}
-              className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-surface-elevated py-1 pl-3 pr-1.5 text-small text-text transition-colors duration-150 hover:border-border-strong"
+              className="inline-flex max-w-full items-center gap-1 rounded-full border border-line bg-surface-elevated py-1 pl-3 pr-1.5 text-small text-text transition-colors duration-150 hover:border-line hover:bg-accent-tint"
             >
               <span className="min-w-0 truncate" title={k}>{k}</span>
               <button
@@ -130,7 +130,7 @@ export function KeywordEditor({ keywords, min, max = MAX_KEYWORDS, onChange, dis
         placeholder={full ? 'Penuh — hapus salah satu dulu' : 'Ketik kata kunci, pisahkan koma atau Enter'}
         spellCheck={false}
         autoCapitalize="none"
-        className="h-10 w-full rounded-md border border-border-control bg-surface-elevated px-3 py-2 text-body text-text transition-colors duration-150 placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
+        className="h-10 w-full rounded-md border border-line bg-surface-elevated px-3 py-2 text-body text-text transition-colors duration-150 placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
       />
 
       {/* M19 (E.3): saat kosong baris ini jadi sr-only — ruang kosong 16px di bawah input

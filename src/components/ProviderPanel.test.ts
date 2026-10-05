@@ -80,7 +80,7 @@ describe('ProviderPanel — satu kontrol segmented untuk semua lebar', () => {
     }
   });
 
-  it('M28: kesejajaran 0px — kontainer segmen tanpa chrome layout, badge setinggi kontrol', () => {
+  it('M28: kesejajaran 0px — kontainer segmen tanpa chrome layout', () => {
     render(stubApi());
     const g = group();
     const cls = g.className.split(/\s+/);
@@ -90,13 +90,54 @@ describe('ProviderPanel — satu kontrol segmented untuk semua lebar', () => {
       expect(cls).not.toContain(banned);
     }
     expect(cls).toContain('ring-1');
-    // chip status: span tidak kena min-height 44px global → tinggi eksplisit via CSS
-    const badge = host.querySelector('span[role="status"]') as HTMLElement;
-    expect(badge.className.split(/\s+/)).toContain('provider-status');
-    expect(badge.className.split(/\s+/)).toContain('h-10');
     // spacer tak terlihat pengimbang baris label di ≥1120px (top sejajar input)
     const spacer = host.querySelector('span[aria-hidden="true"].hidden') as HTMLElement | null;
     expect(spacer).not.toBeNull();
+  });
+
+  it('badge status sebaris label API key — kompak seukuran label', () => {
+    render(stubApi());
+    const badge = host.querySelector('span[role="status"]') as HTMLElement;
+    expect(badge.className.split(/\s+/)).toContain('provider-status');
+    const label = host.querySelector('label[for="apikey"]') as HTMLElement;
+    // satu wadah flex: label + badge, gap-2 (8px), wrap bila sempit (turun rapi)
+    expect(badge.parentElement).toBe(label.parentElement);
+    expect(label.parentElement!.className).toContain('flex');
+    expect(label.parentElement!.className).toContain('items-center');
+    expect(label.parentElement!.className).toContain('gap-2');
+    expect(label.parentElement!.className).toContain('flex-wrap');
+    // kompak: tanpa h-10, px-2 + py-0.5, dot 6px, tipografi sama dengan label
+    const bc = badge.className.split(/\s+/);
+    expect(bc).not.toContain('h-10');
+    expect(bc).toContain('h-auto!');
+    expect(bc).toContain('px-2');
+    expect(bc).toContain('py-0.5');
+    expect(bc).toContain('text-meta');
+    expect(bc).toContain('uppercase');
+    expect(bc).toContain('leading-none');
+    const dot = badge.querySelector('span[aria-hidden="true"]') as HTMLElement;
+    expect(dot.className.split(/\s+/)).toContain('h-1.5');
+    expect(dot.className.split(/\s+/)).toContain('w-1.5');
+    // badge TIDAK lagi di kolom tombol — kolom tombol hanya berisi tombol
+    const btn = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Tes koneksi'),
+    )!;
+    expect(btn.parentElement!.querySelector('span[role="status"]')).toBeNull();
+  });
+
+  it('keempat state badge tampil dengan warna + teks tak berubah', () => {
+    const cases = [
+      { status: 'idle', text: 'Belum dites', color: 'text-accent-text' },
+      { status: 'testing', text: 'Menguji…', color: 'text-accent-text' },
+      { status: 'ok', text: 'Aktif', color: 'text-success' },
+      { status: 'fail', text: 'Gagal', color: 'text-error' },
+    ] as const;
+    for (const c of cases) {
+      render(stubApi({ status: c.status }));
+      const badge = host.querySelector('span[role="status"]') as HTMLElement;
+      expect(badge.textContent).toContain(c.text);
+      expect(badge.className).toContain(c.color);
+    }
   });
 
   it('aria-checked mengikuti provider aktif', () => {
