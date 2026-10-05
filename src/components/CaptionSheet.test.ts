@@ -406,4 +406,16 @@ describe('CaptionSheet — baris label satu baris sejajar (Fase 2)', () => {
       expect(row.className).toContain('min-h-7');
     }
   });
+
+  it('baris label sama tinggi walau satu kolom tanpa tombol Salin (Salin tidak membesar di sentuh)', () => {
+    addFrames(1);
+    for (const forId of ['caption-category', 'caption-tema']) {
+      const row = host.querySelector(`label[for="${forId}"]`)!.parentElement!;
+      expect(row.className).toContain('min-h-7');
+    }
+    // tombol Salin memakai pola btn-compact: visual tetap h-7 walau aturan
+    // sentuh global menaikkan button biasa ke 44px
+    const salin = host.querySelector('[aria-label="Salin Kategori"]')!;
+    expect(salin.className).toContain('btn-compact');
+  });
 });

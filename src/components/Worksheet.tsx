@@ -604,18 +604,16 @@ export function Worksheet({ session, provider, batch }: {
               htmlFor="tema-batch"
               className="text-meta font-semibold uppercase tracking-[0.06em] text-text-muted"
             >
-              Tema utama <span aria-hidden="true" className="font-bold text-error">*</span>
-              <span className="sr-only">(wajib diisi)</span>
+              Tema utama
             </label>
             <input
               id="tema-batch"
               type="text"
               value={tema}
-              aria-required="true"
               aria-invalid={Boolean(batch.themeError) || undefined}
               aria-describedby={batch.themeError ? 'tema-batch-error' : undefined}
               onChange={(e) => { setTema(e.target.value); if (batch.themeError) batch.clearThemeError(); }}
-              placeholder="Ketik tema batch — 2–60 karakter, mis. pasar pagi"
+              placeholder="mis. panen raya, pasar pagi"
               className={`h-10 w-full rounded-md border bg-surface-elevated px-3 py-2 text-body text-text transition-colors duration-150 placeholder:text-text-muted hover:border-accent/60 ${batch.themeError ? 'border-error' : 'border-border-control'}`}
             />
             {batch.themeError && (
