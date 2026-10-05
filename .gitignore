@@ -48,3 +48,7 @@ opencode.json
 .impeccable/
 
 docs/AUDIT.md
+node_modules
+.next
+.env*
+*.log
