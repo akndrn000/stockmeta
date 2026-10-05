@@ -39,7 +39,7 @@ function FieldNote({ text, tone = 'ok', id }: { text: string; tone?: 'ok' | 'nea
     <span
       id={id}
       className={`shrink-0 font-mono text-meta font-bold uppercase tracking-[0.08em] tabular-nums transition-colors duration-150 ${
-        tone === 'over' ? 'text-error' : tone === 'near' ? 'text-warning' : 'text-text-muted'
+        tone === 'over' ? 'text-error' : tone === 'near' ? 'text-warning' : 'text-accent-text'
       }`}
     >
       {text}
@@ -88,7 +88,7 @@ function Field({ id, label, copyText, note, hint, disabled, children }: {
 }
 
 const selectCls =
-  'h-10 w-full appearance-none rounded-md border border-border-control bg-surface-elevated px-3 py-2 pr-8 text-body font-semibold text-text transition-colors duration-150 hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50';
+  'h-10 w-full appearance-none rounded-md border border-line bg-surface-elevated px-3 py-2 pr-8 text-body font-semibold text-text transition-colors duration-150 hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50';
 
 function SelectArrow() {
   return (
@@ -173,7 +173,7 @@ export function CaptionSheet({ session }: {
         }}
         placeholder={tema || 'ikuti tema batch'}
         disabled={!frame}
-        className="h-10 w-full rounded-md border border-border-control bg-surface-elevated px-3 py-2 text-body text-text transition-colors duration-150 placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
+        className="h-10 w-full rounded-md border border-line bg-surface-elevated px-3 py-2 text-body text-text transition-colors duration-150 placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
       />
     </Field>
   );
@@ -238,7 +238,7 @@ export function CaptionSheet({ session }: {
                 {rowsWithNotes} baris punya saran perbaikan
               </span>
             )}
-            <span className="rounded-full border border-border bg-bg-secondary px-2.5 py-1 font-mono text-meta font-bold uppercase tracking-[0.06em] text-text-secondary tabular-nums">
+            <span className="rounded-full border border-line bg-bg-secondary px-2.5 py-1 font-mono text-meta font-bold uppercase tracking-[0.06em] text-accent-text tabular-nums">
               {exportRows} baris
             </span>
           </span>
@@ -250,7 +250,7 @@ export function CaptionSheet({ session }: {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-controls="caption-body"
-        className="mb-3 flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-md border border-border bg-transparent px-2 py-1.5 text-small font-semibold text-text-secondary transition-colors duration-150 hover:border-border-control hover:bg-accent-tint hover:text-text sm:px-3 sm:py-2 sm:text-body lg:hidden"
+        className="mb-3 flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-md border border-line bg-transparent px-2 py-1.5 text-small font-semibold text-accent-text transition-colors duration-150 hover:border-line hover:bg-accent-tint hover:text-text sm:px-3 sm:py-2 sm:text-body lg:hidden"
       >
         <span className="inline-flex shrink-0 items-center gap-2">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" className={`transition-transform duration-150 ${open ? '' : '-rotate-90'}`}>
@@ -272,8 +272,8 @@ export function CaptionSheet({ session }: {
             M23: di <640px jauh lebih ramping (ikon 14, padding 16 vertikal); sm:
             mengembalikan proporsi desktop. */}
         {frames.length === 0 && (
-          <div className="flex flex-col items-center gap-1.5 rounded-lg border border-dashed border-border-strong bg-bg-secondary px-3 py-4 text-center sm:gap-2 sm:px-4 sm:py-8">
-            <span aria-hidden="true" className="grid h-8 w-8 place-items-center rounded-md border border-border bg-surface text-text-muted sm:h-10 sm:w-10">
+          <div className="flex flex-col items-center gap-1.5 rounded-md border border-dashed border-line bg-bg-secondary px-3 py-4 text-center sm:gap-2 sm:px-4 sm:py-8">
+            <span aria-hidden="true" className="grid h-8 w-8 place-items-center rounded-md border border-line bg-surface text-text-muted sm:h-10 sm:w-10">
               <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5 sm:h-[18px] sm:w-[18px]">
                 <rect x="2.5" y="4" width="15" height="12" rx="2" />
                 <path d="M2.5 12.5l3.6-3.2a1.5 1.5 0 0 1 2 0l4.4 3.9" />
@@ -281,7 +281,7 @@ export function CaptionSheet({ session }: {
                 <circle cx="7.2" cy="7.8" r="1.1" />
               </svg>
             </span>
-            <p className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-text-secondary">
+            <p className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-accent-text">
               belum ada frame
             </p>
           </div>
@@ -290,7 +290,7 @@ export function CaptionSheet({ session }: {
             ("Belum ada frame dipilih") dihapus; struktur field di bawah yang menandai
             lembar ini masih kosong (semuanya nonaktif sampai ada frame). */}
         {frame && (
-          <div className="-mx-3 -mt-3 flex items-center justify-between gap-3 border-b border-border bg-surface-elevated px-3 py-1.5 sm:-mx-4 sm:-mt-4 sm:px-4 sm:py-2">
+          <div className="-mx-3 -mt-3 flex items-center justify-between gap-3 border-b border-line bg-surface-elevated px-3 py-1.5 sm:-mx-4 sm:-mt-4 sm:px-4 sm:py-2">
             <span className="truncate text-small font-medium text-text" title={frame.name}>
               {frame.name}
             </span>
@@ -298,12 +298,12 @@ export function CaptionSheet({ session }: {
                 label netral (menunggu/proses) memakai garis putus-putus warna abu-agar
                 konsisten dengan badge provider saat idle. */}
             <span
-              className={`badge-bracket shrink-0 rounded-md border-2 px-2 py-0.5 font-mono text-meta font-bold uppercase tracking-[0.08em] transition-colors duration-150 ${
+              className={`badge-bracket shrink-0 rounded-md px-2 py-0.5 font-mono text-meta font-bold uppercase tracking-[0.08em] transition-colors duration-150 ${
                 st === 'siap'
-                  ? 'border-success text-success'
+                  ? 'border-2 border-success text-success'
                   : st === 'gagal'
-                    ? 'border-error text-error'
-                    : 'border-dashed border-border-strong text-text-secondary'
+                    ? 'border-2 border-error text-error'
+                    : 'border border-line text-accent-text'
               }`}
             >
               {STATUS_LABEL[st]}
@@ -314,7 +314,7 @@ export function CaptionSheet({ session }: {
         {/* M13: hanya pesan error — tombol & konfirmasi "Timpa hasil yang ada?" pindah
             ke ikon buat ulang di tile Worksheet (showError = ada frame + status gagal) */}
         {showError && (
-          <div role="alert" className="rounded-lg border-2 border-error bg-error-tint p-2 sm:p-3">
+          <div role="alert" className="rounded-md border-2 border-error bg-error-tint p-2 sm:p-3">
             <p className="text-small font-semibold leading-snug text-error sm:text-body">{err}</p>
           </div>
         )}
@@ -346,7 +346,7 @@ export function CaptionSheet({ session }: {
                 placeholder="A red fox running through tall grass at sunrise"
                 disabled={!frame}
                 aria-describedby="caption-title-note"
-                className="w-full resize-none rounded-md border border-border-control bg-surface-elevated px-3 py-2 text-body leading-relaxed text-text transition-colors duration-150 placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full resize-none rounded-md border border-line bg-surface-elevated px-3 py-2 text-body leading-relaxed text-text transition-colors duration-150 placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
               />
             </Field>
 
@@ -406,7 +406,7 @@ export function CaptionSheet({ session }: {
                 placeholder="A red fox running through tall grass at sunrise, warm light and motion"
                 disabled={!frame}
                 aria-describedby="caption-desc-note"
-                className="w-full resize-none rounded-md border border-border-control bg-surface-elevated px-3 py-2 text-body leading-relaxed text-text transition-colors duration-150 placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full resize-none rounded-md border border-line bg-surface-elevated px-3 py-2 text-body leading-relaxed text-text transition-colors duration-150 placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
               />
             </Field>
 
@@ -474,7 +474,7 @@ export function CaptionSheet({ session }: {
             Kotak AMBER lembut (non-pemblokir): judul & ikon warning, isi tetap teks sekunder
             supaya kontras AA di kedua mode. */}
         {blocking.length > 0 && (
-          <div role="alert" className="rounded-lg border-2 border-error bg-error-tint p-2 sm:p-3">
+          <div role="alert" className="rounded-md border-2 border-error bg-error-tint p-2 sm:p-3">
             <p className="mb-1.5 flex items-center gap-1.5 font-mono text-meta font-bold uppercase tracking-[0.08em] text-error">
               Wajib diperbaiki
             </p>
@@ -488,7 +488,7 @@ export function CaptionSheet({ session }: {
           </div>
         )}
         {suggestions.length > 0 && (
-          <div className="rounded-lg border border-warning/45 bg-warning-tint p-2 sm:p-3">
+          <div className="rounded-md border border-warning/45 bg-warning-tint p-2 sm:p-3">
             <p className="mb-1.5 flex items-center gap-1.5 font-mono text-meta font-bold uppercase tracking-[0.08em] text-warning">
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                 <path d="M6 1.6l4.6 8H1.4l4.6-8z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />

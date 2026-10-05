@@ -17,7 +17,7 @@ export function LabelRow({ id, label, right, fill }: {
     <div
       className={`flex min-h-7 flex-nowrap items-center justify-between gap-x-2 ${fill ? 'flex-1' : ''}`}
     >
-      <label htmlFor={id} className="min-w-0 flex-1 whitespace-nowrap text-meta font-semibold uppercase tracking-[0.06em] text-text-muted overflow-hidden text-ellipsis">
+      <label htmlFor={id} className="min-w-0 flex-1 whitespace-nowrap text-meta font-semibold uppercase tracking-[0.06em] text-accent-text overflow-hidden text-ellipsis">
         {label}
       </label>
       {right !== undefined && <span className="ml-auto flex shrink-0 items-center gap-1.5">{right}</span>}

@@ -26,7 +26,7 @@ export function Header({
     // <1120px: baris 1 = logo + toggle tema (kanan); baris 2 = segmented platform
     // selebar penuh, 2 kolom sama lebar, tinggi minimum 44px. Susunan baris diatur lewat
     // `order` + `w-full` responsif — satu DOM, tanpa duplikasi markup.
-    <header className="z-40 border-b border-border bg-bg-secondary/85 backdrop-blur-md min-[1120px]:sticky min-[1120px]:top-0">
+    <header className="z-40 border-b border-line bg-bg-secondary/85 backdrop-blur-md min-[1120px]:sticky min-[1120px]:top-0">
       {/* M23: disiplin mobile — baris atas lebih rapat di <640px (sm: mengembalikan
           nilai desktop); target sentuh tetap ≥44px lewat blok CSS globals. */}
       <div className="shell flex flex-wrap items-center gap-x-3 gap-y-1.5 pb-2 pt-2 sm:gap-x-4 sm:gap-y-2 sm:pb-3 sm:pt-3">
@@ -54,7 +54,7 @@ export function Header({
             role="group"
             aria-label="Platform"
             title={disabled ? 'Batch berjalan — ganti platform setelah selesai' : undefined}
-            className="grid w-full grid-cols-2 gap-1 rounded-lg border border-border bg-surface-elevated p-1 min-[1120px]:inline-flex min-[1120px]:w-auto"
+            className="grid w-full grid-cols-2 gap-1 rounded-md border border-line bg-surface-elevated p-1 min-[1120px]:inline-flex min-[1120px]:w-auto"
           >
             {PLATFORM_IDS.map((p) => (
               <button
@@ -66,7 +66,7 @@ export function Header({
                 className={`flex items-center justify-center gap-1 rounded-md px-2 py-1 text-small font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50 sm:gap-1.5 sm:px-3 sm:text-body min-[1120px]:justify-start ${
                   platform === p
                     ? 'bg-accent text-accent-contrast'
-                    : 'text-text-secondary hover:bg-accent-tint hover:text-text'
+                    : 'text-accent-text hover:bg-accent-tint hover:text-text'
                 }`}
               >
                 {PLATFORM_LABELS[p]}

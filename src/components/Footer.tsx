@@ -30,7 +30,7 @@ export function Footer() {
         </div>
 
         {/* Baris bawah: garis tipis struktural 1px, kiri hak cipta, kanan readout mono */}
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2 sm:mt-3">
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2 sm:mt-3">
           <p className="font-mono text-meta text-text-muted">© 2026 StockMeta</p>
           <p className="font-mono text-meta text-text-muted">
             diproses lokal di browser
