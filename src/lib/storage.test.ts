@@ -41,10 +41,10 @@ afterEach(() => vi.unstubAllGlobals());
 describe('API key', () => {
   it('roundtrip per provider, provider tanpa lsKey → ""', () => {
     writeKey('gemini', 'abc');
-    writeKey('coming-soon', 'x');
+    writeKey('nvidia' as 'gemini', 'x');
     expect(readKey('gemini')).toBe('abc');
     expect(readKey('groq')).toBe('');
-    expect(readKey('coming-soon')).toBe('');
+    expect(readKey('nvidia' as 'gemini')).toBe('');
   });
 
   it('groq tidak mengubah key gemini', () => {
@@ -65,8 +65,9 @@ describe('pilihan provider (M11)', () => {
     expect(readProvider()).toBe('gemini');
     writeProvider('groq');
     expect(readProvider()).toBe('groq');
-    writeProvider('coming-soon');
-    expect(readProvider()).toBe('coming-soon');
+    // nilai warisan placeholder lama ditoleransi → default
+    store.setItem('stockmeta_provider', 'coming-soon');
+    expect(readProvider()).toBeNull();
     store.setItem('stockmeta_provider', 'nvidia');
     expect(readProvider()).toBeNull();
   });

@@ -2,11 +2,7 @@
 // keyword bersumber (verifikasi deterministik), kapitalisasi judul, putuskan
 // perluasan, dan terapkan hasil Tahap D. Dipakai useBatch (total maksimal
 // 3 panggilan/frame).
-import {
-  KEYWORD_MIN_TARGET,
-  MIN_KEYWORDS_ADOBE,
-  MIN_KEYWORDS_SHUTTER
-} from './limits';
+import { KEYWORD_MIN_TARGET } from './limits';
 import {
   cleanAiTitle,
   normalizeLegacyKeywords,
@@ -16,10 +12,6 @@ import {
 } from './keywordGroups';
 import type { ParsedMetadata } from './prompt';
 import type { Platform } from './types';
-
-export function minKeywords(platform: Platform): number {
-  return platform === 'adobe' ? MIN_KEYWORDS_ADOBE : MIN_KEYWORDS_SHUTTER;
-}
 
 export interface FinalizeResult {
   meta: ParsedMetadata;

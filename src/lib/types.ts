@@ -2,7 +2,7 @@
 
 export type Platform = "adobe" | "shutterstock";
 
-export type ProviderId = "gemini" | "groq" | "openrouter" | "coming-soon";
+export type ProviderId = "gemini" | "groq" | "openrouter";
 
 export type ConnectionStatus = "idle" | "testing" | "ok" | "fail";
 

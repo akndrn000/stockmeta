@@ -143,23 +143,29 @@ describe('useProvider — auto-test key tersimpan (M19)', () => {
     expect(localStorage.getItem('stockmeta_gemini_key')).toBe('baru-diketik');
   });
 
-  it('Coming Soon tidak pernah dites', async () => {
+  it('semua provider nyata bisa dites (tak ada placeholder yang dilewati)', async () => {
+    localStorage.setItem('stockmeta_groq_key', 'k-groq');
+    localStorage.setItem('stockmeta_gemini_key', 'k-gemini');
+    localStorage.setItem('stockmeta_openrouter_key', 'k-openrouter');
     await mount();
-    await act(async () => { api().setProvider('coming-soon'); });
-    await flush();
-    expect(api().status).toBe('idle');
-    await act(async () => { await api().test(); });
-    expect(testConnection).not.toHaveBeenCalled();
+    for (const p of ['groq', 'gemini', 'openrouter'] as const) {
+      await act(async () => { api().setProvider(p); });
+      await flush();
+      expect(api().provider).toBe(p);
+      expect(api().status).toBe('ok');
+    }
+    expect(testConnection).toHaveBeenCalledTimes(4);   // 1 boot + 3 ganti provider
+    expect(testConnection).toHaveBeenLastCalledWith('k-openrouter');
   });
 });
 
 describe('useProvider — daftar provider (M19)', () => {
-  it('urutan: Groq, Gemini, OpenRouter, Coming Soon', () => {
-    expect(PROVIDER_ORDER).toEqual(['groq', 'gemini', 'openrouter', 'coming-soon']);
+  it('urutan: Groq, Gemini, OpenRouter', () => {
+    expect(PROVIDER_ORDER).toEqual(['groq', 'gemini', 'openrouter']);
   });
 
   it('label OpenRouter ikut terdaftar', () => {
     expect(PROVIDER_LABELS.openrouter).toBe('OpenRouter');
-    expect(PROVIDER_LABELS).toHaveProperty('coming-soon', 'Coming Soon');
+    expect(Object.keys(PROVIDER_LABELS).sort()).toEqual(['gemini', 'groq', 'openrouter']);
   });
 });

@@ -61,7 +61,7 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
 
   // wajib tes dulu; model provider tetap (satu model per provider) sehingga tak perlu dicek
   function providerReady(): boolean {
-    return !provider.isSoon && provider.status === 'ok';
+    return provider.status === 'ok';
   }
 
   /** Fase 1: tolak generate bila ada tema efektif tak valid — kembalikan pesan atau null bila lolos. */

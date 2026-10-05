@@ -10,28 +10,24 @@ import { getProvider } from '../lib/providers';
 import { readKey, readProvider, writeKey, writeProvider } from '../lib/storage';
 import type { ConnectionStatus, ProviderId } from '../lib/types';
 
-export const SOON_NOTE = 'Provider tambahan akan segera hadir';
-
 // M11: Groq jadi provider utama — hanya dipakai saat belum ada pilihan tersimpan di localStorage
 export const DEFAULT_PROVIDER: ProviderId = 'groq';
 
 export const KEY_NOTES: Record<ProviderId, string> = {
   gemini: 'Gemini: key disimpan di browser setelah tes berhasil (stockmeta_gemini_key).',
   groq: 'Groq: key disimpan di browser setelah tes berhasil (stockmeta_groq_key).',
-  openrouter: 'OpenRouter: key disimpan di browser setelah tes berhasil (stockmeta_openrouter_key).',
-  'coming-soon': SOON_NOTE
+  openrouter: 'OpenRouter: key disimpan di browser setelah tes berhasil (stockmeta_openrouter_key).'
 };
 
 export const PROVIDER_LABELS: Record<ProviderId, string> = {
   gemini: 'Gemini',
   groq: 'Groq',
-  openrouter: 'OpenRouter',
-  'coming-soon': 'Coming Soon'
+  openrouter: 'OpenRouter'
 };
 
-// Urutan dropdown (M11): Groq sebagai provider utama lebih dulu, lalu Gemini;
-// M19: OpenRouter diselipkan sebagai cadangan sebelum Coming Soon.
-export const PROVIDER_ORDER: readonly ProviderId[] = ['groq', 'gemini', 'openrouter', 'coming-soon'];
+// Urutan provider (M11): Groq sebagai provider utama lebih dulu, lalu Gemini;
+// M19: OpenRouter sebagai cadangan.
+export const PROVIDER_ORDER: readonly ProviderId[] = ['groq', 'gemini', 'openrouter'];
 
 export const STATUS_LABELS: Record<ConnectionStatus, string> = {
   idle: 'Belum dites',
@@ -43,8 +39,7 @@ export const STATUS_LABELS: Record<ConnectionStatus, string> = {
 const TESTING_NOTES: Record<ProviderId, string> = {
   gemini: 'Memanggil endpoint Gemini…',
   groq: 'Memanggil endpoint Groq…',
-  openrouter: 'Memanggil endpoint OpenRouter…',
-  'coming-soon': SOON_NOTE
+  openrouter: 'Memanggil endpoint OpenRouter…'
 };
 
 const OK_NOTE = 'Terhubung — API key disimpan di browser.';
@@ -67,7 +62,7 @@ export function useProvider() {
   // M19: satu jalur tes dipakai tombol manual, boot, dan ganti provider supaya status
   // 'Menguji…' → 'Aktif'/'Gagal' selalu berlaku sama. testingRef menolak tes beruntun.
   async function runTest(p: ProviderId, rawKey: string) {
-    if (p === 'coming-soon' || testingRef.current) return;
+    if (testingRef.current) return;
     const k = rawKey.trim();
     testingRef.current = true;
     setStatusState('testing');
@@ -75,7 +70,7 @@ export function useProvider() {
     try {
       if (!k) { setStatusState('fail'); setNoteState(EMPTY_NOTE); return; }
       const adapter = getProvider(p);
-      if (!adapter) { setStatusState('fail'); setNoteState(SOON_NOTE); return; }
+      if (!adapter) { setStatusState('fail'); setNoteState('Provider tidak tersedia.'); return; }
       const res = await adapter.testConnection(k);
       if (res.ok) {
         writeKey(p, k);                      // hanya setelah tes lulus
@@ -136,7 +131,6 @@ export function useProvider() {
     key,
     status,
     note: note ?? KEY_NOTES[provider],
-    isSoon: provider === 'coming-soon',
     setProvider,
     setKey,
     test

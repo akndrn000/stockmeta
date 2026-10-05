@@ -364,3 +364,54 @@ Playwright/proses latar/jaringan — verifikasi tampilan manual oleh user.
 - Token: tak ada biaya gambar baru; panggilan teks tetap ≤ 3/frame.
 - Model yang mengabaikan `standalone`/frasa akan kehilangan kata baik
   (terbuang deterministik) — perluasan + validasi saran menandai kolam tipis.
+
+## Cleanup — hapus file dan kode mati (tanpa perubahan perilaku)
+Baseline sebelum cleanup: lint 0, typecheck 0, test 26 file / 326 tes, build
+sukses; branch `chore/cleanup` dari tree bersih. Setiap batch diverifikasi
+penuh; tidak ada yang perlu dipulihkan.
+- File `"ponsif menyeluruh 18 kombinasi, ... breakpoint?"` (3,9 KB, `git rm`):
+  draf pesan commit yang ke-commit tidak sengaja di M27 (isinya diffstat,
+  nol referensi di kode/dokumen).
+- `minKeywords()` di `src/lib/finalize.ts`: fungsi tak dirujuk siapa pun
+  (sisa refactor batas minimum); batas dipakai langsung dari `limits.ts`.
+- `export` pada `textForPlatform()` di `src/lib/englishRetry.ts`: fungsi tetap
+  ada dan dipakai internal; hanya kata kunci `export` yang mati yang dibuang.
+- `THEME_CONCEPT_MIN` di `src/lib/limits.ts`: konstanta tak dirujuk produksi
+  maupun tes (batas atas `THEME_CONCEPT_MAX` tetap dipakai).
+- Setelah hapus: lint 0, typecheck 0, test 26 file / 326 tes (tetap),
+  build sukses. Tidak ada tes yang dihapus (tak ada tes menguji kode mati).
+
+## Cleanup 2 — gambar bukti audit, placeholder Coming Soon, kontrol provider
+Baseline: lint 0, typecheck 0, test 26 file / 326 tes, build sukses (lanjutan
+branch `chore/cleanup`). Tiga tugas berurutan, verifikasi penuh tiap tugas.
+
+### Tugas 1 — gambar bukti audit di docs/ (23 file via `git rm`)
+- `docs/screenshot.png` + seluruh `docs/screenshots-mobile/` (22 PNG bukti
+  M21–M27). Yang dipertahankan: `banner.svg`, `screenshot-dark.png`,
+  `screenshot-light.png` (dirujuk README) — `hero.png`/`screenshots-m29/`
+  tidak ada di repo. Penyebutan path lama di `docs/MIGRATION.md` adalah teks
+  riwayat (disengaja) + satu baris catatan di awal file itu.
+- Setelah hapus: lint/typecheck/test (326)/build lolos; nol rujukan di src.
+
+### Tugas 2 — hapus placeholder "Coming Soon"
+- Dihapus: `'coming-soon'` dari `ProviderId`, `SOON_NOTE`, entri label/catatan,
+  `isSoon` (hook + `Worksheet` + `useBatch` + panel), `disabled` opsi select,
+  badge "segera", nilai di `registry`/`readProvider` (warisan → null/default).
+  Tersisa tiga provider (Groq, Gemini, OpenRouter); urutan/ID tak berubah.
+- Tes: `useProvider.test.ts` ("tak pernah dites" → semua-bisa-dites;
+  order/label tanpa coming-soon), `storage.test.ts` (nilai warisan → null).
+  Guard `FALLBACK_ORDER not.toContain('coming-soon')` tetap lolos.
+
+### Tugas 3 — provider jadi tiga tombol radiogroup (bukan dropdown)
+- `ProviderPanel.tsx`: SATU `role="radiogroup"` (`aria-label="Provider"`,
+  grid 3 kolom sama lebar, satu baris, `min-h-11`, `text-xs sm:text-small` +
+  ellipsis, segmen aktif aksen) untuk semua lebar; `<select>` + kelas
+  `lg:hidden`/`max-lg:hidden` + panah SVG dihapus. Panah kiri/kanan +
+  roving tabindex; fokus via `:focus-visible` global. Fallback checkbox dan
+  baris API key tak berubah.
+- Tes baru `ProviderPanel.test.ts` (7 tes): tanpa `<select>`, 3 radio,
+  `aria-checked`, klik, panah (wrap), disabled saat batch/testing, checkbox
+  fallback, kelas grid tanpa sembunyi-per-breakpoint.
+- Setelah tugas 2+3: lint 0, typecheck 0, test 27 file / 333 tes
+  (326 − 1 tes placeholder yang dihapus + 1 pengganti + 7 tes panel baru),
+  build sukses.
