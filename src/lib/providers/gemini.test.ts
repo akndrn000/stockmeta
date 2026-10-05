@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { gemini } from './gemini';
-import { GEMINI_FULL_MODEL, GEMINI_MODEL } from './models';
+import { GEMINI_MODEL } from './models';
 
 const fetchMock = vi.fn();
 
@@ -79,6 +79,20 @@ describe('gemini.generateForImage', () => {
     expect(url.indexOf('RAHASIA')).toBeGreaterThan(url.indexOf('key='));
   });
 
+  it('M33 Tahap D: promptOverride dipakai + gambar Tahap A tetap dikirim', async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes({ candidates: [{ content: { parts: [{ text: '{"remove":["puppy"]}' }] } }] }));
+    const out = await gemini.generateForImage({
+      ...genArgs,
+      promptOverride: 'Hapus kata yang salah'
+    });
+    expect(out.stageRemove).toEqual(['puppy']);
+    const body = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
+    expect(body.contents[0].parts).toEqual([
+      { text: 'Hapus kata yang salah' },
+      { inline_data: { mime_type: 'image/jpeg', data: 'QUFBQQ==' } }
+    ]);
+  });
+
   it('429 RESOURCE_EXHAUSTED (kuota harian) → TIDAK di-retry, pesan jelas Indonesia', async () => {
     fetchMock.mockResolvedValueOnce(jsonRes({
       error: {
@@ -99,15 +113,5 @@ describe('gemini.generateForImage', () => {
       .mockResolvedValueOnce(jsonRes({ candidates: [{ content: { parts: [{ text: '{"keywords":[]}' }] } }] }));
     await gemini.generateForImage(genArgs);
     expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
-});
-
-describe('gemini.analyzeImage', () => {
-  it('memakai model non-lite (bukan varian -lite) untuk penalaran analisis', async () => {
-    fetchMock.mockResolvedValueOnce(jsonRes({ candidates: [{ content: { parts: [{ text: '{"verdict":"layak","issues":[],"summary":"OK"}' }] } }] }));
-    await gemini.analyzeImage({ apiKey: 'RAHASIA', image: genArgs.image, platform: 'adobe' });
-    const [url] = fetchMock.mock.calls[0] as [string];
-    expect(url).toContain('/models/' + GEMINI_FULL_MODEL + ':generateContent');
-    expect(url).not.toContain('-lite');
   });
 });

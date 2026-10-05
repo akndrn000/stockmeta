@@ -6,7 +6,6 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MISSING_FILE_MSG } from '../lib/batch';
 import { fileStore } from '../lib/fileStore';
-import { blankObservation } from '../lib/observation';
 import { registry } from '../lib/providers';
 import { gemini } from '../lib/providers/gemini';
 import { groq } from '../lib/providers/groq';
@@ -14,7 +13,7 @@ import type { ProviderAdapter } from '../lib/providers/types';
 import type { ParsedMetadata } from '../lib/prompt';
 import type { WaitInfo } from '../lib/providers/retry';
 import type { Frame } from '../lib/types';
-import { ALL_DONE_MSG, LIMIT_TIP_MSG, NEED_ANALYSIS_MSG, NEED_TEST_MSG, useBatch } from './useBatch';
+import { ALL_DONE_MSG, LIMIT_TIP_MSG, NEED_TEST_MSG, useBatch } from './useBatch';
 import { useProvider } from './useProvider';
 import { useSession } from './useSession';
 
@@ -29,36 +28,20 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 type Step = { meta?: ParsedMetadata; err?: Error; pending?: boolean; wait?: WaitInfo };
 let script: Step[] = [];
 let calls = 0;
+let seenArgs: { retryNote?: string; languageFix?: boolean; promptOverride?: string }[] = [];
+
+// M32: respons palsu memakai 30 keyword satu kata Inggris (tanpa perluasan)
+// supaya tes mekanik batch tidak tercampur perilaku retry.
+const KW30 = ['fox', 'wolf', 'coyote', 'jackal', 'eagle', 'hawk', 'owl', 'deer',
+  'bear', 'trees', 'leaves', 'acorn', 'trail', 'pond', 'fur', 'wood', 'stone',
+  'stripes', 'circle', 'calm', 'cheerful', 'red', 'orange', 'poster', 'banner',
+  'vintage', 'morning', 'sunrise', 'forest', 'river'];
 
 const fakeAdapter: ProviderAdapter = {
   id: 'gemini',
-  label: 'Gemini',
-  supportsVision: true,
   testConnection: async () => ({ ok: true }),
-  // Pipeline A-D: observasi selalu sukses; Tahap B memakai skrip yang sama seperti
-  // generateForImage dulu (kategori valid disuntik agar tanpa retry kategori);
-  // grounding selalu kosong (diuji khusus di pipeline.test.ts).
-  observeImage: async () => blankObservation(),
-  callText: async (args) => {
-    if (args.prompt.includes('Periksa setiap keyword')) return '{"unsupported": []}';
-    const step = script[Math.min(calls, Math.max(script.length - 1, 0))] ?? {};
-    calls++;
-    if (step.wait) args.onWait?.(step.wait);
-    if (step.pending) {
-      return new Promise<string>((_res, rej) => {
-        args.signal?.addEventListener('abort', () => rej(new Error('Dibatalkan')), { once: true });
-      });
-    }
-    if (step.err) throw step.err;
-    const fallbackCat = args.prompt.includes('SHUTTERSTOCK') ? 'Animals/Wildlife' : 'Animals';
-    return JSON.stringify({ category: fallbackCat, ...(step.meta ?? {}) });
-  },
-  callJudge: async () => ({
-    verdict: 'pass', score: 100, checks: [], unsupported_metadata: [], ip_risks: [],
-    category_ok: true, suggested_category: null, needs_editorial_or_release: false, confidence: 1
-  }),
-  analyzeImage: async () => ({ verdict: 'layak', issues: [], summary: '' }),
   generateForImage: async (args) => {
+    seenArgs.push(args);
     const step = script[Math.min(calls, Math.max(script.length - 1, 0))] ?? {};
     calls++;
     if (step.wait) args.onWait?.(step.wait);
@@ -98,20 +81,17 @@ const blank = (name: string): Omit<Frame, 'id'> => ({
   tema: '',
   status: { adobe: 'menunggu', shutterstock: 'menunggu' },
   error: { adobe: '', shutterstock: '' },
-  metadata: {},
-  // M29: frame tes dianggap sudah dianalisis supaya lolos gerbang metadata
-  // (kasus belum-dianalisis diuji eksplisit di describe gerbang)
-  analysisStatus: { adobe: 'siap', shutterstock: 'siap' }
+  metadata: {}
 });
 
 const flush = () => act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 
 beforeEach(() => {
   localStorage.clear();
-  localStorage.setItem('stockmeta_strict_verify', '0'); // mekanik batch; grounding di pipeline.test.ts
   fileStore.clear();
   script = [];
   calls = 0;
+  seenArgs = [];
   registry.gemini = fakeAdapter;
   registry.groq = fakeAdapter;                    // default provider kini Groq (M11)
   host = document.createElement('div');
@@ -137,7 +117,10 @@ function addFrames(n: number) {
 }
 
 async function ready() {
-  act(() => api().p.setKey('kunci-rahasia'));
+  act(() => {
+    api().p.setKey('kunci-rahasia');
+    api().s.setTema('Valid Theme');
+  });
   await act(async () => { await api().p.test(); });
   expect(api().p.status).toBe('ok');
 }
@@ -151,14 +134,14 @@ describe('useBatch — startBatch', () => {
       api().s.failFrame(1, 'adobe', 'HTTP 500');
       api().s.applyGenerated(1, 'shutterstock', { description: 'deskripsi lama' });
     });
-    script = [{ meta: { title: 'baru' } }];
+    script = [{ meta: { title: 'baru', keywords: [...KW30] } }];
 
     act(() => api().b.startBatch());
     await flush();
 
     expect(calls).toBe(2);                                   // frame siap dilewati
     expect(api().s.frames[0].metadata.adobe?.title).toBe('sudah jadi');
-    expect(api().s.frames[1].metadata.adobe).toEqual({ title: 'baru', keywords: [], category: 'Animals' });
+    expect(api().s.frames[1].metadata.adobe).toEqual({ title: 'Baru', keywords: KW30, category: '' });
     expect(api().s.frames[1].status.adobe).toBe('siap');
     expect(api().s.frames[2].status.adobe).toBe('siap');
     expect(api().s.frames[1].metadata.shutterstock?.description).toBe('deskripsi lama'); // tak tersentuh
@@ -198,7 +181,7 @@ describe('useBatch — startBatch', () => {
       api().s.failFrame(0, 'adobe', 'Batas kuota tercapai (429)');
       api().s.setNote(0, 'Menunggu limit reset (percobaan 2/5, ~15 dtk)');
     });
-    script = [{ meta: { title: 'judul baru', keywords: ['kopi'] } }];
+    script = [{ meta: { title: 'judul baru', keywords: [...KW30] } }];
 
     act(() => api().b.startBatch());
     await flush();
@@ -206,7 +189,7 @@ describe('useBatch — startBatch', () => {
     const f = api().s.frames[0];
     expect(f.status.adobe).toBe('siap');
     expect(f.error.adobe).toBe('');
-    expect(f.metadata.adobe).toEqual({ title: 'judul baru', keywords: ['kopi'], category: 'Animals' });
+    expect(f.metadata.adobe).toEqual({ title: 'Judul baru', keywords: KW30, category: '' });
     expect(api().s.notes[0]).toBeUndefined();
   });
 
@@ -215,7 +198,7 @@ describe('useBatch — startBatch', () => {
     await ready();
     script = [
       { err: new Error('Batas kuota tercapai (429)') },
-      { meta: { title: 'oke' } }
+      { meta: { title: 'oke', keywords: [...KW30] } }
     ];
 
     act(() => api().b.startBatch());
@@ -232,7 +215,7 @@ describe('useBatch — startBatch', () => {
     addFrames(2);
     await ready();
     fileStore.delete(1);
-    script = [{ meta: { title: 'isi' } }];        // adapter palsu harus mengisi slot → status siap
+    script = [{ meta: { title: 'isi', keywords: [...KW30] } }];        // adapter palsu harus mengisi slot → status siap
 
     act(() => api().b.startBatch());
     await flush();
@@ -307,7 +290,7 @@ describe('useBatch — generate ulang satu frame', () => {
     addFrames(1);
     await ready();
     act(() => api().s.applyGenerated(0, 'adobe', { title: 'isi lama' }));
-    script = [{ meta: { title: 'hasil baru' } }];
+    script = [{ meta: { title: 'hasil baru', keywords: [...KW30] } }];
 
     act(() => api().b.regenerateFrame(0));
     await flush();
@@ -319,7 +302,7 @@ describe('useBatch — generate ulang satu frame', () => {
     await flush();
     expect(api().b.regenConfirm).toBeNull();
     expect(calls).toBe(1);
-    expect(api().s.frames[0].metadata.adobe?.title).toBe('hasil baru');
+    expect(api().s.frames[0].metadata.adobe?.title).toBe('Hasil baru');
     expect(api().s.frames[0].status.adobe).toBe('siap');
   });
 
@@ -338,14 +321,14 @@ describe('useBatch — generate ulang satu frame', () => {
   it('slot kosong → langsung jalan tanpa konfirmasi, hanya satu frame itu', async () => {
     addFrames(2);
     await ready();
-    script = [{ meta: { title: 'hanya ini' } }];
+    script = [{ meta: { title: 'only this frame', keywords: [...KW30] } }];
 
     act(() => api().b.regenerateFrame(1));
     await flush();
 
     expect(api().b.regenConfirm).toBeNull();
     expect(calls).toBe(1);
-    expect(api().s.frames[1].metadata.adobe?.title).toBe('hanya ini');
+    expect(api().s.frames[1].metadata.adobe?.title).toBe('Only this frame');
     expect(api().s.frames[0].status.adobe).toBe('menunggu');
   });
 });
@@ -358,7 +341,7 @@ describe('useBatch — buat ulang semua (M11)', () => {
       api().s.applyGenerated(0, 'adobe', { title: 'isi lama' });
       api().s.applyGenerated(1, 'adobe', { title: 'isi lama 2' });
     });
-    script = [{ meta: { title: 'baru 1' } }, { meta: { title: 'baru 2' } }];
+    script = [{ meta: { title: 'baru 1', keywords: [...KW30] } }, { meta: { title: 'baru 2', keywords: [...KW30] } }];
 
     act(() => api().b.regenerateAll());
     await flush();
@@ -370,8 +353,8 @@ describe('useBatch — buat ulang semua (M11)', () => {
     await flush();
     expect(api().b.regenAllConfirm).toBeNull();
     expect(calls).toBe(2);                            // frame 'siap' pun ikut diproses
-    expect(api().s.frames[0].metadata.adobe?.title).toBe('baru 1');
-    expect(api().s.frames[1].metadata.adobe?.title).toBe('baru 2');
+    expect(api().s.frames[0].metadata.adobe?.title).toBe('Baru 1');
+    expect(api().s.frames[1].metadata.adobe?.title).toBe('Baru 2');
   });
 
   it('konfirmasi bisa dibatalkan lewat dismissRegenAll', async () => {
@@ -388,7 +371,7 @@ describe('useBatch — buat ulang semua (M11)', () => {
     addFrames(2);
     await ready();
     fileStore.delete(1);
-    script = [{ meta: { title: 'tetap jalan' } }];
+    script = [{ meta: { title: 'tetap jalan', keywords: [...KW30] } }];
 
     act(() => api().b.regenerateAll());
     await flush();
@@ -411,81 +394,178 @@ describe('useBatch — buat ulang semua (M11)', () => {
   });
 });
 
-describe('useBatch — gerbang analisis (M29)', () => {
-  const LAYAK = { verdict: 'layak' as const, issues: [], summary: 'OK' };
-
-  it('startBatch: frame tanpa analisis-siap dilewati + pesan jelas, slot tak diubah', async () => {
+describe('useBatch — tema wajib (Fase 1)', () => {
+  it('tema efektif kosong → startBatch ditolak tanpa panggilan, pesan + themeError jelas', async () => {
     addFrames(2);
     await ready();
-    act(() => {
-      // frame 0 sudah dianalisis (blank() siap), frame 1 belum → hapus statusnya
-      api().s.updateFrame(1, { analysisStatus: {} });
-    });
-    script = [{ meta: { title: 'baru' } }];
-
-    act(() => api().b.startBatch());
-    await flush();
-
-    expect(calls).toBe(1);   // hanya frame 0 yang dijalankan
-    expect(api().s.frames[0].status.adobe).toBe('siap');
-    expect(api().s.frames[1].status.adobe).toBe('gagal');
-    expect(api().s.frames[1].error.adobe).toBe(NEED_ANALYSIS_MSG);
-    expect(api().s.frames[1].metadata.adobe).toBeUndefined();   // slot tak tersentuh
-  });
-
-  it('startBatch: semua belum dianalisis → notice, tanpa panggilan', async () => {
-    addFrames(1);
-    await ready();
-    act(() => api().s.updateFrame(0, { analysisStatus: {} }));
+    act(() => api().s.setTema(''));   // kosongkan lagi setelah ready
+    script = [{ meta: { title: 'x' } }];
 
     act(() => api().b.startBatch());
     await flush();
 
     expect(calls).toBe(0);
-    expect(api().b.notice).toBe(NEED_ANALYSIS_MSG);
-    expect(api().s.frames[0].error.adobe).toBe(NEED_ANALYSIS_MSG);
+    expect(api().b.notice).toContain('Tema utama wajib diisi');
+    expect(api().b.themeError).toContain('Tema utama wajib diisi');
+    expect(api().s.frames[0].status.adobe).toBe('menunggu');
   });
 
-  it('regenerateFrame tanpa analisis → ditolak + pesan, tanpa panggilan', async () => {
+  it('override per frame dipakai — batch valid menutupi frame kosong, override tak valid menolak', async () => {
+    addFrames(2);
+    await ready();
+    act(() => {
+      api().s.setTema('Valid Theme');
+      api().s.setFrameTema(0, 'x');   // 1 karakter → tak valid walau batch valid
+    });
+    script = [{ meta: { title: 'Frame result', keywords: [...KW30] } }];
+
+    act(() => api().b.regenerateFrame(0));
+    await flush();
+    expect(calls).toBe(0);
+    expect(api().b.notice).toContain('minimal 2 karakter');
+
+    act(() => {
+      api().s.setFrameTema(0, '');    // kosongkan override → ikut batch yang valid
+      api().s.setFrameTema(1, 'Frame Theme');
+    });
+    act(() => api().b.regenerateFrame(1));
+    await flush();
+    expect(calls).toBe(1);
+  });
+
+  it('regenerateAll ditolak bila satu frame pun tak valid', async () => {
+    addFrames(2);
+    await ready();
+    act(() => api().s.setTema(''));
+    act(() => api().b.regenerateAll());
+    await flush();
+    expect(api().b.regenAllConfirm).toBeNull();
+    expect(calls).toBe(0);
+    expect(api().b.notice).toContain('Tema utama wajib diisi');
+  });
+});
+
+describe('useBatch - perluasan keyword M32', () => {
+  const POOR_OBS = { objects: ['fox', 'ears'], materials: ['fur'], usages: ['banner'], colors: [] as string[], media_type: 'photo' };
+  const poor = (): ParsedMetadata => ({
+    title: 'A fox rests',
+    sourcedKeywords: [
+      { k: 'fox', src: 'visible' },
+      { k: 'ears', src: 'visible' },
+      { k: 'fur', src: 'attribute' },
+      { k: 'banner', src: 'usage' }
+    ],
+    observation: POOR_OBS
+  });
+  const rich = (): ParsedMetadata => ({
+    title: 'A fox rests among trees',
+    sourcedKeywords: KW30.slice(0, 30).map((k) => ({ k, src: 'visible' as const })),
+    observation: { objects: [...KW30], media_type: 'photo' }
+  });
+
+  it('kolam miskin -> satu putaran perluasan dengan daftar + faset, total 2 panggilan', async () => {
     addFrames(1);
     await ready();
-    act(() => api().s.updateFrame(0, { analysisStatus: {} }));
-    script = [{ meta: { title: 'baru' } }];
+    script = [{ meta: poor() }, { meta: rich() }];
 
     act(() => api().b.regenerateFrame(0));
     await flush();
 
-    expect(calls).toBe(0);
-    expect(api().s.frames[0].error.adobe).toBe(NEED_ANALYSIS_MSG);
+    expect(calls).toBe(2);
+    expect(seenArgs[1].retryNote).toContain('fox');
+    expect(seenArgs[1].retryNote).toContain('Faset yang belum terwakili');
+    expect(api().s.frames[0].metadata.adobe?.keywords).toHaveLength(30);
   });
 
-  it('regenerateAll tanpa satu pun analisis-siap → notice, konfirmasi tidak dipancing', async () => {
+  it('tetap miskin setelah perluasan -> Tahap D jalan dalam anggaran, disimpan apa adanya', async () => {
     addFrames(1);
     await ready();
-    act(() => api().s.updateFrame(0, { analysisStatus: {} }));
+    script = [{ meta: poor() }];
 
-    act(() => api().b.regenerateAll());
+    act(() => api().b.regenerateFrame(0));
     await flush();
 
-    expect(api().b.regenAllConfirm).toBeNull();
-    expect(api().b.notice).toBe(NEED_ANALYSIS_MSG);
-    expect(calls).toBe(0);
+    // perluasan (2) + Tahap D (3, usage = berisiko): total tetap <= 3
+    expect(calls).toBe(3);
+    expect(seenArgs[2].promptOverride).toContain('"remove"');
+    expect(api().s.frames[0].metadata.adobe?.keywords).toEqual(['fox', 'ears', 'fur', 'banner']);
   });
 
-  it('setelah dianalisis, gerbang terbuka — generate jalan normal', async () => {
+  it('Indonesia + miskin -> bahasa dulu lalu perluasan, total tidak lebih dari 3', async () => {
     addFrames(1);
     await ready();
-    act(() => {
-      api().s.updateFrame(0, { analysisStatus: {} });
-      api().s.applyAnalysis(0, 'adobe', LAYAK);
-    });
-    script = [{ meta: { title: 'baru' } }];
+    const indonesian = (): ParsedMetadata => ({ ...poor(), title: 'Seorang pria dengan topi di pasar' });
+    script = [{ meta: indonesian() }, { meta: poor() }, { meta: rich() }];
 
-    act(() => api().b.startBatch());
+    act(() => api().b.regenerateFrame(0));
     await flush();
 
-    expect(calls).toBe(1);
-    expect(api().s.frames[0].status.adobe).toBe('siap');
-    expect(api().s.frames[0].metadata.adobe?.title).toBe('baru');
+    expect(calls).toBeLessThanOrEqual(3);
+    expect(calls).toBe(3);
+    expect(seenArgs[1].languageFix).toBe(true);
+    expect(api().s.frames[0].metadata.adobe?.keywords).toHaveLength(30);
   });
 });
+
+describe('useBatch - Tahap D verifikasi M33', () => {
+  it('kaya berisiko -> Tahap D menghapus yang salah, total 2 panggilan', async () => {
+    const OBS = {
+      objects: ['cat'],
+      parts: ['wings', 'collar', 'stars', 'moon', 'branch', 'trunk'],
+      patterns: ['stripes'],
+      materials: ['wood', 'fur', 'stone'],
+      shapes: ['circle'],
+      styles: ['cartoon'],
+      moods: ['cute', 'playful'],
+      usages: ['sticker', 'banner', 'wallpaper', 'merchandise'],
+      colors: ['orange'],
+      media_type: 'vector illustration'
+    };
+    const dirty = (): ParsedMetadata => ({
+      title: 'Orange cat with bat wings in soft light',
+      themeCanonical: 'Halloween',
+      themeFit: true,
+      themeEvidence: 'costume ears in frame',
+      observation: OBS,
+      sourcedKeywords: [
+        { k: 'cat', src: 'visible' }, { k: 'wings', src: 'visible' },
+        { k: 'stars', src: 'visible' }, { k: 'moon', src: 'visible' },
+        { k: 'collar', src: 'visible' }, { k: 'branch', src: 'visible' },
+        { k: 'trunk', src: 'visible' },
+        { k: 'kitten', src: 'synonym', of: 'cat', rel: 'synonym' },
+        { k: 'feline', src: 'synonym', of: 'cat', rel: 'parent' },
+        { k: 'puppy', src: 'synonym', of: 'cat', rel: 'synonym' },
+        { k: 'cartoon', src: 'attribute' }, { k: 'cute', src: 'attribute' },
+        { k: 'stripes', src: 'attribute' }, { k: 'wood', src: 'attribute' },
+        { k: 'circle', src: 'attribute' }, { k: 'fur', src: 'attribute' },
+        { k: 'stone', src: 'attribute' }, { k: 'playful', src: 'attribute' },
+        { k: 'halloween', src: 'theme', kind: 'event' },
+        { k: 'celebration', src: 'theme', kind: 'event' },
+        { k: 'party', src: 'theme', kind: 'activity' },
+        { k: 'october', src: 'theme', kind: 'season' },
+        { k: 'holiday', src: 'theme', kind: 'event' },
+        { k: 'spooky', src: 'theme', kind: 'mood' },
+        { k: 'ghost', src: 'theme', kind: 'event' },
+        { k: 'sticker', src: 'usage' }, { k: 'banner', src: 'usage' },
+        { k: 'wallpaper', src: 'usage' }, { k: 'merchandise', src: 'usage' },
+        { k: 'orange', src: 'attribute' }
+      ]
+    });
+    addFrames(1);
+    await ready();
+    script = [{ meta: dirty() }, { meta: { stageRemove: ['puppy', 'ghost'] } }];
+
+    act(() => api().b.regenerateFrame(0));
+    await flush();
+
+    expect(calls).toBe(2);
+    expect(seenArgs[1].promptOverride).toContain('remove');
+    const kws = api().s.frames[0].metadata.adobe?.keywords ?? [];
+    expect(kws).toHaveLength(28);
+    expect(kws).not.toContain('puppy');
+    expect(kws).not.toContain('ghost');
+    expect(kws[0]).toBe('cat');
+    expect(kws.slice(0, 5)).toContain('halloween');
+  });
+});
+

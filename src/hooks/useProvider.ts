@@ -5,48 +5,33 @@
 // membuktikan koneksi hidup, bukan klaim basi dari sesi sebelumnya; jika key provider tujuan
 // tersimpan, field ikut diisi key itu (yang tampil = yang dites), kalau tidak ada key tersimpan
 // isi field dipertahankan seperti legacy.
-// Pilihan provider dipisah per mode (analisis vs metadata): hook menerima activeMode opsional.
-// Tanpa mode (pemanggil lama) perilaku identik seperti sebelumnya — satu kunci umum
-// `stockmeta_provider`, default Groq. Dengan mode, pilihan dibaca/ditulis ke kunci khusus
-// mode (`stockmeta_provider_analisis` / `stockmeta_provider_metadata`); kunci lama hanya
-// dipakai sebagai migrasi untuk user lama. API key TETAP satu per provider.
 import { useEffect, useRef, useState } from 'react';
 import { getProvider } from '../lib/providers';
-import {
-  readKey,
-  readProvider,
-  readProviderForMode,
-  writeKey,
-  writeProvider,
-  writeProviderForMode
-} from '../lib/storage';
-import type { AppMode, ConnectionStatus, ProviderId } from '../lib/types';
+import { readKey, readProvider, writeKey, writeProvider } from '../lib/storage';
+import type { ConnectionStatus, ProviderId } from '../lib/types';
 
-// M11: Groq jadi provider utama Mode Metadata — hanya dipakai saat belum ada pilihan
-// tersimpan di localStorage. Mode Analisis default ke Gemini (model vision gratis paling
-// kuat untuk penalaran saat ini). Berlaku hanya untuk user BARU (tanpa pilihan tersimpan);
-// pilihan user lama (kunci umum) selalu dihormati di kedua mode.
+export const SOON_NOTE = 'Provider tambahan akan segera hadir';
+
+// M11: Groq jadi provider utama — hanya dipakai saat belum ada pilihan tersimpan di localStorage
 export const DEFAULT_PROVIDER: ProviderId = 'groq';
-export const DEFAULT_ANALYSIS_PROVIDER: ProviderId = 'gemini';
-
-function defaultForMode(mode: AppMode | undefined): ProviderId {
-  return mode === 'analisis' ? DEFAULT_ANALYSIS_PROVIDER : DEFAULT_PROVIDER;
-}
 
 export const KEY_NOTES: Record<ProviderId, string> = {
   gemini: 'Gemini: key disimpan di browser setelah tes berhasil (stockmeta_gemini_key).',
   groq: 'Groq: key disimpan di browser setelah tes berhasil (stockmeta_groq_key).',
-  openrouter: 'OpenRouter: key disimpan di browser setelah tes berhasil (stockmeta_openrouter_key).'
+  openrouter: 'OpenRouter: key disimpan di browser setelah tes berhasil (stockmeta_openrouter_key).',
+  'coming-soon': SOON_NOTE
 };
 
 export const PROVIDER_LABELS: Record<ProviderId, string> = {
   gemini: 'Gemini',
   groq: 'Groq',
-  openrouter: 'OpenRouter'
+  openrouter: 'OpenRouter',
+  'coming-soon': 'Coming Soon'
 };
 
-// Urutan dropdown: Groq → Gemini → OpenRouter — ketiganya live, tanpa placeholder.
-export const PROVIDER_ORDER: readonly ProviderId[] = ['groq', 'gemini', 'openrouter'];
+// Urutan dropdown (M11): Groq sebagai provider utama lebih dulu, lalu Gemini;
+// M19: OpenRouter diselipkan sebagai cadangan sebelum Coming Soon.
+export const PROVIDER_ORDER: readonly ProviderId[] = ['groq', 'gemini', 'openrouter', 'coming-soon'];
 
 export const STATUS_LABELS: Record<ConnectionStatus, string> = {
   idle: 'Belum dites',
@@ -58,7 +43,8 @@ export const STATUS_LABELS: Record<ConnectionStatus, string> = {
 const TESTING_NOTES: Record<ProviderId, string> = {
   gemini: 'Memanggil endpoint Gemini…',
   groq: 'Memanggil endpoint Groq…',
-  openrouter: 'Memanggil endpoint OpenRouter…'
+  openrouter: 'Memanggil endpoint OpenRouter…',
+  'coming-soon': SOON_NOTE
 };
 
 const OK_NOTE = 'Terhubung — API key disimpan di browser.';
@@ -71,14 +57,8 @@ export interface ProviderState {
   note: string;          // pesan terakhir; fallback = catatan default provider
 }
 
-/** Pilihan tersimpan untuk mode ini: kunci khusus mode dulu, lalu kunci umum (migrasi user lama). */
-function storedForMode(mode: AppMode | undefined): ProviderId | null {
-  if (!mode) return readProvider();
-  return readProviderForMode(mode) ?? readProvider();
-}
-
-export function useProvider(activeMode?: AppMode) {
-  const [provider, setProviderState] = useState<ProviderId>(() => defaultForMode(activeMode));
+export function useProvider() {
+  const [provider, setProviderState] = useState<ProviderId>(DEFAULT_PROVIDER);
   const [key, setKeyState] = useState('');
   const [status, setStatusState] = useState<ConnectionStatus>('idle');
   const [note, setNoteState] = useState<string | null>(null);
@@ -87,7 +67,7 @@ export function useProvider(activeMode?: AppMode) {
   // M19: satu jalur tes dipakai tombol manual, boot, dan ganti provider supaya status
   // 'Menguji…' → 'Aktif'/'Gagal' selalu berlaku sama. testingRef menolak tes beruntun.
   async function runTest(p: ProviderId, rawKey: string) {
-    if (testingRef.current) return;
+    if (p === 'coming-soon' || testingRef.current) return;
     const k = rawKey.trim();
     testingRef.current = true;
     setStatusState('testing');
@@ -95,7 +75,7 @@ export function useProvider(activeMode?: AppMode) {
     try {
       if (!k) { setStatusState('fail'); setNoteState(EMPTY_NOTE); return; }
       const adapter = getProvider(p);
-      if (!adapter) { setStatusState('fail'); setNoteState('Provider tidak tersedia.'); return; }
+      if (!adapter) { setStatusState('fail'); setNoteState(SOON_NOTE); return; }
       const res = await adapter.testConnection(k);
       if (res.ok) {
         writeKey(p, k);                      // hanya setelah tes lulus
@@ -113,26 +93,23 @@ export function useProvider(activeMode?: AppMode) {
     }
   }
 
-  // boot + pindah mode: pulihkan pilihan tersimpan untuk mode aktif (migrasi: kunci umum
-  // user lama), isi field key dari storage, lalu M19: key tersimpan langsung dites ulang —
-  // status awal 'Menguji…' → 'Aktif'/'Gagal', bukan 'Belum dites' basi.
-  // Sinkronisasi setelah mount / setiap ganti mode supaya nilai awal = default saat
-  // hydration (localStorage tidak ada di server).
+  // boot: pulihkan pilihan provider tersimpan (M11 — kalau belum pernah memilih → Groq),
+  // isi field key dari storage (legacy loadStoredKey), lalu M19: key tersimpan langsung
+  // dites ulang — status awal 'Menguji…' → 'Aktif'/'Gagal', bukan 'Belum dites' basi.
+  // Sinkronisasi satu kali setelah mount supaya nilai awal = '' saat hydration (localStorage
+  // tidak ada di server); efek ini tidak pernah berulang sehingga tidak ada cascading render.
   useEffect(() => {
-    const saved = storedForMode(activeMode) ?? defaultForMode(activeMode);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- restore dari localStorage / ganti mode
+    const saved = readProvider() ?? DEFAULT_PROVIDER;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- restore sekali dari localStorage
     setProviderState(saved);
-    setStatusState('idle');
-    setNoteState(null);
     const stored = readKey(saved).trim();
-    setKeyState(stored);
+    setKeyState((prev) => (prev.trim() ? prev : stored));
     if (stored) void runTest(saved, stored);
-  }, [activeMode]);
+  }, []);
 
   function setProvider(p: ProviderId) {
     if (testingRef.current) return;           // legacy: abaikan saat sedang menguji
-    if (activeMode) writeProviderForMode(activeMode, p);  // pilihan khusus mode ini
-    else writeProvider(p);                    // legacy: kunci umum
+    writeProvider(p);                          // M11: pilihan dihormati di kunjungan berikutnya
     setProviderState(p);
     setStatusState('idle');
     setNoteState(null);
@@ -159,7 +136,7 @@ export function useProvider(activeMode?: AppMode) {
     key,
     status,
     note: note ?? KEY_NOTES[provider],
-    activeMode,
+    isSoon: provider === 'coming-soon',
     setProvider,
     setKey,
     test

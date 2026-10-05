@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { PROVIDER_LABELS, PROVIDER_ORDER, STATUS_LABELS } from '../hooks/useProvider';
 import type { useProvider } from '../hooks/useProvider';
 import { readFallback, writeFallback } from '../lib/storage';
-import type { AppMode, ProviderId } from '../lib/types';
+import type { ProviderId } from '../lib/types';
 
 type ProviderApi = ReturnType<typeof useProvider>;
 
@@ -13,19 +13,15 @@ type ProviderApi = ReturnType<typeof useProvider>;
 const LIMIT_TIP: Record<ProviderId, string> = {
   groq: 'Limit gratis Groq ketat (8.000 token/menit).',
   gemini: 'Kuota gratis Gemini longgar (Flash-Lite); 429 harian → lanjutkan besok.',
-  openrouter: 'Free tier OpenRouter ±20 request/hari tanpa isi saldo — cadangan, bukan andalan.'
+  openrouter: 'Free tier OpenRouter ±20 request/hari — cadangan, bukan andalan.',
+  'coming-soon': 'Provider tambahan akan segera hadir.'
 };
 
 // Label field: kecil, tegas, uppercase — dipakai identik di seluruh halaman.
 const LABEL =
   'text-meta font-semibold uppercase tracking-[0.06em] text-text-muted';
 
-const MODE_LABEL: Record<AppMode, string> = {
-  analisis: 'Analisis',
-  metadata: 'Metadata'
-};
-
-export function ProviderPanel({ api, busy, mode }: { api: ProviderApi; busy?: boolean; mode?: AppMode }) {
+export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean }) {
   const [showKey, setShowKey] = useState(false);
   // toggle fallback antar provider (default aktif); direstore setelah mount hindari mismatch SSR
   const [fallback, setFallback] = useState(true);
@@ -53,7 +49,7 @@ export function ProviderPanel({ api, busy, mode }: { api: ProviderApi; busy?: bo
         <div className="flex flex-col gap-2 min-[1120px]:flex-row min-[1120px]:items-end min-[1120px]:gap-4 sm:gap-3">
           {/* M23: di bawah lg provider berupa <select> native tunggal (pola yang sama
               seperti slot/kategori di Worksheet/CaptionSheet) — jauh lebih ringkas
-              vertikal daripada grid. ≥1024px (lg:) grid segmented seperti semula;
+              vertikal daripada grid 2×2. ≥1024px (lg:) grid segmented seperti semula;
               ambang lg dipilih supaya rentang desktop 1024–1119px tidak berubah sama
               sekali. Satu DOM dipilih per breakpoint (hidden), perilaku & teks sama.
               M26: satu baris label dipakai bersama select & grid — "PROVIDER" +
@@ -64,7 +60,7 @@ export function ProviderPanel({ api, busy, mode }: { api: ProviderApi; busy?: bo
           >
             <span className="flex items-center gap-2">
               <span id="provider-label" className={LABEL}>
-                Provider{mode ? ` — ${MODE_LABEL[mode]}` : ''}
+                Provider
               </span>
               {/* Checkbox fallback TANPA teks (M26) — nama aksesibel via aria-label,
                   fungsi + limit ringkas via title. M27: area sentuh 40×40 tanpa
@@ -98,7 +94,7 @@ export function ProviderPanel({ api, busy, mode }: { api: ProviderApi; busy?: bo
                 className="h-10 w-full appearance-none rounded border border-border-control bg-surface-elevated px-3 py-2 pr-8 text-body font-semibold text-text transition-colors duration-150 hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {PROVIDER_ORDER.map((p) => (
-                  <option key={p} value={p}>
+                  <option key={p} value={p} disabled={p === 'coming-soon'}>
                     {PROVIDER_LABELS[p]}
                   </option>
                 ))}
@@ -120,31 +116,41 @@ export function ProviderPanel({ api, busy, mode }: { api: ProviderApi; busy?: bo
                 />
               </svg>
             </div>
-            {/* Provider — segmented control (bukan dropdown): pelat aktif isian aksen.
-                3 segmen — 3 kolom di 1024–1119px; ≥1120px jadi inline-flex.
+            {/* Provider — segmented control (bukan dropdown): pelat aktif isian aksen,
+                opsi "Coming Soon" tampil redup + badge kecil + cursor not-allowed.
+                M19: 4 segmen — 2 kolom × 2 baris di 1024–1119px (teks "OpenRouter" muat
+                tanpa meluber); ≥1120px jadi inline-flex. M23: `max-lg:hidden` (bukan
+                `hidden lg:grid`) agar cascade ≥1024px persis seperti semula.
                 M26: label dipakai bersama dengan select di atas (satu #provider-label). */}
             <div
               role="group"
               aria-labelledby="provider-label"
-              className="grid w-full grid-cols-3 gap-1 rounded-lg border border-border bg-surface-elevated p-1 max-lg:hidden min-[1120px]:inline-flex min-[1120px]:w-fit"
+              className="grid w-full grid-cols-2 gap-1 rounded-lg border border-border bg-surface-elevated p-1 max-lg:hidden min-[1120px]:inline-flex min-[1120px]:w-fit"
             >
               {PROVIDER_ORDER.map((p) => (
                 <button
                   key={p}
                   type="button"
                   aria-pressed={api.provider === p}
-                  disabled={testing || busy}
+                  disabled={testing || busy || p === 'coming-soon'}
                   onClick={() => api.setProvider(p)}
                   className={`inline-flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-1 text-small font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50 min-[1120px]:justify-start min-[1120px]:px-3 ${
                     api.provider === p
                       ? 'bg-accent text-accent-contrast'
-                      : 'text-text-secondary hover:bg-accent-tint hover:text-text'
+                      : p === 'coming-soon'
+                        ? 'text-text-muted'
+                        : 'text-text-secondary hover:bg-accent-tint hover:text-text'
                   }`}
                 >
                   {/* teks boleh wrap (HP) — jangan truncate */}
                   <span className="min-w-0 text-center leading-tight min-[1120px]:text-left">
                     {PROVIDER_LABELS[p]}
                   </span>
+                  {p === 'coming-soon' && (
+                    <span className="hidden rounded-full border border-current px-1.5 py-px font-mono text-meta font-bold uppercase tracking-[0.06em] opacity-80 min-[1120px]:inline">
+                      segera
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -161,7 +167,10 @@ export function ProviderPanel({ api, busy, mode }: { api: ProviderApi; busy?: bo
                 type={showKey ? 'text' : 'password'}
                 value={api.key}
                 onChange={(e) => api.setKey(e.target.value)}
-                placeholder="tempel API key di sini"
+                disabled={api.isSoon}
+                placeholder={
+                  api.isSoon ? 'Belum tersedia' : 'tempel API key di sini'
+                }
                 autoComplete="off"
                 spellCheck={false}
                 autoCapitalize="none"
@@ -170,6 +179,7 @@ export function ProviderPanel({ api, busy, mode }: { api: ProviderApi; busy?: bo
               <button
                 type="button"
                 onClick={() => setShowKey((v) => !v)}
+                disabled={api.isSoon}
                 aria-label={showKey ? 'Sembunyikan API key' : 'Tampilkan API key'}
                 title={showKey ? 'Sembunyikan API key' : 'Tampilkan API key'}
                 className="absolute inset-y-0 right-0 grid w-10 place-items-center rounded-r-md text-text-muted transition-colors duration-150 hover:text-accent-text disabled:cursor-not-allowed disabled:opacity-50"
@@ -217,7 +227,7 @@ export function ProviderPanel({ api, busy, mode }: { api: ProviderApi; busy?: bo
             <button
               type="button"
               onClick={api.test}
-              disabled={testing || busy}
+              disabled={api.isSoon || testing || busy}
               aria-busy={testing}
               className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-border-control bg-surface px-3 text-small font-semibold text-text transition-colors duration-150 hover:border-accent/70 hover:bg-accent-tint hover:text-text disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-border-control disabled:hover:bg-surface disabled:hover:text-text sm:px-4 sm:text-body min-[1120px]:w-auto"
             >

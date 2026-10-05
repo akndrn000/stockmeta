@@ -1,15 +1,8 @@
 // Tipe inti domain StockMeta — satu-satunya sumber bentuk data lintas modul (lihat legacy/js/*.js).
-import type { CombinedBadge, ConsensusResult } from './judge';
-import type { Observation } from './observation';
-import type { CropFinding } from './quality/cropInspect';
-import type { QualityMetrics } from './quality/metrics';
-import type { AdobeAssessment, ShutterstockAssessment } from './outcome';
-import type { JudgeOutput } from './providers/types';
-import type { AdobeActual, ShutterstockActual } from './calibration';
 
 export type Platform = "adobe" | "shutterstock";
 
-export type ProviderId = "gemini" | "groq" | "openrouter";
+export type ProviderId = "gemini" | "groq" | "openrouter" | "coming-soon";
 
 export type ConnectionStatus = "idle" | "testing" | "ok" | "fail";
 
@@ -21,6 +14,8 @@ export interface AdobeMetadata {
   category: string;
   /** M11: true kalau kategori diisi otomatis oleh sistem (bukan pilihan user) → tampil saran periksa */
   categoryAuto?: boolean;
+  /** Fase 4: tema tidak cocok dengan gambar (non-pemblokir, dari theme_fit model). */
+  themeMismatch?: boolean;
 }
 
 export interface ShutterstockMetadata {
@@ -29,6 +24,8 @@ export interface ShutterstockMetadata {
   categories: string[];
   /** sama dengan AdobeMetadata.categoryAuto */
   categoryAuto?: boolean;
+  /** Fase 4: tema tidak cocok dengan gambar (non-pemblokir). */
+  themeMismatch?: boolean;
 }
 
 export interface MetadataByPlatform {
@@ -52,81 +49,4 @@ export interface Frame {
   status: Record<Platform, FrameStatus>;   // mengikuti slot platform aktif; default 'menunggu'
   error: Record<Platform, string>;         // pesan gagal per platform
   metadata: MetadataSlots;
-  // M29 (Mode Analisis): hasil + status/error analisis per platform — pola sama seperti
-  // metadata/status/error di atas (per platform, tidak saling menimpa). Opsional supaya
-  // sesi lama yang di-restore tetap terbaca (undefined = belum pernah dianalisis).
-  analysis?: Partial<Record<Platform, AnalysisResult>>;
-  analysisStatus?: Partial<Record<Platform, FrameStatus>>;
-  analysisError?: Partial<Record<Platform, string>>;
-  // Pipeline A-D: observation vision 1x per frame (platform-independen, di-cache di sesi).
-  observation?: Observation;
-  // Nama file di portal (default = nama file upload; dipakai apa adanya di CSV).
-  portalName?: string;
-  // Toggle Shutterstock per frame (default mati).
-  illustration?: boolean;
-  editorial?: boolean;
-  // Cache juri kepatuhan per platform — invalid otomatis bila hash metadata berubah.
-  judge?: Partial<Record<Platform, JudgeCacheEntry>>;
-  // Risiko penolakan (ESTIMASI): metrik deterministik piksel asli + outcome per platform.
-  quality?: QualityMetrics;
-  riskAdobe?: AdobeAssessment;
-  riskShutterstock?: ShutterstockAssessment;
-  // Similarity batch: id anggota klaster (termasuk diri), true bila kandidat terbaik.
-  similarGroup?: string[];
-  similarBest?: boolean;
-  // Kejenuhan konsep (AI, subjektif — bukan data koleksi platform).
-  conceptSaturated?: boolean;
-  conceptNote?: string;
-  // Inspeksi crop detail (ringkas; "tidak tersedia" bila provider tanpa vision).
-  cropFindings?: CropFinding[];
-  cropNote?: string;
-  // Hasil sebenarnya (kalibrasi, opsional) + tahan dari ekspor CSV.
-  actualAdobe?: AdobeActual;
-  actualShutterstock?: ShutterstockActual;
-  held?: boolean;
-}
-
-export interface JudgeEntry {
-  provider: ProviderId;
-  output: JudgeOutput;
-  withoutImage: boolean;
-}
-
-export interface JudgeCacheEntry {
-  /** hash slot metadata saat dinilai — beda hash = cache basi */
-  hash: string;
-  badge: CombinedBadge;
-  consensus: ConsensusResult;
-  judges: JudgeEntry[];
-  at: number;
-}
-
-// M29 — Mode Analisis (berdampingan dengan Mode Metadata, bukan pengganti).
-
-/** Mode aplikasi: 'analisis' = nilai kelayakan upload, 'metadata' = buat metadata (default). */
-export type AppMode = 'analisis' | 'metadata';
-
-/** Hasil penilaian kelayakan upload satu frame untuk satu platform. */
-export type AnalysisVerdict = 'layak' | 'berpotensi-ditolak' | 'perlu-tinjau';
-
-export type AnalysisIssueCategory =
-  | 'kualitas-gambar'
-  | 'konten-serupa'
-  | 'watermark-logo'
-  | 'hak-cipta-merek'
-  | 'properti-model-release'
-  |   'komposisi'
-  | 'nilai-komersial'
-  | 'ai-generated-disclosure'
-  | 'lainnya';
-
-export interface AnalysisIssue {
-  category: AnalysisIssueCategory;
-  description: string;
-}
-
-export interface AnalysisResult {
-  verdict: AnalysisVerdict;
-  issues: AnalysisIssue[];
-  summary: string;
 }

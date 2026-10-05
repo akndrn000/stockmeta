@@ -1,16 +1,46 @@
 // Kategori resmi + fuzzy match — port setia dari legacy/js/categories.js.
-// Daftar & nomor kini dari platform-rules.ts (satu sumber kebenaran); nama tampilan
-// Adobe memakai "Landscapes" (CSV memakai angka 11 — perbedaan nama bukan celah).
-import { ADOBE_CATEGORIES as ADOBE_ENTRIES, adobeNumberByLabel, SHUTTERSTOCK_CATEGORIES as SS_ENTRIES } from './platform-rules';
 import type { Platform } from './types';
 
-export const ADOBE_CATEGORIES = ADOBE_ENTRIES.map((c) => c.label);
+export const ADOBE_CATEGORIES = ['Animals', 'Buildings and Architecture', 'Business', 'Drinks',
+  'The Environment', 'States of Mind', 'Food', 'Graphic Resources', 'Hobbies and Leisure',
+  'Industry', 'Landscape', 'Lifestyle', 'People', 'Plants and Flowers', 'Culture and Religion',
+  'Science', 'Social Issues', 'Sports', 'Technology', 'Transport', 'Travel'] as const;
 
 // Nomor kategori untuk kolom Category di CSV Adobe (bukan nama).
 // Urutan nomor mengikuti daftar resmi Adobe; verifikasi dengan impor CSV uji ke portal Adobe.
-export const ADOBE_CATEGORY_IDS: Record<string, number> = adobeNumberByLabel();
+export const ADOBE_CATEGORY_IDS: Record<string, number> = {
+  Animals: 1,
+  'Buildings and Architecture': 2,
+  Business: 3,
+  Drinks: 4,
+  'The Environment': 5,
+  'States of Mind': 6,
+  Food: 7,
+  'Graphic Resources': 8,
+  'Hobbies and Leisure': 9,
+  Industry: 10,
+  Landscape: 11,
+  Lifestyle: 12,
+  People: 13,
+  'Plants and Flowers': 14,
+  'Culture and Religion': 15,
+  Science: 16,
+  'Social Issues': 17,
+  Sports: 18,
+  Technology: 19,
+  Transport: 20,
+  Travel: 21
+};
 
-export const SHUTTERSTOCK_CATEGORIES = SS_ENTRIES.map((c) => c.label);
+export const SHUTTERSTOCK_CATEGORIES = ['Abstract', 'Animals/Wildlife', 'Arts', 'Backgrounds/Textures',
+  'Beauty/Fashion', 'Buildings/Landmarks', 'Business/Finance', 'Celebrities', 'Education',
+  'Food and Drink', 'Healthcare/Medical', 'Holidays', 'Industrial', 'Interiors', 'Miscellaneous',
+  'Nature', 'Objects', 'Parks/Outdoor', 'People', 'Religion', 'Science', 'Signs/Symbols',
+  'Sports/Recreation', 'Technology', 'Transportation', 'Vintage'] as const;
+
+// Shutterstock wajib punya TEPAT dua kategori berbeda (Fase 1) — SATU sumber angka untuk
+// prompt, parser, validasi, dan teks UI. Jangan tulis literal 2 di copy/logika lain.
+export const SS_CATEGORIES_REQUIRED = 2;
 
 export function getCategories(platform: Platform): readonly string[] {
   return platform === 'adobe' ? ADOBE_CATEGORIES : SHUTTERSTOCK_CATEGORIES;

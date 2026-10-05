@@ -5,7 +5,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fileStore } from '../lib/fileStore';
 import { defaultMetadata, hasContent, mergeGenerated } from '../lib/metadata';
-import type { AnalysisResult } from '../lib/types';
 import type { ParsedMetadata } from '../lib/prompt';
 import { loadSession, removeSession, saveSession } from '../lib/storage';
 import type { Frame, FrameStatus, MetadataFor, MetadataSlots, Platform } from '../lib/types';
@@ -177,7 +176,8 @@ export function useSession() {
   }
 
   // Aksi M8 — frame gagal: pesan error asli untuk platform itu; slot metadata tidak diubah.
-  function failFrame(id: number, platform: Platform, message: string) {    const cur = mirror.current;
+  function failFrame(id: number, platform: Platform, message: string) {
+    const cur = mirror.current;
     let hit = false;
     const frames = cur.frames.map((f) => {
       if (f.id !== id) return f;
@@ -186,113 +186,6 @@ export function useSession() {
       return { ...f, status: { ...f.status, [platform]: status }, error: { ...f.error, [platform]: message } };
     });
     if (!hit) return;
-    commit({ ...cur, frames }, true);
-  }
-
-  // Pipeline A-D: simpan observation vision ke cache sesi (platform-independen).
-  function applyObservation(id: number, observation: Frame['observation']) {
-    const cur = mirror.current;
-    const frames = cur.frames.map((f) => (f.id === id ? { ...f, observation } : f));
-    commit({ ...cur, frames }, true);
-  }
-
-  // "Analisis ulang gambar": hapus cache observation (Tahap A dipanggil lagi).
-  function clearObservation(id: number) {
-    const cur = mirror.current;
-    const frames = cur.frames.map((f) => {
-      if (f.id !== id) return f;
-      const next = { ...f };
-      delete next.observation;
-      return next;
-    });
-    commit({ ...cur, frames }, true);
-  }
-
-  // Nama file di portal (default = nama upload); toggle Shutterstock per frame.
-  function setPortalName(id: number, portalName: string) {
-    const cur = mirror.current;
-    const frames = cur.frames.map((f) => (f.id === id ? { ...f, portalName } : f));
-    commit({ ...cur, frames }, false);
-  }
-
-  function setFrameFlags(id: number, patch: Pick<Frame, 'illustration' | 'editorial'>) {
-    const cur = mirror.current;
-    const frames = cur.frames.map((f) => (f.id === id ? { ...f, ...patch } : f));
-    commit({ ...cur, frames }, true);
-  }
-
-  // Cache juri kepatuhan per platform (hash metadata ikut tersimpan).
-  function applyJudge(id: number, platform: Platform, entry: NonNullable<Frame['judge']>[Platform]) {
-    const cur = mirror.current;
-    const frames = cur.frames.map((f) => (
-      f.id === id ? { ...f, judge: { ...f.judge, [platform]: entry } } : f
-    ));
-    commit({ ...cur, frames }, true);
-  }
-
-  function clearJudge(id: number, platform: Platform) {
-    const cur = mirror.current;
-    const frames = cur.frames.map((f) => {
-      if (f.id !== id || !f.judge?.[platform]) return f;
-      const judge = { ...f.judge };
-      delete judge[platform];
-      return { ...f, judge };
-    });
-    commit({ ...cur, frames }, true);
-  }
-
-  // Aksi M29 — hasil analisis masuk: selalu ada verdict → analysisStatus 'siap';
-  // error analisis dibersihkan; persist langsung (sama seperti applyGenerated).
-  function applyAnalysis(id: number, platform: Platform, result: AnalysisResult) {
-    const cur = mirror.current;
-    let hit = false;
-    const frames = cur.frames.map((f) => {
-      if (f.id !== id) return f;
-      hit = true;
-      return {
-        ...f,
-        analysisStatus: { ...f.analysisStatus, [platform]: 'siap' as FrameStatus },
-        analysisError: { ...f.analysisError, [platform]: '' },
-        analysis: { ...f.analysis, [platform]: result }
-      };
-    });
-    if (!hit) return;
-    commit({ ...cur, frames }, true);
-  }
-
-  // Aksi M29 — analisis gagal: pesan error asli untuk platform itu; slot analisis tidak diubah.
-  function failAnalysis(id: number, platform: Platform, message: string) {
-    const cur = mirror.current;
-    let hit = false;
-    const frames = cur.frames.map((f) => {
-      if (f.id !== id) return f;
-      hit = true;
-      return {
-        ...f,
-        analysisStatus: { ...f.analysisStatus, [platform]: 'gagal' as FrameStatus },
-        analysisError: { ...f.analysisError, [platform]: message }
-      };
-    });
-    if (!hit) return;
-    commit({ ...cur, frames }, true);
-  }
-
-  // Risiko penolakan (ESTIMASI): metrik + outcome + similarity + crop + konsep.
-  function applyRisk(id: number, patch: Partial<Frame>) {
-    const cur = mirror.current;
-    const frames = cur.frames.map((f) => (f.id === id ? { ...f, ...patch } : f));
-    commit({ ...cur, frames }, true);
-  }
-
-  function setActual(id: number, patch: Pick<Frame, 'actualAdobe' | 'actualShutterstock'>) {
-    const cur = mirror.current;
-    const frames = cur.frames.map((f) => (f.id === id ? { ...f, ...patch } : f));
-    commit({ ...cur, frames }, true);
-  }
-
-  function setHeld(id: number, held: boolean) {
-    const cur = mirror.current;
-    const frames = cur.frames.map((f) => (f.id === id ? { ...f, held } : f));
     commit({ ...cur, frames }, true);
   }
 
@@ -312,9 +205,7 @@ export function useSession() {
 
   return {
     ...state, notes, setPlatform, select, addFrame, removeFrame, updateFrame,
-    updateMetadata, setFrameTema, applyGenerated, failFrame, applyAnalysis, failAnalysis,
-    applyObservation, clearObservation, setPortalName, setFrameFlags,
-    applyJudge, clearJudge, applyRisk, setActual, setHeld,
-    snapshot, setNote, setTema, newSession
+    updateMetadata, setFrameTema, applyGenerated, failFrame, snapshot,
+    setNote, setTema, newSession
   };
 }

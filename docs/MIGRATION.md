@@ -1030,174 +1030,6 @@ Font <12px untuk teks bermakna: **NOL** (lantai `text-meta` 12px via clamp terbu
   `npm run build` sukses. Berkas diubah: `ThemeToggle.tsx`, `ProviderPanel.tsx`
   (logika `src/lib`/hooks **tidak disentuh**).
 
-<<<<<<< HEAD
-=======
-## Perbaikan pasca-M27 (M28) — koreksi FINAL batas deskripsi Shutterstock, bukan tahap migrasi baru
-
-Sumber: **SCREENSHOT LANGSUNG dari form upload Shutterstock sungguhan** (sumber paling
-akurat — mengalahkan semua artikel web): field Description bertuliskan
-**maksimal 2048 karakter, minimal 5 kata**.
-
-> **JANGAN ubah angka ini lagi tanpa bukti sekuat screenshot form asli.**
-> Riwayat salah: batas deskripsi Shutterstock sempat salah **2 kali** — awalnya memakai
-> **200** (M11 bonus "±200 karakter", M13 penghitung `n/200`, M18 `n/200` di baris label),
-> lalu sempat disebut **150** (komentar lama `validate.ts` soal "editor Portfolio") —
-> **keduanya SALAH** dan kini dikoreksi total ke **2048**. (Angka 70 yang kadang
-> disebut-sebut adalah batas *judul Adobe*, bukan deskripsi Shutterstock — jangan
-> dicampuradukkan.)
-
-| Sebelum (salah) | Sesudah (M28, screenshot form asli) | File |
-| --- | --- | --- |
-| `MAX_DESCRIPTION = 200` | `MAX_DESCRIPTION = 2048` | `src/lib/limits.ts` |
-| Prompt: "minimal 5 kata dan maksimal sekitar 200 karakter" | "satu-dua kalimat deskriptif alami minimal 5 kata dan maksimal 2048 karakter (BUKAN daftar kata — jangan bertele-tele/spam hanya karena batasnya longgar)" | `src/lib/prompt.ts` |
-| Parser: deskripsi mentah model dipotong `slice(0, 500)` | dipotong `slice(0, MAX_DESCRIPTION)` (= 2048) | `src/lib/prompt.ts` |
-| Komentar "ambang 200 … editor 150 … penanda praktis" | komentar M28: 2048 dari screenshot, 200/150 salah | `src/lib/validate.ts` |
-| UI: penghitung `n/200`, hint "Tulis kalimat deskriptif utuh …" | penghitung `n/2048`, **tanpa** hint statis (minimal 5 kata tetap divalidasi via "Saran perbaikan"); label "Kategori tambahan (opsional)" → "Kategori tambahan" | `src/components/CaptionSheet.tsx` |
-| Tes: `/200`, `> 200 karakter` (string pendek `repeat(6)`) | `/2048`, `> 2048 karakter` (string `repeat(40)` agar benar-benar > 2048), + regresi parser 2048 & saran min-5-kata tanpa hint | `prompt.test.ts`, `validate.test.ts`, `CaptionSheet.test.ts` |
-
-- Validasi minimal **5 KATA** (dihitung per kata via `countWords`, bukan karakter) tidak
-  berubah — tetap saran non-pemblokir, terpisah dari batas maksimal karakter.
-- Bagian historis M11/M13/M18 di dokumen ini **sengaja tidak ditulis ulang** (catatan
-  masa lalu); yang berlaku kini hanya angka M28 ini + kontrak CaptionSheet di bawah.
-- Verifikasi: `npm run test`, `npx tsc --noEmit`, `npm run lint`, `npm run build` — lolos.
-
-## Perbaikan pasca-M28 (M29) — Mode Analisis, bukan tahap migrasi baru
-
-> **Catatan penomoran**: brief awal meminta label "M28 — Mode Analisis", tetapi M28 sudah
-> dipakai koreksi 2048 di atas — fitur ini dicatat sebagai **M29** agar tidak tabrakan.
-
-Fitur besar pertama di luar migrasi: **Mode Analisis** berdampingan dengan **Mode Metadata**.
-Aturan keras: **logika Mode Metadata tidak berubah** — upload, generate, edit, salin,
-export CSV berfungsi identik saat mode metadata aktif; M29 hanya MENAMBAH.
-
-- **Alur**: Analisis dulu (Mode Analisis → `Jalankan Analisis`) → baru generate metadata
-  (Mode Metadata → `Buat metadata`). Generate metadata BARU digerbang: frame yang
-  `analysisStatus` platform aktifnya bukan `siap` DILEWATI dengan pesan
-  `Jalankan Analisis dulu di Mode Analisis` (status metadata jadi `gagal` + pesan itu,
-  isi slot TIDAK diubah). Data lama tetap boleh diedit manual — gerbang hanya berlaku
-  saat MEMULAI generate, bukan mengunci data yang sudah ada.
-- **Mode** (`AppMode = 'analisis' | 'metadata'`, default metadata) disimpan page.tsx,
-  persist `localStorage` kunci `stockmeta_mode` (`readMode`/`writeMode` di `storage.ts`).
-
-| Baru / ubah | Isi | File |
-| --- | --- | --- |
-| Tipe: `AppMode`, `AnalysisVerdict` (`layak`/`berpotensi-ditolak`/`perlu-tinjau`), `AnalysisIssueCategory` (8 kategori), `AnalysisIssue`, `AnalysisResult`, `Frame.analysis` / `analysisStatus` / `analysisError` (slot per platform, opsional — sesi lama tetap terbaca) | `src/lib/types.ts` |
-| `buildAnalysisPrompt({platform})` — AI sebagai REVIEWER kelayakan upload (kriteria: kualitas teknis, konten generik→`perlu-tinjau`, watermark/logo/merek, properti/model-release disebut eksplisit, komposisi, nilai komersial; larangan mengarang masalah) + `parseAnalysisResponse` (fence-strip, verdict/kategori tak dikenal → error kind `json` supaya di-retry) | `src/lib/analysisPrompt.ts` (**baru**) |
-| `ProviderAdapter.analyzeImage` + `AnalyzeArgs` (tanpa theme; `model?` diterima tapi diabaikan — satu model per provider) | `src/lib/providers/types.ts` |
-| HTTP tidak diduplikasi: tiap provider mengekstrak helper `postChat` internal (endpoint/retry/error mapping identik), `generateForImage` & `analyzeImage` hanya beda prompt + parser | `gemini.ts`, `groq.ts`, `openrouter.ts` |
-| `analyzeWithFallback` — mesin fallback generik yang sama (`withFallback<T>`) | `src/lib/providers/fallback.ts` |
-| `runBatch<T = ParsedMetadata>` generik (jalur metadata memakai default → perilaku identik) | `src/lib/batch.ts` |
-| `applyAnalysis` / `failAnalysis` (cermin `applyGenerated`/`failFrame`) | `src/hooks/useSession.ts` |
-| `useAnalysisBatch` (**baru**, cermin `useBatch`): `startAnalysis` (hanya analysisStatus menunggu/gagal), jeda via `readBatchDelay`, retry sabar, progress, cancel, `regenerateAnalysisFrame` + konfirmasi | `src/hooks/useAnalysisBatch.ts` |
-| Gerbang di `startBatch`/`regenerateAll`/`regenerateFrame` (`NEED_ANALYSIS_MSG`) | `src/hooks/useBatch.ts` |
-| `ModeToggle` (**baru**, segmented Analisis/Metadata segaya toggle platform, di Header, terkunci saat batch jalan) | `src/components/ModeToggle.tsx` |
-| `AnalysisPanel` (**baru**, pengganti CaptionSheet saat mode analisis): badge verdict besar (warna + ikon + teks, tak hanya warna), daftar issues (label kategori Indonesia + deskripsi), ringkasan, state `Belum dianalisis`/gagal/kosong; `id="lembar-caption"` dipertahankan supaya scroll mobile dari tile tetap tiba | `src/components/AnalysisPanel.tsx` |
-| Prop opsional `mode` (default metadata) + `analysis`; tombol utama `Jalankan Analisis` vs `Buat metadata`; tile & progress & coba-lagi mengikuti status mode aktif; blok `Buat ulang semua` khusus metadata; guard struktural mengunci bila batch mana pun berjalan | `src/components/Worksheet.tsx` |
-| Prop `mode`/`onModeChange` + `ModeToggle` berdampingan toggle platform; `busy` = batch mana pun | `src/components/Header.tsx` |
-| Render kondisional (satu panel kanan saja) + instance `useAnalysisBatch` | `src/app/page.tsx` |
-| Persist `stockmeta_mode`; `coerceFrame` membawa slot analisis (rusak → dibuang, `memproses` → `menunggu`) | `src/lib/storage.ts` |
-| Tes: `analysisPrompt` (9), `AnalysisPanel` (8), `useAnalysisBatch` (6), `WorksheetAnalysis` (4), gerbang `useBatch` (5), `useSession` analisis (3), `storage` mode + coerce (4), `analyzeWithFallback` (2), `groq.analyzeImage` (1); fake adapter 4 file tes dilengkapi `analyzeImage`; `blank()` `useBatch`/`Worksheet` diset analysis-siap supaya alur metadata lama teruji identik | `*.test.ts` |
-
-- Bagian historis M1–M28 di dokumen ini **sengaja tidak ditulis ulang**.
-- Verifikasi: `npm run test` **265/265**, `npx tsc --noEmit` 0, `npm run lint` 0,
-  `npm run build` sukses. Bukti screenshot: `docs/screenshots-m29/mode-analisis.png` &
-  `mode-metadata.png` (halaman awal kosong, mode gelap).
-
-## Perbaikan pasca-M29 (M30) — prompt metadata jujur soal batas, bukan tahap migrasi baru
-
-Audit menemukan teks prompt metadata (`buildMetadataPrompt`) masih menyuruh model hal yang
-sudah tidak benar sejak M24/M28, sementara dua tes `prompt.test.ts` (yang menulis spek
-M24/M28 dengan benar) gagal — **kodenya yang basi, bukan tesnya**, jadi yang diperbaiki
-adalah prompt, bukan ekspektasi tes. Verifikasi akhir: `npm run test` **268/268**,
-`npx tsc --noEmit` 0, `npm run lint` 0, `npm run build` sukses.
-
-- `src/lib/prompt.ts` (`parseMetadataResponse`): potong judul non-Adobe `slice(0, 200)`
-  literal → **`slice(0, MAX_TITLE_CSV)`** (nilai sama 200, angka kini tunggal di `limits.ts`;
-  `MAX_TITLE_CSV` memang sudah diimpor).
-- `src/lib/prompt.ts` (`buildMetadataPrompt`, Adobe): instruksi `TANPA koma (ganti koma
-  dengan kata sambung atau spasi)` **dihapus** — koma aman sejak M24 (CSV di-quote di
-  `csv.ts`/`metadata.ts`). Penggantinya: `koma dibiarkan (JANGAN dihapus atau diganti)`,
-  batas `maks 200 karakter` tetap disebut via `MAX_TITLE_CSV`.
-- Prompt kini menyampaikan batas asli ke model (ini yang meloloskan 2 tes lama tanpa
-  mengubah tesnya): Adobe `keywords ... (maksimal 49 kata, yang paling penting dulu)`;
-  Shutterstock `satu-dua kalimat deskriptif ... maksimal 2048 karakter` (kata "sekitar"
-  yang tidak akurat dibuang — parser/validator memakai 2048 eksak).
-- Koreksi tabel M29: `AnalysisIssueCategory` kini **9 kategori** (tambah
-  `ai-generated-disclosure` + kebijakan AI per platform di `buildAnalysisPrompt` —
-  Adobe menerima-dengan-disclosure, Shutterstock menolak tegas). Perubahan itu masuk
-  bersama perbaikan prompt analisis sebelumnya dan belum tercatat di bagian M29.
-
-## Perbaikan (A) sederhanakan provider + (B) provider per mode Analisis/Metadata
-
-Gabungan dua perbaikan dalam satu sesi. Verifikasi: `npm run test` **371/371**,
-`npx tsc --noEmit` 0 error, `npm run lint` 0 temuan, `npm run build` sukses.
-Tanpa e2e, tanpa menjalankan server.
-
-### A. Provider disederhanakan: Custom & Coming Soon dihapus, OpenRouter kembali
-
-- **HAPUS provider `Custom`** (base URL + model + API key manual) sepenuhnya:
-  `src/lib/providers/custom.ts` + `custom.test.ts` dihapus; `ProviderId` kini hanya
-  `"gemini" | "groq" | "openrouter"` (`src/lib/types.ts`); field Base URL & Model dihapus
-  dari `ProviderPanel.tsx`; kunci `stockmeta_custom_key`/`stockmeta_custom_baseurl`/
-  `stockmeta_custom_model` + `read/writeCustom*` dihapus dari `storage.ts`; plumbing
-  `CustomConfig`/`baseUrl`/`model` dihapus dari `providers/types.ts`, `pipeline.ts`,
-  `providers/fallback.ts`, `useBatch.ts`, `useAnalysisBatch.ts`, `useJudge.ts`, `useRisk.ts`,
-  dan `scripts/live-test.ts`. Nilai tersimpan lama `'custom'` → `readProvider()` = `null`
-  (pemanggil memakai default mode).
-- **OpenRouter dikembalikan** (sempat tertimpa saat Custom ditambahkan):
-  `src/lib/providers/openrouter.ts` (**baru**, full adapter: tes koneksi `GET /models`,
-  generate/analisis/observasi/teks/juri/inspeksi-crop, alias `openrouter/free`, ulangi
-  tanpa `response_format` bila ditolak 400/422) + `openrouter.test.ts` (**baru**);
-  masuk `registry`, `PROVIDER_MODELS`, `FALLBACK_ORDER`, `JUDGE_IDS`, dan `live-test`
-  (`OPENROUTER_KEY`). Nilai `'openrouter'` lama yang sempat dipetakan ke `'custom'`
-  kembali terbaca sebagai `openrouter`.
-- **HAPUS opsi Coming Soon** sepenuhnya: `SOON_NOTE`, `isSoon`, dan state `disabled`
-  untuknya dihapus dari `useProvider.ts`, `ProviderPanel.tsx`, dan `Worksheet.tsx`
-  (termasuk badge `segera` di segmented control).
-- Urutan dropdown akhir: **Groq → Gemini → OpenRouter** — ketiganya live, tanpa
-  placeholder non-fungsional. `README.md` tabel provider + FAQ + keamanan ikut
-  diperbarui (3 provider saja).
-
-### B. Provider dipisah untuk Mode Analisis vs Mode Metadata
-
-- `src/lib/storage.ts`: kunci baru **`stockmeta_provider_analisis`** dan
-  **`stockmeta_provider_metadata`** + `read/writeProviderForMode()` — terpisah dari kunci
-  umum `stockmeta_provider` (yang dipertahankan sebagai migrasi user lama). **API key tetap
-  satu per provider** (`readKey`/`writeKey` tidak berubah).
-- `src/hooks/useProvider.ts`: parameter opsional **`activeMode`** — tanpa mode, kontrak lama
-  identik (satu kunci umum, default Groq); dengan mode, boot + `setProvider` memakai kunci
-  khusus mode (kunci umum hanya fallback baca untuk user lama), pindah mode me-restore
-  provider + key + auto-test untuk mode itu.
-- `src/components/ProviderPanel.tsx`: prop opsional `mode` (label `Provider — Analisis /
-  Metadata`); karena `page.tsx` kini memanggil `useProvider(mode)`, panel otomatis
-  menampilkan/menyimpan pilihan khusus mode aktif dan status tes mengikuti mode itu.
-- `src/lib/providers/models.ts` + `gemini.ts`: **`pickGeminiModel(preferNonLite)`** —
-  Mode Analisis (`analyzeImage`) memakai varian **non-lite** (`gemini-3.5-flash`);
-  jalur metadata (`generateForImage` dkk.) tetap lite seperti sekarang.
-- Catatan keterbatasan analisis (`Penilaian 'konten serupa/kompetisi tinggi' bersifat
-  perkiraan AI, bukan data pasti dari database platform — gunakan sebagai referensi awal,
-  bukan keputusan final.`) tampil di `Worksheet.tsx` (di bawah tombol `Jalankan Analisis`)
-  dan di `AnalysisPanel.tsx`.
-- **Default baru hanya untuk user baru**: Mode Analisis → Gemini, Mode Metadata → Groq
-  (`DEFAULT_ANALYSIS_PROVIDER` / `DEFAULT_PROVIDER`); pilihan tersimpan user lama
-  (kunci umum) dihormati di kedua mode dan tidak pernah ditimpa.
-
-### File yang diubah/dihapus
-
-- **Dihapus**: `src/lib/providers/custom.ts`, `src/lib/providers/custom.test.ts`.
-- **Baru**: `src/lib/providers/openrouter.ts`, `src/lib/providers/openrouter.test.ts`.
-- **Diubah**: `src/lib/types.ts`, `src/lib/storage.ts` (+ `storage.test.ts`),
-  `src/lib/providers/models.ts` (+ `models.test.ts`), `src/lib/providers/index.ts`,
-  `src/lib/providers/types.ts`, `src/lib/providers/fallback.ts` (+ `fallback.test.ts`),
-  `src/lib/providers/gemini.ts` (+ `gemini.test.ts`), `src/lib/pipeline.ts`
-  (+ `pipeline.test.ts` penyesuaian id mock), `src/hooks/useProvider.ts`
-  (+ `useProvider.test.ts` tulis ulang: 3 provider + 5 tes per mode),
-  `src/hooks/useBatch.ts`, `src/hooks/useAnalysisBatch.ts`, `src/hooks/useJudge.ts`
-  (+ `useJudge.test.ts`), `src/hooks/useRisk.ts`, `src/components/ProviderPanel.tsx`,
-  `src/components/Worksheet.tsx`, `src/components/AnalysisPanel.tsx`,
-  `src/components/CompliancePanel.tsx`, `src/app/page.tsx`, `scripts/live-test.ts`,
-  `README.md`, `docs/MIGRATION.md` (bagian ini + penyesuaian kontrak Provider/Analisis).
-
 ## Kontrak perilaku (WAJIB sama dengan legacy)
 
 Sumber: `legacy/docs/PROGRESS.md` + `legacy/js/*.js`. Tanda **[BARU]** = perilaku baru yang
@@ -1227,31 +1059,24 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
 
 ### Provider
 
-- Dropdown: **Groq**, **Gemini**, **OpenRouter** — ketiganya live, tanpa placeholder
-  non-fungsional. Pilihan provider tersimpan **terpisah per mode** (`stockmeta_provider_analisis`
-  / `stockmeta_provider_metadata`; kunci umum `stockmeta_provider` hanya sebagai migrasi user
-  lama) — **Mode Analisis default Gemini, Mode Metadata default Groq** (hanya untuk user baru;
-  pilihan tersimpan user lama tidak diubah).
+- Dropdown: **Groq**, **Gemini**, **Coming Soon** (nonaktif: field key + tombol Test disabled,
+  Generate tetap mati, catatan `Provider tambahan akan segera hadir`) **[M11: urutan & default]** —
+  **Groq provider default** saat belum ada pilihan tersimpan; pilihan user disimpan di localStorage
+  (`stockmeta_provider`) dan **dihormati** di kunjungan berikutnya.
 - Catatan per provider di bawah hasil tes **[M11]**: Groq tetap soal limit 8.000 token/menit;
   Gemini: *Kadang lebih sering terkena limit/sibuk dibanding Groq — coba Groq dulu kalau sering gagal.*
 - **Tes koneksi wajib lulus sebelum API key disimpan** ke `localStorage` (kunci
-  `stockmeta_gemini_key` / `stockmeta_groq_key` / `stockmeta_openrouter_key` — satu per
-  provider, dipakai bersama kedua mode); key di-restore saat pindah provider tapi status
+  `stockmeta_gemini_key` / `stockmeta_groq_key`); key di-restore saat pindah provider tapi status
   sengaja reset ke `Belum dites` (harus tes ulang).
-- **Gemini**: model **`gemini-3.5-flash-lite`** (jalur metadata) dan **`gemini-3.5-flash`**
-  non-lite (Mode Analisis via `pickGeminiModel(true)`); key salah dilaporkan Gemini sebagai
-  HTTP 400 `API_KEY_INVALID` — jangan cek 401 saja.
+- **Gemini**: model **auto-detect** dari `GET /v1beta/models` (preferensi flash terbaru), bukan
+  hardcode; key salah dilaporkan Gemini sebagai HTTP 400 `API_KEY_INVALID` — jangan cek 401 saja.
 - **Groq**: model tunggal **`qwen/qwen3.8-27b`**, **tanpa fallback**; pesan error body dibawa utuh
   ke UI.
-- **OpenRouter**: alias tunggal **`openrouter/free`** (OpenRouter memilihkan model vision gratis
-  yang tersedia); `GET /api/v1/models` untuk tes koneksi; `POST /chat/completions` dengan
-  `response_format` JSON, diulangi sekali tanpanya bila ditolak (400/422).
 - API key **hanya di browser** (localStorage), **tidak pernah dikirim ke server** — semua panggilan
   dari `fetch` di client.
 - **Ganti provider bersifat non-destruktif** **[M11: diverifikasi]**: `useProvider.setProvider`
-  hanya mengubah state koneksi (provider/key/status) + menulis kunci provider mode aktif
-  (`stockmeta_provider_analisis` / `stockmeta_provider_metadata`; pemanggil tanpa mode menulis
-  `stockmeta_provider`) — **frame, fileStore, dan metadata tidak disentuh sama sekali**. Generate berikutnya selalu
+  hanya mengubah state koneksi (provider/key/status/model) + menulis `stockmeta_provider` —
+  **frame, fileStore, dan metadata tidak disentuh sama sekali**. Generate berikutnya selalu
   memakai adapter/key/model hasil snapshot saat batch dimulai, sehingga setelah ganti provider
   (wajib tes ulang dulu) prompt & panggilan API memakai provider yang baru dipilih.
 
@@ -1339,33 +1164,13 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
   judul > 70 (batas CSV), judul ber-koma, nama file > 30 karakter (Adobe saja).
   **[M13 → M18]** petunjuk batas + penghitung judul kini **sebaris dengan label `Judul`
   (di atas textarea)** — bukan di dalam kotak (M13) dan bukan baris terpisah (M9a); deskripsi
-  punya penghitung `n/2048` di baris label `Deskripsi` **[M28]** tanpa hint statis
-  (minimal 5 kata tetap divalidasi via "Saran perbaikan"). Baris label memakai `flex-wrap`:
-  label kiri, keterangan + `Salin` kanan, dan grup kanan turun ke baris kedua yang tetap
-  rata kanan bila layar sempit.
+  punya penghitung `n/200` di baris label `Deskripsi`, sedangkan petunjuk instruksional tetap
+  di bawah kotak. Baris label memakai `flex-wrap`: label kiri, keterangan + `Salin` kanan, dan
+  grup kanan turun ke baris kedua yang tetap rata kanan bila layar sempit.
 - Footer **`N baris punya saran perbaikan`** **[M9a]**: jumlah frame (baris) yang punya saran
   untuk platform aktif — tampil di dekat tombol `Export CSV` bila > 0, **tidak memblokir
   ekspor**. Footer **`N baris`** = jumlah baris yang **benar-benar diekspor** (slot berisi),
   bukan jumlah frame **[audit F2]**.
-
-### Mode Analisis [M29 — BARU, di luar legacy]
-
-- **Sakelar mode** di Header (`ModeToggle`: segmented `Analisis | Metadata`, segaya toggle
-  platform, terkunci saat batch berjalan), persist `stockmeta_mode`, default `metadata`.
-- **Mode Analisis**: Worksheet tombol utama `Jalankan Analisis` (batch: hanya analysisStatus
-  menunggu/gagal, jeda/retry/progress/batal sama seperti metadata; ikon tile
-  `Analisis ulang untuk <nama>` + konfirmasi `Jalankan analisis ulang?`; `Buat ulang semua`
-  disembunyikan); panel kanan = `AnalysisPanel` (badge verdict warna+ikon+teks, issues +
-  ringkasan, state `Belum dianalisis`/gagal/kosong).
-- **Mode Metadata** (perilaku lama identik): tombol `Buat metadata`/`Buat ulang semua`/ikon
-  `Buat ulang metadata` tidak berubah — **kecuali gerbang**: generate BARU hanya untuk frame
-  yang analysisStatus-nya `siap` (`Jalankan Analisis dulu di Mode Analisis` bila belum);
-  edit manual & data lama tidak dikunci.
-- Hasil + status + error analisis tersimpan **per platform** (`analysis`/`analysisStatus`/
-  `analysisError`), slot metadata tidak tersentuh batch analisis dan sebaliknya.
-- Penilaian `konten serupa/kompetisi tinggi` berlabel perkiraan AI, bukan data pasti database
-  platform — catatan ini tampil di Worksheet (di bawah tombol `Jalankan Analisis`) dan di
-  `AnalysisPanel`.
 
 ### CSV
 

@@ -11,7 +11,7 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSession } from '../hooks/useSession';
-import { MAX_DESCRIPTION, MAX_FRAMES, MAX_KEYWORDS_ADOBE } from '../lib/limits';
+import { MAX_DESCRIPTION_SHUTTER, MAX_FRAMES, MAX_KEYWORDS_ADOBE } from '../lib/limits';
 import type { Frame } from '../lib/types';
 import { CaptionSheet } from './CaptionSheet';
 
@@ -95,7 +95,7 @@ describe('CaptionSheet — struktur field tetap ada walau belum ada frame (M14)'
     expect(ta).not.toBeNull();
     expect(ta.disabled).toBe(true);
     expect(ta.value).toBe('');
-    expect(ta.placeholder).toBe('Judul menjual, spesifik, tanpa frasa generik');
+    expect(ta.placeholder).toContain('red fox');
 
     const kw = host.querySelector('#kw-input') as HTMLInputElement;
     expect(kw.disabled).toBe(true);
@@ -133,7 +133,7 @@ describe('CaptionSheet — struktur field tetap ada walau belum ada frame (M14)'
     addFrames(1);                                                 // auto terpilih, slot masih kosong
     csv = findBtn('Export CSV')!;
     expect(csv.getAttribute('aria-disabled')).toBe('true');
-    expect(csv.title).toContain('Belum ada baris lolos cek keras');
+    expect(csv.title).toContain('Belum ada metadata');
     act(() => { csv.click(); });
     expect(createObjectURL).not.toHaveBeenCalled();               // tanpa guard ini akan mengunduh
   });
@@ -141,17 +141,19 @@ describe('CaptionSheet — struktur field tetap ada walau belum ada frame (M14)'
   it('begitu ada frame terpilih (otomatis setelah upload), field aktif berisi datanya', () => {
     const [id] = addFrames(1);
     act(() => {
-      api().s.updateMetadata(id, 'adobe', {
-        title: 'Red panda eating bamboo in forest',
-        keywords: ['red panda', 'bamboo', 'forest', 'eating', 'wildlife'],
-        category: 'Animals'
-      });
+      // M32: 30 keyword agar minimum platform (pemblokir) tidak mengunci ekspor
+      api().s.updateMetadata(id, 'adobe', { title: 'Judul terisi', category: 'Animals', keywords: [
+        'fox', 'wolf', 'coyote', 'jackal', 'eagle', 'hawk', 'owl', 'deer',
+        'bear', 'trees', 'leaves', 'ears', 'tail', 'paws', 'fur', 'wood', 'stone',
+        'stripes', 'circle', 'calm', 'cheerful', 'red', 'orange', 'poster', 'banner',
+        'vintage', 'morning', 'sunrise', 'forest', 'river'
+      ] });
     });
     expect(text()).toContain(`Frame 01 / 01`);
 
     const ta = host.querySelector('#caption-title') as HTMLTextAreaElement;
     expect(ta.disabled).toBe(false);
-    expect(ta.value).toBe('Red panda eating bamboo in forest');
+    expect(ta.value).toBe('Judul terisi');
 
     const cat = host.querySelector('#caption-category') as HTMLSelectElement;
     expect(cat.disabled).toBe(false);
@@ -160,19 +162,8 @@ describe('CaptionSheet — struktur field tetap ada walau belum ada frame (M14)'
     expect(host.querySelector('[aria-label="Salin Judul"]')!.hasAttribute('disabled')).toBe(false);
 
     const csv = findBtn('Export CSV')!;
-    expect(csv.getAttribute('aria-disabled')).toBeNull();         // lolos cek keras → ekspor aktif
-    expect(csv.title).toContain('Periksa daftar file');
-  });
-
-  it('slot berisi tapi error cek keras → Export CSV nonaktif sampai diperbaiki', () => {
-    const [id] = addFrames(1);
-    act(() => {
-      api().s.updateMetadata(id, 'adobe', { title: 'Judul terisi', category: 'Animals' });
-    });
-    const csv = findBtn('Export CSV')!;
-    expect(csv.getAttribute('aria-disabled')).toBe('true');
-    expect(csv.title).toContain('Belum ada baris lolos cek keras');
-    expect(text()).toContain('Tidak lolos cek keras');
+    expect(csv.getAttribute('aria-disabled')).toBeNull();         // slot berisi → ekspor aktif
+    expect(csv.title).toContain('Ekspor metadata');
   });
 
   it('frame terpilih tapi belum digenerate → field aktif, Export CSV tetap nonaktif', () => {
@@ -180,7 +171,7 @@ describe('CaptionSheet — struktur field tetap ada walau belum ada frame (M14)'
     expect((host.querySelector('#caption-title') as HTMLTextAreaElement).disabled).toBe(false);
     const csv = findBtn('Export CSV')!;
     expect(csv.getAttribute('aria-disabled')).toBe('true');
-    expect(csv.title).toContain('Belum ada baris lolos cek keras');
+    expect(csv.title).toContain('Belum ada metadata');
   });
 });
 
@@ -198,7 +189,7 @@ describe('CaptionSheet — saran perbaikan', () => {
       api().s.applyGenerated(id, 'adobe', { title: 'Judul contoh' });
     });
     expect(text()).toContain('Saran perbaikan');
-    expect(text()).toContain('Kata kunci unik minimal 5 (baru 0).');
+    expect(text()).toContain('Kata kunci minimal 5 (baru 0).');
     expect(text()).toContain('1 baris punya saran perbaikan');
   });
 
@@ -257,12 +248,12 @@ describe('CaptionSheet — footer jumlah baris ekspor (F2)', () => {
     act(() => {
       api().s.select(ids[0]);
       api().s.applyGenerated(ids[0], 'adobe', {
-        title: 'Red panda eating bamboo in forest',
-        keywords: ['red panda', 'bamboo', 'forest', 'eating', 'wildlife',
-          'mammal', 'nature', 'green', 'mountain', 'daylight',
-          'animal', 'cute', 'fur', 'tree', 'leaves',
-          'outdoor', 'park', 'zoo', 'asia', 'china',
-          'resting', 'sitting', 'branch', 'tall', 'leaves2'],
+        title: 'Judul contoh',
+        // M32: 30 kata agar tidak memicu saran target-30
+        keywords: ['fox', 'wolf', 'coyote', 'jackal', 'eagle', 'hawk', 'owl', 'deer',
+          'bear', 'trees', 'leaves', 'acorn', 'trail', 'pond', 'fur', 'wood', 'stone',
+          'stripes', 'circle', 'calm', 'cheerful', 'red', 'orange', 'poster', 'banner',
+          'vintage', 'morning', 'sunrise', 'forest', 'river'],
         category: 'Animals'
       });
     });
@@ -297,9 +288,9 @@ describe('CaptionSheet — keterangan sebaris dengan label (M18)', () => {
     expect(row.querySelector('[aria-label="Salin Judul"]')).not.toBeNull();
   });
 
-  it('deskripsi (Shutterstock): penghitung n/2048 naik ke baris label, tanpa hint statis', () => {
+  it('deskripsi (Shutterstock): penghitung n/maks juga naik ke baris label', () => {
     const [id] = addFrames(1);
-    const desc = 'Dua kalimat.';
+    const desc = 'Two sentences here.';
     act(() => {
       api().s.select(id);
       api().s.setPlatform('shutterstock');
@@ -308,16 +299,10 @@ describe('CaptionSheet — keterangan sebaris dengan label (M18)', () => {
     const ta = host.querySelector('#caption-desc') as HTMLTextAreaElement;
     const note = host.querySelector('#caption-desc-note');
     expect(note).not.toBeNull();
-    expect(note!.textContent).toBe(`${desc.length}/${MAX_DESCRIPTION}`);
-    expect(note!.textContent).toContain('/2048');
+    expect(note!.textContent).toBe(`${desc.length}/${MAX_DESCRIPTION_SHUTTER}`);
     expect(ta.previousElementSibling!.contains(note!)).toBe(true);
     expect(ta.className).not.toContain('pb-6');
     expect(ta.getAttribute('aria-describedby')).toBe('caption-desc-note');
-    // Hint statis dihapus dari tampilan; validasi min 5 kata kini ERROR pemblokir
-    // (desc 2 kata → kotak cek keras muncul)
-    expect(text()).not.toContain('tulis satu-dua kalimat deskriptif utuh');
-    expect(text()).toContain('Tidak lolos cek keras');
-    expect(text()).toContain('Deskripsi minimal 5 kata (baru 2).');
   });
 
   it('penghitung kata kunci juga keluar dari kotak input (M18)', () => {
@@ -331,5 +316,94 @@ describe('CaptionSheet — keterangan sebaris dengan label (M18)', () => {
     expect(kw.className).not.toContain('pr-24');                        // ruang cadangan dihapus
     expect(labelRow.contains(count!)).toBe(true);                       // penghitung sebaris dengan label
     expect(labelRow.querySelector('[aria-label="Salin daftar kata kunci"]')).not.toBeNull();
+  });
+});
+
+describe('CaptionSheet — tema & kategori wajib (Fase 1)', () => {
+  it('Shutterstock: label kategori tambahan wajib tanpa "(opsional)", tanpa teks bantuan panjang (M32)', () => {
+    const [id] = addFrames(1);
+    act(() => {
+      api().s.select(id);
+      api().s.setPlatform('shutterstock');
+    });
+    expect(text()).toContain('Kategori tambahan *');
+    expect(text()).not.toContain('(opsional)');
+    expect(text()).not.toContain('Kosongkan untuk memakai Tema utama.');
+    expect(text()).not.toContain('Tulis dalam bahasa Inggris: satu kalimat deskriptif utuh, bukan daftar kata.');
+    expect(host.querySelector('#caption-cat2')!.getAttribute('aria-required')).toBe('true');
+  });
+
+  it('Shutterstock satu kategori → kotak merah "Wajib diperbaiki" + Export CSV terkunci', () => {
+    const [id] = addFrames(1);
+    act(() => {
+      api().s.select(id);
+      api().s.setPlatform('shutterstock');
+      api().s.updateMetadata(id, 'shutterstock', {
+        description: 'A calm lake at sunrise with soft light over the hills.',
+        keywords: ['lake', 'sunrise', 'hills', 'calm', 'water', 'morning', 'landscape'],
+        categories: ['Nature']
+      });
+    });
+    expect(text()).toContain('Wajib diperbaiki');
+    expect(text()).toContain('wajib punya 2 kategori berbeda');
+    const csv = findBtn('Export CSV')!;
+    expect(csv.getAttribute('aria-disabled')).toBe('true');
+    expect(csv.title).toContain('Perbaiki');
+
+    act(() => {
+      api().s.updateMetadata(id, 'shutterstock', { categories: ['Nature', 'Parks/Outdoor'] });
+    });
+    expect(text()).not.toContain('Wajib diperbaiki');
+    expect(findBtn('Export CSV')!.getAttribute('aria-disabled')).toBeNull();
+  });
+
+  it('Shutterstock duplikat kategori → pesan tidak boleh sama + ekspor terkunci', () => {
+    const [id] = addFrames(1);
+    act(() => {
+      api().s.select(id);
+      api().s.setPlatform('shutterstock');
+      api().s.updateMetadata(id, 'shutterstock', {
+        description: 'A calm lake at sunrise with soft light over the hills.',
+        keywords: ['lake', 'sunrise', 'hills', 'calm', 'water', 'morning', 'landscape'],
+        categories: ['Nature', 'Nature']
+      });
+    });
+    expect(text()).toContain('tidak boleh sama');
+    expect(findBtn('Export CSV')!.getAttribute('aria-disabled')).toBe('true');
+  });
+});
+
+describe('CaptionSheet — baris label satu baris sejajar (Fase 2)', () => {
+  it('label kategori satu baris nowrap + tombol Salin sebaris di kedua kolom', () => {
+    const [id] = addFrames(1);
+    act(() => {
+      api().s.select(id);
+      api().s.setPlatform('shutterstock');
+    });
+    for (const forId of ['caption-cat1', 'caption-cat2']) {
+      const row = host.querySelector(`label[for="${forId}"]`)!.parentElement!;
+      expect(row.className).toContain('flex-nowrap');
+      expect(row.className).toContain('min-h-7');
+      expect(row.querySelector('[aria-label^="Salin"]')).not.toBeNull();
+    }
+    const grid = host.querySelector('#caption-cat1')!.closest('.grid');
+    expect(grid).not.toBeNull();
+    expect(grid!.className).toContain('@md:grid-cols-2');
+    // M32: align start — kolom tidak saling meregang bila satu kolom tanpa hint
+    expect(grid!.className).toContain('items-start');
+    // kedua select sama tinggi
+    expect((host.querySelector('#caption-cat1') as HTMLElement).className).toContain('h-10');
+    expect((host.querySelector('#caption-cat2') as HTMLElement).className).toContain('h-10');
+    expect((host.querySelector('#caption-tema') as HTMLElement).className).toContain('h-10');
+  });
+
+  it('semua label field memakai pola LabelRow (label kiri, aksi kanan, tinggi tetap)', () => {
+    addFrames(1);
+    for (const forId of ['caption-title', 'kw-input', 'caption-category', 'caption-tema']) {
+      const label = host.querySelector(`label[for="${forId}"]`);
+      expect(label).not.toBeNull();
+      const row = label!.parentElement!;
+      expect(row.className).toContain('min-h-7');
+    }
   });
 });

@@ -5,23 +5,20 @@
 // M13: tiap tile punya ikon "buat ulang metadata" (frame gagal & siap) + konfirmasi popover
 // "Timpa hasil yang ada?" yang menempel pada tile — menggantikan tombolnya di CaptionSheet.
 import { useEffect, useRef, useState } from 'react';
-import type { useAnalysisBatch } from '../hooks/useAnalysisBatch';
+import { SOON_NOTE } from '../hooks/useProvider';
 import type { useBatch } from '../hooks/useBatch';
 import type { useProvider } from '../hooks/useProvider';
 import type { useSession } from '../hooks/useSession';
 import { fileStore } from '../lib/fileStore';
 import { buildLimitMessage, filterIncomingFiles } from '../lib/frames';
 import { makeThumbnail } from '../lib/image';
-import { judgeEntryOf } from '../hooks/useJudge';
-import { BADGE_LABEL, type CombinedBadge } from '../lib/judge';
 import { ACCEPTED_TYPES, BATCH_DELAY_OPTIONS_SEC, MAX_FRAMES } from '../lib/limits';
-import type { AppMode, Frame, FrameStatus, Platform } from '../lib/types';
+import type { Frame, FrameStatus, Platform } from '../lib/types';
 import { Panel } from './Panel';
 
 type Session = ReturnType<typeof useSession>;
 type ProviderApi = ReturnType<typeof useProvider>;
 type BatchApi = ReturnType<typeof useBatch>;
-type AnalysisBatchApi = ReturnType<typeof useAnalysisBatch>;
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const THUMB_SIZE = 320;
@@ -80,7 +77,6 @@ function GenerateButton({
   busyLabel,
   notice,
   hint,
-  label,
   onGenerate,
   onCancel
 }: {
@@ -89,8 +85,6 @@ function GenerateButton({
   busyLabel?: string;
   notice?: string;
   hint?: string;
-  /** M29: teks tombol utama — default 'Buat metadata' (mode metadata tidak berubah) */
-  label?: string;
   onGenerate?: () => void;
   onCancel?: () => void;
 }) {
@@ -110,7 +104,7 @@ function GenerateButton({
           }`}
         >
           {busy && <span className="spinner spinner-on-accent" aria-hidden="true" />}
-          {busy ? busyLabel : (label ?? 'Buat metadata')}
+          {busy ? busyLabel : 'Buat metadata'}
         </button>
         {busy && (
           <button
@@ -187,7 +181,6 @@ function FrameTile({
   regenDisabled,
   regenHint,
   regenConfirm,
-  regenKind = 'metadata',
   onSelect,
   onRemove,
   onRegen,
@@ -204,8 +197,6 @@ function FrameTile({
   regenDisabled?: boolean;
   regenHint?: string;
   regenConfirm?: boolean;
-  /** M29: teks aksi tile mengikuti mode — default 'metadata' (perilaku lama identik) */
-  regenKind?: 'metadata' | 'analisis';
   onSelect: () => void;
   onRemove: () => void;
   onRegen: () => void;
@@ -216,7 +207,8 @@ function FrameTile({
 
   return (
     <div
-      className={`relative overflow-hidden rounded-xl bg-surface transition-colors duration-150 ${
+      data-testid={`tile-${frame.name}`}
+      className={`relative flex h-full flex-col overflow-hidden rounded-xl bg-surface transition-colors duration-150 ${
         active ? 'border-2 border-accent bg-accent-tint' : 'border border-border'
       }`}
     >
@@ -224,7 +216,7 @@ function FrameTile({
         type="button"
         aria-pressed={active}
         onClick={onSelect}
-        className="block w-full text-left"
+        className="flex w-full flex-1 flex-col text-left"
       >
         <div className="relative aspect-square bg-surface-elevated">
           {frame.thumb ? (
@@ -266,33 +258,20 @@ function FrameTile({
             </span>
           )}
         </div>
-        <div className="flex flex-col gap-1 px-2 py-1.5 sm:px-3 sm:py-2">
-          <span className="truncate text-small font-medium text-text" title={frame.name}>
+        <div data-testid={`tile-text-${frame.name}`} className="flex h-11 shrink-0 flex-col justify-center gap-0 px-2 py-1 sm:px-3">
+          <span className="block truncate text-small font-medium leading-5 text-text" title={frame.name}>
             {frame.name}
           </span>
-          {note && (
-            <span className="truncate font-mono text-meta text-text-secondary" title={note}>
-              {note}
-            </span>
-          )}
-          {needsUpload && (
-            <span
-              title="Perlu upload ulang untuk generate ulang"
-              className="inline-flex w-fit items-center gap-1 font-mono text-meta text-text-muted"
-            >
-              <svg width="9" height="9" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-                <path
-                  d="M8.7 5A3.7 3.7 0 1 1 7.6 2.3M8.7 1.2V4H5.9"
-                  stroke="currentColor"
-                  strokeWidth="1.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              upload ulang
-              <span className="sr-only">Perlu upload ulang untuk generate ulang</span>
-            </span>
-          )}
+          {/* Fase 2: baris kedua SELALU dipesan (tinggi tetap) — isi note/status atau nbsp
+              bila kosong, truncate + title untuk teks penuh; badge status overlay tidak
+              menggeser tinggi tile. */}
+          <span
+            data-testid={`tile-sub-${frame.name}`}
+            className="block h-4 truncate font-mono text-meta leading-4 text-text-secondary"
+            title={note || (needsUpload ? 'Perlu upload ulang untuk generate ulang' : undefined)}
+          >
+            {note || (needsUpload ? 'upload ulang' : ' ')}
+          </span>
         </div>
       </button>
 
@@ -306,8 +285,8 @@ function FrameTile({
           if (!regenDisabled) onRegen();
         }}
         aria-disabled={regenDisabled || undefined}
-        aria-label={regenKind === 'analisis' ? `Analisis ulang untuk ${frame.name}` : `Buat ulang metadata untuk ${frame.name}`}
-        title={regenHint || (regenKind === 'analisis' ? 'Analisis ulang frame ini' : 'Buat ulang metadata frame ini')}
+        aria-label={`Buat ulang metadata untuk ${frame.name}`}
+        title={regenHint || 'Buat ulang metadata frame ini'}
         className={`btn-compact absolute right-12 top-1.5 z-10 grid h-7 w-7 place-items-center rounded-md border bg-surface/85 transition-colors duration-150 before:absolute before:-inset-1.5 before:content-[''] ${
           st === 'gagal' ? 'border-error text-error' : 'border-border-control text-text-secondary'
         } ${
@@ -343,7 +322,7 @@ function FrameTile({
       {regenConfirm && (
         <div className="absolute left-1.5 right-1.5 top-[2.625rem] z-10 flex flex-wrap items-center gap-2 rounded-lg border border-error bg-surface-elevated p-2">
           <span className="text-small font-semibold leading-snug text-text sm:text-body">
-            {regenKind === 'analisis' ? 'Jalankan analisis ulang?' : 'Timpa hasil yang ada?'}
+            Timpa hasil yang ada?
           </span>
           <div className="ml-auto flex items-center gap-1.5">
             <button
@@ -351,7 +330,7 @@ function FrameTile({
               onClick={onRegen}
               className="rounded-md border border-error px-3 py-1 text-small font-semibold text-error transition-colors duration-150 hover:bg-error hover:text-error-contrast sm:text-body"
             >
-              {regenKind === 'analisis' ? 'Ya, jalankan' : 'Ya, timpa'}
+              Ya, timpa
             </button>
             <button
               type="button"
@@ -380,27 +359,16 @@ function FrameTile({
   );
 }
 
-export function Worksheet({ session, provider, batch, mode = 'metadata', analysis }: {
+export function Worksheet({ session, provider, batch }: {
   session: Session;
   provider: ProviderApi;
   batch: BatchApi;
-  /** M29: mode aktif — default 'metadata' (perilaku lama identik bila tak dioper) */
-  mode?: AppMode;
-  /** M29: hook batch analisis (wajib dioper saat mode='analisis') */
-  analysis?: AnalysisBatchApi;
 }) {
   const { frames, sel, tema, platform, notes, addFrame, removeFrame, updateFrame, select, setTema, newSession } =
     session;
-  // M29: mode analisis memakai jalur batch-nya sendiri, TAPI guard struktural
-  // (upload/hapus/jeda/sesi baru) mengunci bila batch mana pun berjalan.
-  const isAnalysis = mode === 'analisis';
-  const anyBusy = batch.busy || (analysis?.busy ?? false);
-  const modeBusy = isAnalysis ? (analysis?.busy ?? false) : batch.busy;
-  const modeCurrentId = isAnalysis ? (analysis?.currentId ?? null) : batch.currentId;
-  const busy = modeBusy;
+  const busy = batch.busy;
   const [dragOver, setDragOver] = useState(false);
   const [limitMsg, setLimitMsg] = useState('');
-  const [badgeFilter, setBadgeFilter] = useState<'semua' | CombinedBadge>('semua');
   const inputRef = useRef<HTMLInputElement>(null);
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const full = frames.length >= MAX_FRAMES;
@@ -419,7 +387,7 @@ export function Worksheet({ session, provider, batch, mode = 'metadata', analysi
   }
 
   async function ingest(list: FileList | File[]) {
-    if (anyBusy) return;                          // menambah frame di tengah batch mengubah daftar target
+    if (busy) return;                          // menambah frame di tengah batch mengubah daftar target
     const result = filterIncomingFiles(Array.from(list), frames.length);
     const msg = buildLimitMessage(result);
     if (msg) showLimit(msg);                     // tidak pernah menelan file diam-diam
@@ -438,39 +406,38 @@ export function Worksheet({ session, provider, batch, mode = 'metadata', analysi
     if (noteTimer.current) clearTimeout(noteTimer.current);
   }
 
-  const providerOk = provider.status === 'ok';
+  const providerOk = !provider.isSoon && provider.status === 'ok';
   const generateDisabled =
-    frames.length === 0 || provider.status !== 'ok' || (isAnalysis && !analysis);
+    frames.length === 0 || provider.isSoon || provider.status !== 'ok';
   const generateHint =
     frames.length === 0
       ? 'Tambah minimal satu gambar untuk mengaktifkan pembuatan.'
-      : provider.status !== 'ok'
-        ? 'Tes koneksi provider dulu.'
-        : '';
+      : provider.isSoon
+        ? SOON_NOTE
+        : provider.status !== 'ok'
+          ? 'Tes koneksi provider dulu.'
+          : '';
 
   // alasan ikon "buat ulang" nonaktif per tile (M13) — urutan: file hilang > batch jalan > provider
   const regenHint = (hasFile: boolean): string =>
     !hasFile
       ? 'File asli hilang setelah sesi di-restore — upload ulang gambar ini dulu.'
-      : anyBusy
+      : busy
         ? 'Batch sedang berjalan — tunggu selesai.'
-        : !providerOk
-          ? 'Tes koneksi provider dulu.'
-          : '';
+        : provider.isSoon
+          ? SOON_NOTE
+          : !providerOk
+            ? 'Tes koneksi provider dulu.'
+            : '';
 
-  // M29: hitungan siap/gagal + progress mengikuti STATUS MODE AKTIF (metadata vs analisis).
-  const viewStatus = (f: Frame): FrameStatus =>
-    isAnalysis ? (f.analysisStatus?.[platform] ?? 'menunggu') : f.status[platform];
-  const done = frames.filter((f) => viewStatus(f) === 'siap').length;
-  const failed = frames.filter((f) => viewStatus(f) === 'gagal').length;
+  const done = frames.filter((f) => f.status[platform] === 'siap').length;
+  const failed = frames.filter((f) => f.status[platform] === 'gagal').length;
 
   // label progress: saat jalan memakai hitungan batch, sesudahnya hasil batch terakhir,
-  // idle memakai hitungan sesi — semuanya dari JALUR MODE AKTIF (M29).
-  const activeProgress = isAnalysis ? analysis?.progress : batch.progress;
-  const activeSummary = isAnalysis ? analysis?.summary : batch.summary;
-  const lastBatch = frames.length ? (activeSummary ?? null) : null;
-  const bar = modeBusy && activeProgress
-    ? activeProgress
+  // idle memakai hitungan sesi
+  const lastBatch = frames.length ? batch.summary : null;
+  const bar = busy
+    ? batch.progress
     : lastBatch
       ? { done: lastBatch.done, failed: lastBatch.failed, total: lastBatch.total }
       : { done, failed, total: frames.length };
@@ -488,29 +455,14 @@ export function Worksheet({ session, provider, batch, mode = 'metadata', analysi
       title="Lembar kerja"
       meta={`${pad2(frames.length)} / ${MAX_FRAMES} frame`}
       actions={
-        <span className="flex items-center gap-2">
-          {/* filter frame berdasar badge kepatuhan */}
-          <select
-            aria-label="Filter frame berdasar badge kepatuhan"
-            title="Filter frame berdasar badge kepatuhan"
-            value={badgeFilter}
-            onChange={(e) => setBadgeFilter(e.target.value as 'semua' | CombinedBadge)}
-            className="h-8 rounded-md border border-border-control bg-surface-elevated px-2 text-small font-semibold text-text-secondary"
-          >
-            <option value="semua">Semua badge</option>
-            {(Object.keys(BADGE_LABEL) as CombinedBadge[]).map((b) => (
-              <option key={b} value={b}>{BADGE_LABEL[b]}</option>
-            ))}
-          </select>
-          <NewSessionButton hasFrames={frames.length > 0} disabled={anyBusy} onConfirm={resetSession} />
-        </span>
+        <NewSessionButton hasFrames={frames.length > 0} disabled={busy} onConfirm={resetSession} />
       }
     >
       <div
         className="flex flex-col gap-3 sm:gap-4"
         onDragOver={(e) => {
           e.preventDefault();
-          if (!full && !anyBusy) setDragOver(true);
+          if (!full && !busy) setDragOver(true);
         }}
         onDragLeave={(e) => {
           if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false);
@@ -518,7 +470,7 @@ export function Worksheet({ session, provider, batch, mode = 'metadata', analysi
         onDrop={(e) => {
           e.preventDefault();
           setDragOver(false);
-          if (anyBusy) return;
+          if (busy) return;
           if (e.dataTransfer.files.length) void ingest(e.dataTransfer.files);
         }}
       >
@@ -527,7 +479,7 @@ export function Worksheet({ session, provider, batch, mode = 'metadata', analysi
           type="file"
           accept={ACCEPTED_TYPES.join(',')}
           multiple
-          disabled={anyBusy}
+          disabled={busy}
           className="hidden"
           onChange={(e) => {
             if (e.target.files?.length) void ingest(e.target.files);
@@ -585,11 +537,11 @@ export function Worksheet({ session, provider, batch, mode = 'metadata', analysi
           ) : (
             <button
               type="button"
-              disabled={full || anyBusy}
-              title={anyBusy ? 'Tunggu batch selesai' : full ? 'Batch penuh' : undefined}
+              disabled={full || busy}
+              title={busy ? 'Tunggu batch selesai' : full ? 'Batch penuh' : undefined}
               onClick={() => inputRef.current?.click()}
               className={`w-full rounded-md border px-3 py-1.5 text-small font-semibold transition-colors duration-150 sm:py-2 sm:text-body ${
-                full || anyBusy
+                full || busy
                   ? 'cursor-not-allowed border-border-control text-text-muted opacity-60'
                   : dragOver
                     ? 'border-accent bg-accent-tint text-accent-text'
@@ -614,35 +566,23 @@ export function Worksheet({ session, provider, batch, mode = 'metadata', analysi
             dihitung untuk 1120px: badge nomor (kiri, ≈29px) + bayangan klik ikon regen
             (kanan, mulai 82px) = 111px < 120px. */}
         {frames.length > 0 && (
-          <ul className="grid grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))] gap-2">
-            {frames
-              .filter((f) => badgeFilter === 'semua' || judgeEntryOf(f, platform)?.badge === badgeFilter)
-              .map((frame, i) => {
+          <ul className="grid auto-rows-fr grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))] items-stretch gap-2">
+            {frames.map((frame, i) => {
               const hasFile = fileStore.has(frame.id);
-              // M29: di mode analisis tile menampilkan STATUS ANALISIS tanpa mengubah
-              // logika FrameTile (frame tampilan: status/error ditukar dari slot analisis).
-              const shown: Frame = !isAnalysis ? frame : (() => {
-                const status = { ...frame.status };
-                status[platform] = frame.analysisStatus?.[platform] ?? 'menunggu';
-                const error = { ...frame.error };
-                error[platform] = frame.analysisError?.[platform] ?? '';
-                return { ...frame, status, error };
-              })();
               return (
-                <li key={frame.id}>
+                <li key={frame.id} className="min-w-0">
                   <FrameTile
-                    frame={shown}
+                    frame={frame}
                     index={i}
                     platform={platform}
                     active={sel === frame.id}
                     note={notes[frame.id]}
                     needsUpload={!hasFile}
-                    processing={modeBusy && modeCurrentId === frame.id}
-                    removeDisabled={anyBusy}
-                    regenDisabled={!hasFile || !providerOk || anyBusy}
+                    processing={busy && batch.currentId === frame.id}
+                    removeDisabled={busy}
+                    regenDisabled={!hasFile || !providerOk || busy}
                     regenHint={regenHint(hasFile)}
-                    regenConfirm={isAnalysis ? analysis?.regenConfirm === frame.id : batch.regenConfirm === frame.id}
-                    regenKind={isAnalysis ? 'analisis' : 'metadata'}
+                    regenConfirm={batch.regenConfirm === frame.id}
                     // Pilih frame + gulir ke lembar caption hanya di layar kecil (di ≥1024px keduanya terlihat)
                     onSelect={() => {
                       select(frame.id);
@@ -653,11 +593,8 @@ export function Worksheet({ session, provider, batch, mode = 'metadata', analysi
                         ?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
                     }}
                     onRemove={() => removeFrame(frame.id)}
-                    onRegen={() => {
-                      if (isAnalysis) analysis?.regenerateAnalysisFrame(frame.id);
-                      else batch.regenerateFrame(frame.id);
-                    }}
-                    onDismissRegen={isAnalysis ? (analysis?.dismissRegen ?? batch.dismissRegen) : batch.dismissRegen}
+                    onRegen={() => batch.regenerateFrame(frame.id)}
+                    onDismissRegen={batch.dismissRegen}
                   />
                 </li>
               );
@@ -672,16 +609,25 @@ export function Worksheet({ session, provider, batch, mode = 'metadata', analysi
               htmlFor="tema-batch"
               className="text-meta font-semibold uppercase tracking-[0.06em] text-text-muted"
             >
-              Tema utama (opsional)
+              Tema utama <span aria-hidden="true" className="font-bold text-error">*</span>
+              <span className="sr-only">(wajib diisi)</span>
             </label>
             <input
               id="tema-batch"
               type="text"
               value={tema}
-              onChange={(e) => setTema(e.target.value)}
-              placeholder="Halloween / Christmas / New Year / St. Patrick's Day"
-              className="h-10 w-full rounded-md border border-border-control bg-surface-elevated px-3 py-2 text-body text-text transition-colors duration-150 placeholder:text-text-muted hover:border-accent/60"
+              aria-required="true"
+              aria-invalid={Boolean(batch.themeError) || undefined}
+              aria-describedby={batch.themeError ? 'tema-batch-error' : undefined}
+              onChange={(e) => { setTema(e.target.value); if (batch.themeError) batch.clearThemeError(); }}
+              placeholder="Ketik tema batch — 2–60 karakter, mis. pasar pagi"
+              className={`h-10 w-full rounded-md border bg-surface-elevated px-3 py-2 text-body text-text transition-colors duration-150 placeholder:text-text-muted hover:border-accent/60 ${batch.themeError ? 'border-error' : 'border-border-control'}`}
             />
+            {batch.themeError && (
+              <p id="tema-batch-error" role="alert" className="text-small font-medium leading-relaxed text-error">
+                {batch.themeError}
+              </p>
+            )}
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -695,8 +641,8 @@ export function Worksheet({ session, provider, batch, mode = 'metadata', analysi
               <select
                 id="jeda-antar-foto"
                 value={batch.delaySec}
-                disabled={anyBusy}
-                title={anyBusy ? 'Tunggu batch selesai' : undefined}
+                disabled={busy}
+                title={busy ? 'Tunggu batch selesai' : undefined}
                 onChange={(e) => batch.setDelay(Number(e.target.value))}
                 className="h-10 w-full appearance-none rounded-md border border-border-control bg-surface-elevated px-3 py-2 pr-8 text-body font-semibold text-text transition-colors duration-150 hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -729,20 +675,13 @@ export function Worksheet({ session, provider, batch, mode = 'metadata', analysi
           hint={generateHint}
           busy={busy}
           busyLabel={label}
-          label={isAnalysis ? 'Jalankan Analisis' : undefined}
-          notice={isAnalysis ? (analysis?.notice ?? '') : batch.notice}
-          onGenerate={isAnalysis ? analysis?.startAnalysis : batch.startBatch}
-          onCancel={isAnalysis ? analysis?.cancel : batch.cancel}
+          notice={batch.notice}
+          onGenerate={batch.startBatch}
+          onCancel={batch.cancel}
         />
-        {isAnalysis && (
-          <p className="text-small leading-relaxed text-text-muted">
-            Penilaian &lsquo;konten serupa/kompetisi tinggi&rsquo; bersifat perkiraan AI, bukan
-            data pasti dari database platform — gunakan sebagai referensi awal, bukan keputusan final.
-          </p>
-        )}
-        {/* M11: timpa semua hasil platform aktif — KHUSUS mode metadata (di mode analisis
-            disembunyikan; analisis ulang tercakup tombol utama + ikon tile) */}
-        {!isAnalysis && frames.some((f) => f.status[platform] === 'siap' || f.status[platform] === 'gagal') && (
+        {/* M11: timpa semua hasil platform aktif — hanya bila ada minimal satu frame siap/gagal
+            (frame 'menunggu' saja sudah tercakup tombol "Buat metadata") */}
+        {frames.some((f) => f.status[platform] === 'siap' || f.status[platform] === 'gagal') && (
           <div className="flex flex-col gap-1.5">
             {batch.regenAllConfirm === platform ? (
               <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-elevated p-2 sm:p-3">
@@ -786,7 +725,7 @@ export function Worksheet({ session, provider, batch, mode = 'metadata', analysi
         {!busy && failed > 0 && (
           <button
             type="button"
-            onClick={isAnalysis ? analysis?.startAnalysis : batch.startBatch}
+            onClick={batch.startBatch}
             className="w-full rounded-md border border-error px-3 py-1.5 text-small font-semibold text-error transition-colors duration-150 hover:bg-error-tint sm:px-4 sm:py-2 sm:text-body"
           >
             Coba lagi frame gagal

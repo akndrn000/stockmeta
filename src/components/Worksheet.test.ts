@@ -6,7 +6,6 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fileStore } from '../lib/fileStore';
-import { blankObservation } from '../lib/observation';
 import { BATCH_DELAY_DEFAULT_SEC, BATCH_DELAY_OPTIONS_SEC } from '../lib/limits';
 import { registry } from '../lib/providers';
 import { gemini } from '../lib/providers/gemini';
@@ -31,30 +30,15 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let script: { meta?: ParsedMetadata; pending?: boolean }[] = [];
 let calls = 0;
 
+// M32: respons palsu memakai 30 keyword satu kata Inggris agar tidak memicu retry.
+const KW30 = ['fox', 'wolf', 'coyote', 'jackal', 'eagle', 'hawk', 'owl', 'deer',
+  'bear', 'trees', 'leaves', 'acorn', 'trail', 'pond', 'fur', 'wood', 'stone',
+  'stripes', 'circle', 'calm', 'cheerful', 'red', 'orange', 'poster', 'banner',
+  'vintage', 'morning', 'sunrise', 'forest', 'river'];
+
 const fakeAdapter: ProviderAdapter = {
   id: 'gemini',
-  label: 'Gemini',
-  supportsVision: true,
   testConnection: async () => ({ ok: true }),
-  observeImage: async () => blankObservation(),
-  // Pipeline A-D: Tahap B memakai skrip (kategori valid disuntik); grounding kosong.
-  callText: async (args) => {
-    if (args.prompt.includes('Periksa setiap keyword')) return '{"unsupported": []}';
-    const step = script[Math.min(calls, Math.max(script.length - 1, 0))] ?? {};
-    calls++;
-    if (step.pending) {
-      return new Promise<string>((_res, rej) => {
-        args.signal?.addEventListener('abort', () => rej(new Error('Dibatalkan')), { once: true });
-      });
-    }
-    const fallbackCat = args.prompt.includes('SHUTTERSTOCK') ? 'Animals/Wildlife' : 'Animals';
-    return JSON.stringify({ category: fallbackCat, ...(step.meta ?? {}) });
-  },
-  callJudge: async () => ({
-    verdict: 'pass', score: 100, checks: [], unsupported_metadata: [], ip_risks: [],
-    category_ok: true, suggested_category: null, needs_editorial_or_release: false, confidence: 1
-  }),
-  analyzeImage: async () => ({ verdict: 'layak', issues: [], summary: '' }),
   generateForImage: async (args) => {
     const step = script[Math.min(calls, Math.max(script.length - 1, 0))] ?? {};
     calls++;
@@ -93,9 +77,7 @@ const blank = (name: string): Omit<Frame, 'id'> => ({
   tema: '',
   status: { adobe: 'menunggu', shutterstock: 'menunggu' },
   error: { adobe: '', shutterstock: '' },
-  metadata: {},
-  // M29: frame tes dianggap sudah dianalisis supaya lolos gerbang metadata
-  analysisStatus: { adobe: 'siap', shutterstock: 'siap' }
+  metadata: {}
 });
 
 const RETRY = 'Coba lagi frame gagal';
@@ -113,7 +95,6 @@ const flush = () => act(async () => { await new Promise((r) => setTimeout(r, 0))
 
 beforeEach(() => {
   localStorage.clear();
-  localStorage.setItem('stockmeta_strict_verify', '0'); // mekanik UI; grounding di pipeline.test.ts
   fileStore.clear();
   script = [];
   calls = 0;
@@ -145,7 +126,10 @@ function addFrames(n: number): number[] {
 }
 
 async function ready() {
-  act(() => api().p.setKey('kunci-rahasia'));
+  act(() => {
+    api().p.setKey('kunci-rahasia');
+    api().s.setTema('Valid Theme');
+  });
   await act(async () => { await api().p.test(); });
   expect(api().p.status).toBe('ok');
 }
@@ -159,7 +143,7 @@ describe('tombol "Coba lagi frame gagal"', () => {
     act(() => api().s.failFrame(ids[1], 'adobe', 'HTTP 500'));
     expect(findBtn(RETRY)).not.toBeNull();
 
-    script = [{ meta: { title: 'judul ulang' } }]; // adapter palsu harus mengisi slot → status siap
+    script = [{ meta: { title: 'judul ulang', keywords: [...KW30] } }]; // adapter palsu harus mengisi slot → status siap
     act(() => { findBtn(RETRY)!.click(); });
     await flush();
 
@@ -211,7 +195,7 @@ describe('tombol "Buat ulang semua" (M11)', () => {
     act(() => api().s.applyGenerated(ids[0], 'adobe', { title: 'isi lama' }));
     expect(findBtn(REGEN_ALL)).not.toBeNull();
 
-    script = [{ meta: { title: 'baru 1' } }, { meta: { title: 'baru 2' } }];
+    script = [{ meta: { title: 'baru 1', keywords: [...KW30] } }, { meta: { title: 'baru 2', keywords: [...KW30] } }];
     act(() => { findBtn(REGEN_ALL)!.click(); });
     await flush();
     expect(calls).toBe(0);                            // klik pertama = konfirmasi saja
@@ -221,8 +205,8 @@ describe('tombol "Buat ulang semua" (M11)', () => {
     act(() => { findBtn('Ya, ganti semua')!.click(); });
     await flush();
     expect(calls).toBe(2);                            // SEMUA frame, termasuk yang sudah siap
-    expect(api().s.frames[0].metadata.adobe?.title).toBe('baru 1');
-    expect(api().s.frames[1].metadata.adobe?.title).toBe('baru 2');
+    expect(api().s.frames[0].metadata.adobe?.title).toBe('Baru 1');
+    expect(api().s.frames[1].metadata.adobe?.title).toBe('Baru 2');
     expect(host.textContent).not.toContain('Ganti semua hasil yang sudah ada?');
   });
 
@@ -274,11 +258,28 @@ describe('select "Jeda antar foto"', () => {
 });
 
 describe('keterangan bantu dihapus (M14)', () => {
-  it('Tema utama & Jeda antar foto tidak lagi punya baris penjelasan di bawahnya', () => {
-    expect(host.textContent).toContain('Tema utama (opsional)');
+  it('Tema utama wajib (bukan opsional) & Jeda antar foto tanpa baris penjelasan', () => {
+    expect(host.textContent).toContain('Tema utama');
+    expect(host.textContent).not.toContain('(opsional)');
+    expect(host.querySelector('#tema-batch')!.getAttribute('aria-required')).toBe('true');
     expect(host.textContent).toContain('Jeda antar foto');
     expect(host.textContent).not.toContain('Berlaku untuk seluruh batch');
     expect(host.textContent).not.toContain('Naikkan jika sering muncul');
+  });
+
+  it('tema kosong → generate ditolak dengan pesan + sorotan aria-invalid pada input tema', async () => {
+    addFrames(1);
+    await ready();
+    act(() => api().s.setTema(''));
+    script = [{ meta: { title: 'x' } }];
+
+    const btn = Array.from(host.querySelectorAll('button')).find((b) => (b.textContent ?? '').trim() === 'Buat metadata')!;
+    act(() => { btn.click(); });
+    await flush();
+
+    expect(calls).toBe(0);
+    expect(host.textContent).toContain('Tema utama wajib diisi');
+    expect(host.querySelector('#tema-batch')!.getAttribute('aria-invalid')).toBe('true');
   });
 
   it('grid thumbnail: auto-fill minmax intrinsik, tanpa kolom per breakpoint (M19)', () => {
@@ -345,24 +346,48 @@ describe('ikon "buat ulang" di tile (M13)', () => {
     expect(host.textContent).not.toContain('Timpa hasil yang ada?');
     expect(calls).toBe(0);
 
-    script = [{ meta: { title: 'baru' } }];
+    script = [{ meta: { title: 'baru', keywords: [...KW30] } }];
     act(() => { regenBtn('f0.jpg')!.click(); });             // buka lagi
     act(() => { findBtn('Ya, timpa')!.click(); });
     await flush();
     expect(calls).toBe(1);
-    expect(api().s.frames[0].metadata.adobe?.title).toBe('baru');
+    expect(api().s.frames[0].metadata.adobe?.title).toBe('Baru');
     expect(host.textContent).not.toContain('Timpa hasil yang ada?');
   });
 
   it('frame tanpa isi (menunggu) → langsung generate, tanpa konfirmasi', async () => {
     addFrames(1);
     await ready();
-    script = [{ meta: { title: 'hasil pertama' } }];
+    script = [{ meta: { title: 'hasil pertama', keywords: [...KW30] } }];
 
     act(() => { regenBtn('f0.jpg')!.click(); });
     await flush();
     expect(calls).toBe(1);
     expect(host.textContent).not.toContain('Timpa hasil yang ada?');
-    expect(api().s.frames[0].metadata.adobe?.title).toBe('hasil pertama');
+    expect(api().s.frames[0].metadata.adobe?.title).toBe('Hasil pertama');
+  });
+});
+
+describe('tile seragam dua baris tetap (Fase 2)', () => {
+  it('grid memakai baris sama tinggi + kolom seragam', () => {
+    addFrames(2);
+    const grid = host.querySelector('ul.grid');
+    expect(grid).not.toBeNull();
+    expect(grid!.className).toContain('auto-rows-fr');
+    expect(grid!.className).toContain('items-stretch');
+  });
+
+  it('setiap tile punya area teks dua baris tetap walau note kosong (M32: note pendek "via X")', () => {
+    const ids = addFrames(2);
+    act(() => api().s.setNote(ids[0], 'via Gemini'));
+    const t0 = host.querySelector('[data-testid="tile-text-f0.jpg"]');
+    const t1 = host.querySelector('[data-testid="tile-text-f1.jpg"]');
+    expect(t0).not.toBeNull();
+    expect(t1).not.toBeNull();
+    // baris kedua selalu ada (ruang dipesan walau kosong)
+    expect(t0!.querySelector('[data-testid="tile-sub-f0.jpg"]')).not.toBeNull();
+    expect(t1!.querySelector('[data-testid="tile-sub-f1.jpg"]')).not.toBeNull();
+    expect(t1!.querySelector('[data-testid="tile-sub-f1.jpg"]')!.className).toContain('truncate');
+    expect(t0!.querySelector('[data-testid="tile-sub-f0.jpg"]')!.textContent).toBe('via Gemini');
   });
 });

@@ -37,24 +37,42 @@ describe('openrouter.testConnection', () => {
       { error: { message: 'Invalid API key provided' } }, 401
     ));
     expect(await openrouter.testConnection('salah')).toEqual({
-      ok: false, message: 'Invalid API key provided'
+      ok: false,
+      message: 'Invalid API key provided'
     });
   });
 
   it('respons non-JSON (halaman error gateway) → pesan generik, bukan potongan body mentah', async () => {
     fetchMock.mockResolvedValueOnce(new Response('<html>Bad Gateway</html>', { status: 502 }));
     expect(await openrouter.testConnection('kunci')).toEqual({
-      ok: false, message: 'Respons tidak terbaca dari OpenRouter (HTTP 502).'
+      ok: false,
+      message: 'Respons tidak terbaca dari OpenRouter (HTTP 502).'
     });
   });
 });
 
 describe('openrouter.generateForImage', () => {
+  it('M33 Tahap D: promptOverride dipakai + gambar Tahap A tetap dikirim', async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes({ choices: [{ message: { content: '{"remove":["puppy"]}' } }] }));
+    const out = await openrouter.generateForImage({
+      apiKey: 'RAHASIA',
+      image: { base64: 'QUFBQQ==', mimeType: 'image/jpeg' },
+      platform: 'adobe',
+      promptOverride: 'Hapus kata yang salah'
+    });
+    expect(out.stageRemove).toEqual(['puppy']);
+    const body = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
+    expect(body.messages[0].content).toEqual([
+      { type: 'text', text: 'Hapus kata yang salah' },
+      { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,QUFBQQ==' } }
+    ]);
+  });
+
   it('model openrouter/free + data URI + response_format json_object, hasil di-parse', async () => {
     fetchMock.mockResolvedValueOnce(jsonRes({ choices: [{ message: { content: JSON.stringify({
       description: 'Seekor kucing di atas meja',
       keywords: ['kucing', 'meja'],
-      category: ['Nature']
+      category: ['Nature', 'Objects']
     }) } }] }));
 
     const out = await gen();
@@ -62,7 +80,8 @@ describe('openrouter.generateForImage', () => {
     expect(out).toEqual({
       description: 'Seekor kucing di atas meja',
       keywords: ['kucing', 'meja'],
-      category: 'Nature'
+      category: 'Nature',
+      categories: ['Nature', 'Objects']
     });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];

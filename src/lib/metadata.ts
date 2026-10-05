@@ -35,6 +35,10 @@ export function hasContent(platform: Platform, m: Metadata): boolean {
 // generate tanpa kategori tidak boleh menimpa pilihan yang sudah ada, dan benderanya ikut
 // berpindah supaya saran "periksa kembali" tetap melekat pada isinya.
 export function mergeGenerated(platform: Platform, base: Metadata, incoming: ParsedMetadata): Metadata {
+  // Fase 4: theme_fit false eksplisit dari model → penanda mismatch non-pemblokir;
+  // undefined (respons lama) → pertahankan penanda lama.
+  const mismatch =
+    incoming.themeFit === false ? true : incoming.themeFit === true ? undefined : undefined;
   if (platform === 'adobe') {
     const b = base as AdobeMetadata;
     const auto = Boolean(incoming.categoryAuto);
@@ -45,26 +49,35 @@ export function mergeGenerated(platform: Platform, base: Metadata, incoming: Par
     const category = auto
       ? old || incoming.category || ''
       : incoming.category?.trim() ? incoming.category : b.category;
+    const baseMismatch = mismatch === true ? true : mismatch === undefined ? b.themeMismatch : undefined;
     return {
       title: incoming.title?.trim() ? incoming.title : b.title,
       keywords: incoming.keywords ?? b.keywords,
       category,
-      ...(categoryAuto ? { categoryAuto } : {})
+      ...(categoryAuto ? { categoryAuto } : {}),
+      ...(baseMismatch ? { themeMismatch: true } : {})
     };
   }
   const b = base as ShutterstockMetadata;
   const auto = Boolean(incoming.categoryAuto);
+  // Fase 1: Shutterstock wajib 2 kategori berbeda — utamakan array `categories` bila ada.
+  const incomingCats = (Array.isArray(incoming.categories) && incoming.categories.length
+    ? incoming.categories
+    : incoming.category?.trim() ? [incoming.category.trim()] : []
+  ).filter(Boolean);
   const old = b.categories.length ? b.categories : [];
   const categoryAuto = auto
     ? old.length ? b.categoryAuto : true
-    : incoming.category?.trim() ? undefined : b.categoryAuto;
+    : incomingCats.length ? undefined : b.categoryAuto;
   const categories = auto
     ? old.length ? b.categories : incoming.category ? [incoming.category] : b.categories
-    : incoming.category ? [incoming.category] : b.categories;
+    : incomingCats.length ? incomingCats : b.categories;
+  const baseMismatch = mismatch === true ? true : mismatch === undefined ? b.themeMismatch : undefined;
   return {
     description: incoming.description?.trim() ? incoming.description : b.description,
     keywords: incoming.keywords ?? b.keywords,
     categories,
-    ...(categoryAuto ? { categoryAuto } : {})
+    ...(categoryAuto ? { categoryAuto } : {}),
+    ...(baseMismatch ? { themeMismatch: true } : {})
   };
 }

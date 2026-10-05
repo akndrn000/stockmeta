@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BATCH_DELAY_DEFAULT_SEC } from './limits';
-import { loadSession, readBatchDelay, readKey, readMode, readProvider, readProviderForMode, readTheme, removeSession, saveSession, writeBatchDelay, writeKey, writeMode, writeProvider, writeProviderForMode, writeTheme } from './storage';
+import { loadSession, readBatchDelay, readKey, readProvider, readTheme, removeSession, saveSession, writeBatchDelay, writeKey, writeProvider, writeTheme } from './storage';
 import type { StoredSession } from './storage';
 import type { Frame } from './types';
 
@@ -39,12 +39,12 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('API key', () => {
-  it('roundtrip per provider, provider asing → ""', () => {
+  it('roundtrip per provider, provider tanpa lsKey → ""', () => {
     writeKey('gemini', 'abc');
-    writeKey('openrouter', 'x');
+    writeKey('coming-soon', 'x');
     expect(readKey('gemini')).toBe('abc');
     expect(readKey('groq')).toBe('');
-    expect(readKey('openrouter')).toBe('x');
+    expect(readKey('coming-soon')).toBe('');
   });
 
   it('groq tidak mengubah key gemini', () => {
@@ -65,58 +65,10 @@ describe('pilihan provider (M11)', () => {
     expect(readProvider()).toBe('gemini');
     writeProvider('groq');
     expect(readProvider()).toBe('groq');
-    writeProvider('openrouter');
-    expect(readProvider()).toBe('openrouter');
+    writeProvider('coming-soon');
+    expect(readProvider()).toBe('coming-soon');
     store.setItem('stockmeta_provider', 'nvidia');
     expect(readProvider()).toBeNull();
-  });
-
-  it("nilai lama 'custom'/'coming-soon' yang sudah dihapus → null", () => {
-    store.setItem('stockmeta_provider', 'custom');
-    expect(readProvider()).toBeNull();
-    store.setItem('stockmeta_provider', 'coming-soon');
-    expect(readProvider()).toBeNull();
-  });
-});
-
-describe('pilihan provider per mode (analisis vs metadata)', () => {
-  it('belum pernah memilih per mode → null', () => {
-    expect(readProviderForMode('analisis')).toBeNull();
-    expect(readProviderForMode('metadata')).toBeNull();
-  });
-
-  it('roundtrip per mode, saling terpisah', () => {
-    writeProviderForMode('analisis', 'gemini');
-    writeProviderForMode('metadata', 'groq');
-    expect(readProviderForMode('analisis')).toBe('gemini');
-    expect(readProviderForMode('metadata')).toBe('groq');
-    // ganti satu mode tidak menyentuh mode lain maupun kunci umum
-    writeProviderForMode('analisis', 'openrouter');
-    expect(readProviderForMode('analisis')).toBe('openrouter');
-    expect(readProviderForMode('metadata')).toBe('groq');
-    expect(readProvider()).toBeNull();
-  });
-
-  it('nilai tak sah → null', () => {
-    store.setItem('stockmeta_provider_analisis', 'custom');
-    expect(readProviderForMode('analisis')).toBeNull();
-    store.setItem('stockmeta_provider_metadata', 'coming-soon');
-    expect(readProviderForMode('metadata')).toBeNull();
-  });
-});
-
-describe('mode aplikasi Analisis/Metadata (M29)', () => {
-  it('belum pernah memilih → null (pemanggil memakai default metadata)', () => {
-    expect(readMode()).toBeNull();
-  });
-
-  it('roundtrip nilai valid; nilai tak sah → null', () => {
-    writeMode('analisis');
-    expect(readMode()).toBe('analisis');
-    writeMode('metadata');
-    expect(readMode()).toBe('metadata');
-    store.setItem('stockmeta_mode', 'review');
-    expect(readMode()).toBeNull();
   });
 });
 
@@ -219,41 +171,6 @@ describe('loadSession — format baru (slot per platform)', () => {
       }]
     }));
     expect(loadSession()?.imgs[0].metadata.adobe?.categoryAuto).toBe(true);
-  });
-
-  it('M29: slot analisis valid terbaca utuh; sesi lama tanpa slot → undefined', () => {
-    store.setItem('stockmeta_session', JSON.stringify({
-      v: 1, platform: 'adobe', sel: null, seq: 2, tema: '',
-      imgs: [
-        {
-          id: 1, name: 'a.jpg', thumb: '',
-          analysis: { adobe: { verdict: 'layak', issues: [], summary: 'OK' } },
-          analysisStatus: { adobe: 'siap' },
-          analysisError: { adobe: '' }
-        },
-        { id: 2, name: 'b.jpg', thumb: '' }
-      ]
-    }));
-    const s = loadSession();
-    expect(s?.imgs[0].analysis?.adobe).toEqual({ verdict: 'layak', issues: [], summary: 'OK' });
-    expect(s?.imgs[0].analysisStatus?.adobe).toBe('siap');
-    expect(s?.imgs[1].analysis).toBeUndefined();
-    expect(s?.imgs[1].analysisStatus).toBeUndefined();
-  });
-
-  it('M29: slot analisis rusak dibuang (bukan sesi dibuang); memproses → menunggu', () => {
-    store.setItem('stockmeta_session', JSON.stringify({
-      v: 1, platform: 'adobe', sel: null, seq: 1, tema: '',
-      imgs: [{
-        id: 1, name: 'a.jpg', thumb: '',
-        analysis: { adobe: { verdict: 'bagus-sekali', issues: 'bukan-array' } },
-        analysisStatus: { adobe: 'memproses' }
-      }]
-    }));
-    const s = loadSession();
-    expect(s).not.toBeNull();
-    expect(s?.imgs[0].analysis).toBeUndefined();
-    expect(s?.imgs[0].analysisStatus?.adobe).toBe('menunggu');
   });
 
   it('slot ada tapi kosong isinya + status siap → dinormalkan ke menunggu (audit A1)', () => {

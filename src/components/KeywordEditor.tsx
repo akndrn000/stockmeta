@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { addKeywords, keywordsToPlain, parseKeywordInput, removeKeyword } from '../lib/keywords';
 import { MAX_KEYWORDS } from '../lib/limits';
 import { CopyButton } from './CopyButton';
+import { LabelRow } from './LabelRow';
 
 function skipMessage(dup: number, over: number): string {
   const parts: string[] = [];
@@ -41,39 +42,33 @@ export function KeywordEditor({ keywords, min, max = MAX_KEYWORDS, onChange, dis
 
   return (
     <div className="flex flex-col gap-1.5">
-      {/* M18: penghitung & badge naik ke baris label — label kiri, penghitung + salin kanan;
-          flex-wrap + ml-auto bila layar sempit (grup kanan turun dan tetap rata kanan). */}
-      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-        <label htmlFor="kw-input" className="text-meta font-semibold uppercase tracking-[0.06em] text-text-muted">
-          Kata kunci
-        </label>
-        <span className="ml-auto flex shrink-0 items-center gap-1.5">
-          <span id="kw-count" className="flex shrink-0 items-center gap-1.5">
-            {/* M16: badge meta kecil (penghitung, min, penuh) = teks polos tanpa kotak —
-                hanya badge STATUS (berwarna aktif) yang memakai garis 2px. */}
-            <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-text-muted tabular-nums">
-              {n}/{max}
-            </span>
-            <span
-              className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-text-muted tabular-nums"
-              title={`Batas aktif platform ini: ${min}–${max}`}
-            >
-              batas {min}–{max}
-            </span>
-            {n < min && (
-              <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-warning tabular-nums">
-                min {min}
+      {/* Fase 2: pola baris label sama dengan Field — satu baris nowrap, tinggi tetap. */}
+      <LabelRow
+        id="kw-input"
+        label="Kata kunci"
+        right={
+          <>
+            <span id="kw-count" className="flex shrink-0 items-center gap-1.5">
+              {/* M16: badge meta kecil (penghitung, min, penuh) = teks polos tanpa kotak —
+                  hanya badge STATUS (berwarna aktif) yang memakai garis 2px. */}
+              <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-text-muted tabular-nums">
+                {n}/{max}
               </span>
-            )}
-            {full && (
-              <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-accent-text">
-                penuh
-              </span>
-            )}
-          </span>
-          <CopyButton text={plain} label="daftar kata kunci" disabled={disabled} />
-        </span>
-      </div>
+              {n < min && (
+                <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-warning tabular-nums">
+                  min {min}
+                </span>
+              )}
+              {full && (
+                <span className="font-mono text-meta font-bold uppercase tracking-[0.08em] text-accent-text">
+                  penuh
+                </span>
+              )}
+            </span>
+            <CopyButton text={plain} label="daftar kata kunci" disabled={disabled} />
+          </>
+        }
+      />
 
       {/* M13: SATU-satunya pengecualian "tanpa scroll internal" (M12) — daftar bisa 50 chip,
           jadi dibatasi 12.5rem (200px di root 16px, ikut membesar bila font root naik — M14);

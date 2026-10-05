@@ -1,22 +1,14 @@
 // Gemini live — port dari legacy/js/providers-gemini.js (endpoint, format request,
-// pemetaan error dari BODY respons). Model default gemini-3.5-flash-lite (lihat models.ts);
-// Mode Analisis memakai varian non-lite via pickGeminiModel(true) — analisis butuh
-// penalaran lebih dalam dibanding sekadar deskripsi objek untuk metadata. 429 dibedakan:
-// limit per menit → di-retry, kuota harian (RESOURCE_EXHAUSTED) → gagal cepat tanpa retry.
+// pemetaan error dari BODY respons). SATU model (gemini-3.5-flash, lihat models.ts):
+// tanpa deteksi otomatis, tanpa daftar model. 429 dibedakan: limit per menit → di-retry,
+// kuota harian (RESOURCE_EXHAUSTED) → gagal cepat tanpa retry.
 // Key hanya dikirim sebagai query param ke API resmi Google dan TIDAK PERNAH dicetak ke log.
-import { buildAnalysisPrompt, parseAnalysisResponse } from '../analysisPrompt';
-import { buildObservationPrompt, parseObservationResponse } from '../observation';
-import type { Observation } from '../observation';
-import type { AnalysisResult } from '../types';
-import { judgePromptFor, parseJudgeResponse } from '../judge';
 import { buildMetadataPrompt, parseMetadataResponse } from '../prompt';
 import type { ParsedMetadata } from '../prompt';
 import { readBody } from './http';
-import { GEMINI_MODEL, pickGeminiModel } from './models';
+import { GEMINI_MODEL } from './models';
 import { MODEL_RETRY_MAX, ProviderError, dailyQuotaError, isDailyQuota, parseRetryAfter, withRetry } from './retry';
-import type { AnalyzeArgs, CropInspectInput, CropInspectOutput, GenerateArgs, ImageInput, JudgeInput, JudgeOutput, ObserveArgs, ProviderAdapter, TestOpts, TestResult, TextArgs } from './types';
-import { isVisionNotSupportedError } from './types';
-import { buildCropPrompt, parseCropResponse } from '../quality/cropInspect';
+import type { GenerateArgs, ProviderAdapter, TestResult } from './types';
 
 export const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
@@ -48,20 +40,7 @@ function geminiHttpError(status: number, data: unknown, raw: string, headers: He
   });
 }
 
-/** Error gambar-tak-didukung → noVision (frame berhenti, tanpa fallback teks-saja). */
-function withNoVision(err: unknown): unknown {
-  const msg = err instanceof Error ? err.message : String(err);
-  if (isVisionNotSupportedError(msg)) {
-    return new ProviderError('Model Gemini tidak mendukung gambar — frame dihentikan (tanpa mode teks-saja).', {
-      retryable: false,
-      noVision: true
-    });
-  }
-  return err;
-}
-
-async function testConnection(apiKey: string, opts?: TestOpts): Promise<TestResult> {
-  const signal = opts?.signal;
+async function testConnection(apiKey: string, signal?: AbortSignal): Promise<TestResult> {
   // GET /models/{model}: sekalian membuktikan key valid DAN model tunggal tersedia.
   let res: Response;
   try {
@@ -78,129 +57,44 @@ async function testConnection(apiKey: string, opts?: TestOpts): Promise<TestResu
   return { ok: true };
 }
 
-// M29: satu-satunya tempat HTTP generateContent — prompt & parser diinjeksikan pemanggil.
-// Tanpa image = panggilan teks murni (Tahap B/D, juri tanpa gambar, perbaikan).
-// `model` default = varian lite (jalur metadata TIDAK berubah); pemanggil analisis
-// mengoper pickGeminiModel(true) supaya varian "-lite" dihindari.
-async function postChat(opts: { apiKey: string; image?: ImageInput; prompt: string; signal?: AbortSignal; model?: string }): Promise<string> {
-  const { apiKey, image, prompt, signal, model = GEMINI_MODEL } = opts;
-  let res: Response;
-  try {
-    res = await fetch(GEMINI_BASE + '/models/' + model + ':generateContent?key=' + encodeURIComponent(apiKey), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: image ? [{ text: prompt }, { inline_data: { mime_type: image.mimeType, data: image.base64 } }] : [{ text: prompt }] }],
-        generationConfig: { responseMimeType: 'application/json' }
-      }),
-      signal
-    });
-  } catch {
-    const aborted = Boolean(signal?.aborted);
-    throw new ProviderError(aborted ? 'Dibatalkan' : 'Tidak ada koneksi ke server Gemini.', { retryable: !aborted });
-  }
-
-  const { data, raw } = await readBody(res);
-  if (!res.ok) throw geminiHttpError(res.status, data, raw, res.headers);
-
-  const body = data && typeof data === 'object' ? data as {
-    promptFeedback?: { blockReason?: string };
-    candidates?: { content?: { parts?: { text?: string }[] } }[];
-  } : null;
-  const block = body?.promptFeedback?.blockReason;
-  if (block) throw new ProviderError('Konten diblokir: ' + block, { retryable: false });
-
-  const parts = body?.candidates?.[0]?.content?.parts;
-  const text = Array.isArray(parts) ? parts.map((p) => p?.text ?? '').join('') : '';
-  if (!text.trim()) throw new ProviderError('Respons kosong', { retryable: true, maxRetries: MODEL_RETRY_MAX });
-  return text;
-}
-
 async function generateForImage(args: GenerateArgs): Promise<ParsedMetadata> {
-  const { apiKey, image, platform, theme, signal, onWait } = args;
-  const prompt = buildMetadataPrompt({ platform, theme });
+  const { apiKey, image, platform, theme, signal, onWait, languageFix, retryNote, promptOverride } = args;
+  // M33 Fase 2c/5: promptOverride (Tahap D) tetap disertai gambar yang sama.
+  const prompt = promptOverride ?? buildMetadataPrompt({ platform, theme, languageFix, retryNote });
 
   return withRetry(async () => {
+    let res: Response;
     try {
-      const text = await postChat({ apiKey, image, prompt, signal });
-      return parseMetadataResponse(text, platform);   // JSON rusak → Error kind 'json' → di-retry ≤2x
-    } catch (err) { throw withNoVision(err); }
+      res = await fetch(GEMINI_BASE + '/models/' + GEMINI_MODEL + ':generateContent?key=' + encodeURIComponent(apiKey), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: image.mimeType, data: image.base64 } }] }],
+          generationConfig: { responseMimeType: 'application/json' }
+        }),
+        signal
+      });
+    } catch {
+      const aborted = Boolean(signal?.aborted);
+      throw new ProviderError(aborted ? 'Dibatalkan' : 'Tidak ada koneksi ke server Gemini.', { retryable: !aborted });
+    }
+
+    const { data, raw } = await readBody(res);
+    if (!res.ok) throw geminiHttpError(res.status, data, raw, res.headers);
+
+    const body = data && typeof data === 'object' ? data as {
+      promptFeedback?: { blockReason?: string };
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
+    } : null;
+    const block = body?.promptFeedback?.blockReason;
+    if (block) throw new ProviderError('Konten diblokir: ' + block, { retryable: false });
+
+    const parts = body?.candidates?.[0]?.content?.parts;
+    const text = Array.isArray(parts) ? parts.map((p) => p?.text ?? '').join('') : '';
+    if (!text.trim()) throw new ProviderError('Respons kosong', { retryable: true, maxRetries: MODEL_RETRY_MAX });
+
+    return parseMetadataResponse(text, platform);   // JSON rusak → Error kind 'json' → di-retry ≤2x
   }, { onWait, signal });
 }
 
-async function analyzeImage(args: AnalyzeArgs): Promise<AnalysisResult> {
-  const { apiKey, image, platform, signal, onWait } = args;
-  const prompt = buildAnalysisPrompt({ platform });
-  // Mode Analisis memprioritaskan model non-lite (penalaran lebih dalam).
-  const model = pickGeminiModel(true);
-
-  return withRetry(async () => {
-    try {
-      const text = await postChat({ apiKey, image, prompt, signal, model });
-      return parseAnalysisResponse(text);
-    } catch (err) { throw withNoVision(err); }
-  }, { onWait, signal });
-}
-
-async function callText(args: TextArgs): Promise<string> {
-  const { apiKey, prompt, signal, onWait } = args;
-  return withRetry(async () => postChat({ apiKey, prompt, signal }), { onWait, signal });
-}
-
-async function observeImage(args: ObserveArgs): Promise<Observation> {
-  const { apiKey, image, theme, signal, onWait } = args;
-  const prompt = buildObservationPrompt(theme);
-  return withRetry(async () => {
-    try {
-      const text = await postChat({ apiKey, image, prompt, signal });
-      return parseObservationResponse(text);
-    } catch (err) { throw withNoVision(err); }
-  }, { onWait, signal });
-}
-
-async function callJudge(input: JudgeInput): Promise<JudgeOutput> {
-  const { apiKey, signal, onWait } = input;
-  const prompt = judgePromptFor(input);
-  const image = input.sendImage ? input.image : undefined;
-  return withRetry(async () => {
-    try {
-      const text = await postChat({ apiKey, image, prompt, signal });
-      return parseJudgeResponse(text);   // rule_id asing → error kind 'json' → di-retry
-    } catch (err) { throw withNoVision(err); }
-  }, { onWait, signal });
-}
-
-export const gemini: ProviderAdapter = {
-  id: 'gemini',
-  label: 'Gemini',
-  // TODO [VERIFIKASI]: pastikan model default gemini-3.5-flash-lite benar-benar
-  // mendukung gambar — bila tidak, frame berhenti dengan error jelas (noVision).
-  supportsVision: true,
-  testConnection,
-  generateForImage,
-  analyzeImage,
-  observeImage,
-  callText,
-  callJudge,
-  inspectCrop
-};
-
-async function inspectCrop(input: CropInspectInput): Promise<CropInspectOutput> {
-  const prompt = buildCropPrompt(input.region);
-  const text = await withRetry(async () => {
-    try {
-      return await postChat({ apiKey: input.apiKey, image: input.image, prompt, signal: input.signal });
-    } catch (err) { throw withNoVision(err); }
-  }, { onWait: input.onWait, signal: input.signal });
-  const parsed = parseCropResponse(text);
-  const first = parsed.crops[0];
-  if (!first) throw new Error('Inspeksi crop kosong');
-  return {
-    visible_noise: first.visible_noise,
-    blur_or_soft: first.blur_or_soft,
-    artifacts_or_halos: first.artifacts_or_halos,
-    dust_or_sensor_spots: first.dust_or_sensor_spots,
-    ai_glitches: first.ai_glitches,
-    notes: first.notes
-  };
-};
+export const gemini: ProviderAdapter = { id: 'gemini', testConnection, generateForImage };

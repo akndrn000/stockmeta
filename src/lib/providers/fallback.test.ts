@@ -2,10 +2,9 @@
 // → diproses provider lain yang key-nya tersimpan; toggle mati atau tanpa key lain → gagal
 // dengan pesan asli. Adapter & key disuntikkan lewat deps (tanpa jaringan, tanpa localStorage).
 import { describe, expect, it, vi } from 'vitest';
-import { blankObservation } from '../observation';
 import type { ParsedMetadata } from '../prompt';
-import type { AnalysisResult, ProviderId } from '../types';
-import { FALLBACK_ORDER, analyzeWithFallback, canFallback, generateWithFallback } from './fallback';
+import type { ProviderId } from '../types';
+import { FALLBACK_ORDER, canFallback, generateWithFallback } from './fallback';
 import { ProviderError, dailyQuotaError } from './retry';
 import type { ProviderAdapter, TestResult } from './types';
 
@@ -20,20 +19,7 @@ const ARGS = {
 type Id = 'groq' | 'gemini' | 'openrouter';
 
 function fakeAdapter(id: Id, impl: () => Promise<ParsedMetadata>): ProviderAdapter {
-  return {
-    id,
-    label: id,
-    supportsVision: true,
-    testConnection: async (): Promise<TestResult> => ({ ok: true }),
-    generateForImage: impl,
-    observeImage: async () => blankObservation(),
-    analyzeImage: async () => ({ verdict: 'layak', issues: [], summary: '' }),
-    callText: async () => '{}',
-    callJudge: async () => ({
-      verdict: 'pass', score: 100, checks: [], unsupported_metadata: [], ip_risks: [],
-      category_ok: true, suggested_category: null, needs_editorial_or_release: false, confidence: 1
-    })
-  };
+  return { id, testConnection: async (): Promise<TestResult> => ({ ok: true }), generateForImage: impl };
 }
 
 function setup(opts: {
@@ -43,7 +29,7 @@ function setup(opts: {
   keys?: Partial<Record<Id, string>>;
   enabled?: boolean;
 }) {
-  const keys = { groq: 'k-groq', gemini: 'k-gemini', openrouter: 'k-or', ...opts.keys };
+  const keys = { groq: 'k-groq', gemini: 'k-gemini', openrouter: 'k-openrouter', ...opts.keys };
   const enabled = opts.enabled ?? true;
   const getAdapter = vi.fn((id: ProviderId): ProviderAdapter | undefined => {
     const impl = id === 'groq' ? opts.primary : opts.others?.[id as Id];
@@ -154,56 +140,6 @@ describe('FALLBACK_ORDER', () => {
   it('urutan cadangan: Groq, Gemini, OpenRouter — tanpa provider placeholder', () => {
     expect([...FALLBACK_ORDER]).toEqual(['groq', 'gemini', 'openrouter']);
     expect(new Set(FALLBACK_ORDER).size).toBe(FALLBACK_ORDER.length);
-  });
-});
-
-describe('analyzeWithFallback (M29)', () => {
-  const OK: AnalysisResult = { verdict: 'layak', issues: [], summary: 'OK' };
-  const AARGS = {
-    provider: 'groq' as const,
-    apiKey: 'k-groq',
-    image: { base64: 'QUFBQQ==', mimeType: 'image/jpeg' },
-    platform: 'adobe' as const
-  };
-
-  function setupAnalysis(primary: () => Promise<AnalysisResult>, other?: () => Promise<AnalysisResult>) {
-    const mk = (id: Id, analyzeImage: () => Promise<AnalysisResult>): ProviderAdapter => ({
-      id,
-      label: id,
-      supportsVision: true,
-      testConnection: async (): Promise<TestResult> => ({ ok: true }),
-      generateForImage: async () => ({}),
-      observeImage: async () => blankObservation(),
-      analyzeImage,
-      callText: async () => '{}',
-      callJudge: async () => ({
-        verdict: 'pass', score: 100, checks: [], unsupported_metadata: [], ip_risks: [],
-        category_ok: true, suggested_category: null, needs_editorial_or_release: false, confidence: 1
-      })
-    });
-    const getAdapter = vi.fn((id: ProviderId): ProviderAdapter | undefined => {
-      if (id === 'groq') return mk('groq', primary);
-      if (id === 'gemini' && other) return mk('gemini', other);
-      return undefined;
-    });
-    const getKey = vi.fn((id: ProviderId): string => ({ groq: 'k-groq', gemini: 'k-gemini', openrouter: '' })[id as Id] ?? '');
-    const isEnabled = vi.fn(() => true);
-    return { getAdapter, getKey, isEnabled, deps: { getAdapter, getKey, isEnabled } };
-  }
-
-  it('aktif sukses → tanpa sentuh provider lain', async () => {
-    const s = setupAnalysis(async () => OK);
-    const out = await analyzeWithFallback(AARGS, s.deps);
-    expect(out).toEqual({ analysis: OK, provider: 'groq', usedFallback: false });
-    expect(s.getAdapter).toHaveBeenCalledTimes(1);
-  });
-
-  it('kuota harian habis → analisis jalan via cadangan', async () => {
-    const s = setupAnalysis(
-      async () => { throw dailyQuotaError('Groq', 'Gemini'); },
-      async () => OK
-    );
-    const out = await analyzeWithFallback(AARGS, s.deps);
-    expect(out).toMatchObject({ provider: 'gemini', usedFallback: true, analysis: OK });
+    expect(FALLBACK_ORDER).not.toContain('coming-soon');
   });
 });

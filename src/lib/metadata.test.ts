@@ -14,7 +14,7 @@ describe('mergeGenerated — kategori fallback (categoryAuto)', () => {
   it('slot kosong → kategori fallback masuk lengkap dengan benderanya', () => {
     expect(mergeGenerated('adobe', adobe(), { title: 'x', category: 'Animals', categoryAuto: true }))
       .toEqual({ title: 'x', keywords: [], category: 'Animals', categoryAuto: true });
-    expect(mergeGenerated('shutterstock', shutter(), { description: 'd', category: 'Abstract', categoryAuto: true }))
+    expect(mergeGenerated('shutterstock', shutter(), { description: 'd', category: 'Abstract', categories: ['Abstract'], categoryAuto: true }))
       .toEqual({ description: 'd', keywords: [], categories: ['Abstract'], categoryAuto: true });
   });
 
@@ -28,6 +28,14 @@ describe('mergeGenerated — kategori fallback (categoryAuto)', () => {
   it('model mengembalikan kategori valid → bendera lama dibersihkan', () => {
     expect(mergeGenerated('adobe', adobe({ category: 'Animals', categoryAuto: true }), { category: 'Food' }))
       .toEqual({ title: '', keywords: [], category: 'Food' });
+  });
+
+  it('Fase 1: Shutterstock array 2 kategori dipertahankan penuh', () => {
+    expect(mergeGenerated('shutterstock', shutter(), {
+      description: 'd',
+      category: 'Abstract',
+      categories: ['Abstract', 'Nature']
+    })).toEqual({ description: 'd', keywords: [], categories: ['Abstract', 'Nature'] });
   });
 });
 

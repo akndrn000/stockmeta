@@ -1,7 +1,7 @@
 // localStorage: API key provider, riwayat sesi (thumbnail saja), mode siang/malam.
 // Port perilaku legacy/js/storage.js — semua operasi dibungkus try/catch (kuota penuh /
 // mode privasi tidak boleh menjatuhkan aplikasi); tanpa DOM, tanpa React.
-import type { AdobeMetadata, AnalysisIssue, AnalysisIssueCategory, AnalysisResult, AnalysisVerdict, AppMode, Frame, FrameStatus, MetadataSlots, Platform, ProviderId, ShutterstockMetadata } from './types';
+import type { AdobeMetadata, Frame, FrameStatus, MetadataSlots, Platform, ProviderId, ShutterstockMetadata } from './types';
 import { BATCH_DELAY_DEFAULT_SEC, BATCH_DELAY_OPTIONS_SEC } from './limits';
 import { hasContent } from './metadata';
 
@@ -15,16 +15,7 @@ export const SESS_KEY = 'stockmeta_session';
 export const THEME_KEY = 'stockmeta_theme';
 export const BATCH_DELAY_KEY = 'stockmeta_batch_delay';
 export const PROVIDER_KEY = 'stockmeta_provider';
-/** pilihan provider KHUSUS Mode Analisis (terpisah dari kunci umum di atas) */
-export const PROVIDER_ANALYSIS_KEY = 'stockmeta_provider_analisis';
-/** pilihan provider KHUSUS Mode Metadata (terpisah dari kunci umum di atas) */
-export const PROVIDER_METADATA_KEY = 'stockmeta_provider_metadata';
 export const FALLBACK_KEY = 'stockmeta_fallback';
-export const MODE_KEY = 'stockmeta_mode';
-/** toggle "Verifikasi ketat" grounding Tahap D (default aktif) */
-export const STRICT_VERIFY_KEY = 'stockmeta_strict_verify';
-/** toggle "kirim gambar ke juri" (default aktif) */
-export const JUDGE_IMAGE_KEY = 'stockmeta_judge_image';
 
 function ls(): Storage | null {
   try { return typeof localStorage === 'undefined' ? null : localStorage; }
@@ -49,41 +40,15 @@ export function writeKey(provider: ProviderId, key: string): void {
 
 /* ---------------- pilihan provider (M11: default Groq, pilihan user dihormati) ---------------- */
 
-function isProviderId(v: unknown): v is ProviderId {
-  return v === 'gemini' || v === 'groq' || v === 'openrouter';
-}
-
 export function readProvider(): ProviderId | null {
   try {
     const v = ls()?.getItem(PROVIDER_KEY);
-    // migrasi: 'openrouter' lama yang sempat dipetakan ke 'custom' kembali ke 'openrouter';
-    // 'custom'/'coming-soon' yang sudah dihapus → null (pemanggil memakai default mode)
-    if (v === 'openrouter') return 'openrouter';
-    return isProviderId(v) ? v : null;
+    return v === 'gemini' || v === 'groq' || v === 'openrouter' || v === 'coming-soon' ? v : null;
   } catch { return null; }
 }
 
 export function writeProvider(provider: ProviderId): void {
   try { ls()?.setItem(PROVIDER_KEY, provider); } catch { /* diabaikan */ }
-}
-
-/* ---------------- pilihan provider per mode (analisis vs metadata) ---------------- */
-// API key TETAP satu per provider (readKey/writeKey) — hanya pilihan provider yang dipisah.
-
-function modeKey(mode: AppMode): string {
-  return mode === 'analisis' ? PROVIDER_ANALYSIS_KEY : PROVIDER_METADATA_KEY;
-}
-
-/** pilihan tersimpan KHUSUS mode ini; null bila belum pernah memilih di mode ini. */
-export function readProviderForMode(mode: AppMode): ProviderId | null {
-  try {
-    const v = ls()?.getItem(modeKey(mode));
-    return isProviderId(v) ? v : null;
-  } catch { return null; }
-}
-
-export function writeProviderForMode(mode: AppMode, provider: ProviderId): void {
-  try { ls()?.setItem(modeKey(mode), provider); } catch { /* diabaikan */ }
 }
 
 /* ---------------- fallback antar provider (toggle panel, default: aktif) ---------------- */
@@ -94,19 +59,6 @@ export function readFallback(): boolean {
 
 export function writeFallback(enabled: boolean): void {
   try { ls()?.setItem(FALLBACK_KEY, enabled ? '1' : '0'); } catch { /* diabaikan */ }
-}
-
-/* ---------------- mode aplikasi Analisis/Metadata (M29, default: metadata) ---------------- */
-
-export function readMode(): AppMode | null {
-  try {
-    const v = ls()?.getItem(MODE_KEY);
-    return v === 'analisis' || v === 'metadata' ? v : null;
-  } catch { return null; }
-}
-
-export function writeMode(mode: AppMode): void {
-  try { ls()?.setItem(MODE_KEY, mode); } catch { /* diabaikan */ }
 }
 
 /* ---------------- riwayat sesi ---------------- */
@@ -138,7 +90,8 @@ function coerceAdobe(o: Record<string, unknown>): AdobeMetadata {
     keywords: keywordsOf(o),
     category: typeof o.category === 'string' ? o.category : '',
     // M11: tanda "kategori dipilih otomatis" ikut tersimpan supaya sarannya tetap ada setelah reload
-    ...(o.categoryAuto === true ? { categoryAuto: true } : {})
+    ...(o.categoryAuto === true ? { categoryAuto: true } : {}),
+    ...(o.themeMismatch === true ? { themeMismatch: true } : {})
   };
 }
 
@@ -151,7 +104,8 @@ function coerceShutter(o: Record<string, unknown>): ShutterstockMetadata {
       : typeof o.desc === 'string' ? o.desc : '',
     keywords: keywordsOf(o),
     categories: cats,
-    ...(o.categoryAuto === true ? { categoryAuto: true } : {})
+    ...(o.categoryAuto === true ? { categoryAuto: true } : {}),
+    ...(o.themeMismatch === true ? { themeMismatch: true } : {})
   };
 }
 
@@ -164,35 +118,6 @@ function flatHasData(o: Record<string, unknown>): boolean {
     if (Array.isArray(v) && v.some((x) => String(x).trim())) return true;
   }
   return false;
-}
-
-// M29: hasil analisis ikut tersimpan per frame — entri rusak dibuang, bukan sesi dibuang.
-const ANALYSIS_VERDICTS: readonly AnalysisVerdict[] = ['layak', 'berpotensi-ditolak', 'perlu-tinjau'];
-const ANALYSIS_CATEGORIES: readonly AnalysisIssueCategory[] = [
-  'kualitas-gambar', 'konten-serupa', 'watermark-logo', 'hak-cipta-merek',
-  'properti-model-release', 'komposisi', 'nilai-komersial', 'lainnya'
-];
-
-function coerceAnalysisIssue(v: unknown): AnalysisIssue | null {
-  if (typeof v !== 'object' || v === null) return null;
-  const o = v as Record<string, unknown>;
-  if (!ANALYSIS_CATEGORIES.includes(o.category as AnalysisIssueCategory)) return null;
-  if (typeof o.description !== 'string' || !o.description.trim()) return null;
-  return { category: o.category as AnalysisIssueCategory, description: o.description };
-}
-
-function coerceAnalysis(v: unknown): AnalysisResult | undefined {
-  if (typeof v !== 'object' || v === null) return undefined;
-  const o = v as Record<string, unknown>;
-  if (!ANALYSIS_VERDICTS.includes(o.verdict as AnalysisVerdict)) return undefined;
-  const issues: AnalysisIssue[] = Array.isArray(o.issues)
-    ? o.issues.map(coerceAnalysisIssue).filter((x): x is AnalysisIssue => x !== null)
-    : [];
-  return {
-    verdict: o.verdict as AnalysisVerdict,
-    issues,
-    summary: typeof o.summary === 'string' ? o.summary : ''
-  };
 }
 
 // Migrasi format lama → slot per platform. Format lama:
@@ -252,100 +177,8 @@ function coerceFrame(raw: unknown, platform: Platform): Frame | null {
     name: typeof o.name === 'string' && o.name ? o.name : 'frame',
     thumb: typeof o.thumb === 'string' ? o.thumb : '',
     tema: typeof o.tema === 'string' ? o.tema : '',
-    status, error, metadata,
-    // M29: slot analisis (sesi lama tidak punya → undefined = belum pernah dianalisis)
-    ...coerceAnalysisSlots(o),
-    // Pipeline A-D: observation platform-independen (rusak → dibuang, bukan sesi dibuang)
-    ...coerceObservationSlot(o),
-    ...(typeof o.portalName === 'string' && o.portalName ? { portalName: o.portalName } : {}),
-    ...(typeof o.illustration === 'boolean' ? { illustration: o.illustration } : {}),
-    ...(typeof o.editorial === 'boolean' ? { editorial: o.editorial } : {}),
-    ...coerceJudgeSlot(o),
-    ...coerceRiskSlot(o)
+    status, error, metadata
   };
-}
-
-// Observation tersimpan: validasi ringan (main_subject + confidence angka); entri rusak
-// dibuang supaya cache basi tidak meracuni Tahap B.
-function coerceObservationSlot(o: Record<string, unknown>): Pick<Frame, 'observation'> {
-  const v = o.observation;
-  if (typeof v !== 'object' || v === null) return {};
-  const c = v as Record<string, unknown>;
-  if (typeof c.main_subject !== 'string' || typeof c.confidence !== 'number') return {};
-  return { observation: v as Frame['observation'] };
-}
-
-// Risiko/quality tersimpan: validasi ringan (megapixels angka); rusak → dibuang.
-function coerceRiskSlot(o: Record<string, unknown>): Partial<Frame> {
-  const out: Partial<Frame> = {};
-  const q = o.quality;
-  if (typeof q === 'object' && q !== null && typeof (q as Record<string, unknown>).megapixels === 'number') {
-    out.quality = q as Frame['quality'];
-  }
-  if (typeof o.riskAdobe === 'object' && o.riskAdobe !== null) out.riskAdobe = o.riskAdobe as Frame['riskAdobe'];
-  if (typeof o.riskShutterstock === 'object' && o.riskShutterstock !== null) {
-    out.riskShutterstock = o.riskShutterstock as Frame['riskShutterstock'];
-  }
-  if (Array.isArray(o.similarGroup)) out.similarGroup = (o.similarGroup as unknown[]).map(String);
-  if (typeof o.similarBest === 'boolean') out.similarBest = o.similarBest;
-  if (typeof o.conceptSaturated === 'boolean') out.conceptSaturated = o.conceptSaturated;
-  if (typeof o.conceptNote === 'string') out.conceptNote = o.conceptNote;
-  if (Array.isArray(o.cropFindings)) out.cropFindings = o.cropFindings as Frame['cropFindings'];
-  if (typeof o.cropNote === 'string') out.cropNote = o.cropNote;
-  if (typeof o.actualAdobe === 'string') out.actualAdobe = o.actualAdobe as Frame['actualAdobe'];
-  if (typeof o.actualShutterstock === 'string') out.actualShutterstock = o.actualShutterstock as Frame['actualShutterstock'];
-  if (typeof o.held === 'boolean') out.held = o.held;
-  return out;
-}
-
-// Cache juri tersimpan: badge + hash string wajib; entri rusak dibuang.
-function coerceJudgeSlot(o: Record<string, unknown>): Pick<Frame, 'judge'> {
-  const v = o.judge;
-  if (typeof v !== 'object' || v === null) return {};
-  const c = v as Record<string, unknown>;
-  const out: NonNullable<Frame['judge']> = {};
-  for (const p of ['adobe', 'shutterstock'] as const) {
-    const e = c[p];
-    if (typeof e !== 'object' || e === null) continue;
-    const r = e as Record<string, unknown>;
-    if (typeof r.hash !== 'string' || typeof r.badge !== 'string') continue;
-    if (!['LOLOS', 'LOLOS_DENGAN_CATATAN', 'TIDAK_LOLOS', 'PERLU_DITINJAU'].includes(r.badge)) continue;
-    out[p] = e as NonNullable<Frame['judge']>[typeof p];
-  }
-  return Object.keys(out).length ? { judge: out } : {};
-}
-
-// Slot analisis per platform — 'memproses' tidak pernah bertahan setelah reload.
-function coerceAnalysisSlots(o: Record<string, unknown>): Pick<Frame, 'analysis' | 'analysisStatus' | 'analysisError'> {
-  const out: Pick<Frame, 'analysis' | 'analysisStatus' | 'analysisError'> = {};
-  if (typeof o.analysis === 'object' && o.analysis !== null) {
-    const a = o.analysis as Record<string, unknown>;
-    const adobe = coerceAnalysis(a.adobe);
-    const shutterstock = coerceAnalysis(a.shutterstock);
-    if (adobe || shutterstock) {
-      out.analysis = {};
-      if (adobe) out.analysis.adobe = adobe;
-      if (shutterstock) out.analysis.shutterstock = shutterstock;
-    }
-  }
-  if (typeof o.analysisStatus === 'object' && o.analysisStatus !== null) {
-    const st = o.analysisStatus as Record<string, unknown>;
-    const adobe = typeof st.adobe === 'string' ? coerceStatus(st.adobe) : undefined;
-    const shutter = typeof st.shutterstock === 'string' ? coerceStatus(st.shutterstock) : undefined;
-    if (adobe || shutter) {
-      out.analysisStatus = {};
-      // 'memproses' → 'menunggu' (batch analisis tak pernah jalan setelah reload)
-      if (adobe) out.analysisStatus.adobe = adobe === 'memproses' ? 'menunggu' : adobe;
-      if (shutter) out.analysisStatus.shutterstock = shutter === 'memproses' ? 'menunggu' : shutter;
-    }
-  }
-  if (typeof o.analysisError === 'object' && o.analysisError !== null) {
-    const er = o.analysisError as Record<string, unknown>;
-    const adobe = typeof er.adobe === 'string' ? er.adobe : '';
-    const shutter = typeof er.shutterstock === 'string' ? er.shutterstock : '';
-    if (adobe || shutter) out.analysisError = { adobe, shutterstock: shutter };
-  }
-  return out;
 }
 
 export function saveSession(sess: StoredSession): void {
@@ -431,22 +264,4 @@ export function readBatchDelay(): number {
 export function writeBatchDelay(sec: number): void {
   try { ls()?.setItem(BATCH_DELAY_KEY, String(delayOptions.includes(sec) ? sec : BATCH_DELAY_DEFAULT_SEC)); }
   catch { /* abaikan */ }
-}
-
-/* ---------------- toggle verifikasi ketat & gambar juri (default aktif) ---------------- */
-
-export function readStrictVerify(): boolean {
-  try { return ls()?.getItem(STRICT_VERIFY_KEY) !== '0'; } catch { return true; }
-}
-
-export function writeStrictVerify(enabled: boolean): void {
-  try { ls()?.setItem(STRICT_VERIFY_KEY, enabled ? '1' : '0'); } catch { /* diabaikan */ }
-}
-
-export function readJudgeImage(): boolean {
-  try { return ls()?.getItem(JUDGE_IMAGE_KEY) !== '0'; } catch { return true; }
-}
-
-export function writeJudgeImage(enabled: boolean): void {
-  try { ls()?.setItem(JUDGE_IMAGE_KEY, enabled ? '1' : '0'); } catch { /* diabaikan */ }
 }

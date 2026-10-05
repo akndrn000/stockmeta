@@ -1,39 +1,24 @@
 // Tes live manual — BUKAN bagian build (tidak di-bundle Next, tidak dijalankan test otomatis).
-// Jalankan pipeline penuh (observasi → metadata → grounding):
+// Jalankan:
 //   GEMINI_KEY=… npx tsx scripts/live-test.ts gemini foto.jpg adobe "Halloween"
-//   GROQ_KEY=… npx tsx scripts/live-test.ts groq foto.jpg shutterstock
+//   GROQ_KEY=…  npx tsx scripts/live-test.ts groq foto.jpg shutterstock
 //   OPENROUTER_KEY=… npx tsx scripts/live-test.ts openrouter foto.jpg adobe
-// Tambah --judge untuk menilai metadata via juri provider yang sama.
-// Buat 3 fixture PNG kecil (polos merah, polos hijau, pola papan catur) untuk smoke test:
-//   npx tsx scripts/live-test.ts --make-fixtures ./tmp-fixtures
-// Fixture hanya untuk smoke teknis — uji impor pertama ke portal TETAP memakai foto asli.
 // Key hanya dibaca dari environment variable — TIDAK PERNAH ditulis ke file atau log.
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
-import { runFramePipeline } from '../src/lib/pipeline';
-import { renderRulesBlock } from '../src/lib/platform-rules';
+import { finalizeModelOutput } from '../src/lib/finalize';
 import { getProvider } from '../src/lib/providers';
 import type { ImageInput } from '../src/lib/providers/types';
 import type { Platform, ProviderId } from '../src/lib/types';
-import { validateMetadata } from '../src/lib/validate';
-import { makeFixtures } from './fixtures';
 
 const MIME: Record<string, string> = {
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp'
 };
 
-/* ---------------- fixture PNG solid/pola (smoke teknis saja, lihat fixtures.ts) ---------------- */
-
 async function main(): Promise<void> {
-  const argv = process.argv.slice(2);
-  if (argv[0] === '--make-fixtures') {
-    const files = await makeFixtures(argv[1] ?? './tmp-fixtures');
-    console.log('Fixture ditulis: ' + files.join(', '));
-    return;
-  }
-  const [providerArg, imagePath, platformArg, themeArg, flag] = argv;
+  const [providerArg, imagePath, platformArg, themeArg] = process.argv.slice(2);
   if (!providerArg || !imagePath || !platformArg) {
-    console.error('Pakai: GEMINI_KEY=… npx tsx scripts/live-test.ts <gemini|groq|openrouter> <gambar> <adobe|shutterstock> [tema] [--judge]');
+    console.error('Pakai: GEMINI_KEY=… npx tsx scripts/live-test.ts <gemini|groq|openrouter> <gambar> <adobe|shutterstock> [tema]');
     process.exit(1);
   }
   const provider = providerArg as ProviderId;
@@ -65,39 +50,25 @@ async function main(): Promise<void> {
   console.log(JSON.stringify({ test }, null, 2));
   if (!test.ok) process.exit(1);
 
-  // Pipeline penuh: observasi gambar nyata → metadata teks → grounding ketat.
-  const pipe = await runFramePipeline({
-    adapter,
+  const result = await adapter.generateForImage({
     apiKey: key,
     image,
     platform,
-    theme: themeArg,
-    strictVerify: true,
-    log: (msg) => console.log('[pipeline]', msg)
+    theme: themeArg
   });
+  console.log(JSON.stringify({ result }, null, 2));
+
+  // Diagnosa M34: cetak keyword + urutan + status standalone dan jumlahnya.
+  const fin = finalizeModelOutput(result, platform);
   console.log(JSON.stringify({
-    observation: pipe.observation,
-    compliance: pipe.compliance,
-    metadata: pipe.metadata,
-    removedUnsupported: pipe.removedUnsupported,
-    categoryNeedsReview: pipe.categoryNeedsReview
+    keywords: fin.items.map((x, i) => ({ no: i + 1, k: x.k, src: x.src, ...(x.rel ? { rel: x.rel } : {}), ...(x.kind ? { kind: x.kind } : {}), ...(x.standalone ? { standalone: true } : {}) })),
+    count: fin.items.length,
+    srcCounts: fin.srcCounts,
+    removed: fin.removed,
+    themeMismatch: fin.themeMismatch,
+    themeCanonical: result.themeCanonical,
+    themeFit: result.themeFit
   }, null, 2));
-
-  const hard = validateMetadata(platform, pipe.metadata as never, imagePath.split(/[\\/]/).pop() ?? '');
-  console.log(JSON.stringify({ hard }, null, 2));
-
-  if (flag === '--judge') {
-    const judged = await adapter.callJudge({
-      apiKey: key,
-      image,
-      sendImage: adapter.supportsVision,
-      observation: pipe.observation,
-      metadataText: JSON.stringify(pipe.metadata),
-      rulesBlock: renderRulesBlock(platform),
-      hardContext: [...hard.errors, ...hard.warnings].map((i) => `${i.rule}: ${i.message}`).join('\n')
-    });
-    console.log(JSON.stringify({ judged }, null, 2));
-  }
 }
 
 main().catch((err: unknown) => {

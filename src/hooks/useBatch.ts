@@ -3,14 +3,24 @@
 // Keputusan urutan/jeda/batal ada di lib/batch.ts; hook ini hanya state, guard, dan wiring.
 import { useEffect, useRef, useState } from 'react';
 import { MISSING_FILE_MSG, runBatch, type BatchSummary } from '../lib/batch';
+import { generateWithEnglishRetry } from '../lib/englishRetry';
+import {
+  applyStageRemovals,
+  expansionNote,
+  finalizeModelOutput,
+  hasRiskyKeywords,
+  needsExpansion
+} from '../lib/finalize';
 import { fileStore } from '../lib/fileStore';
 import { prepareImage } from '../lib/image';
 import { defaultMetadata, hasContent } from '../lib/metadata';
-import { runFramePipeline, type PipelineResult } from '../lib/pipeline';
+import { observationGroundingText } from '../lib/keywordGroups';
+import { buildVerifyPrompt } from '../lib/prompt';
 import { getProvider } from '../lib/providers';
-import { withFallback } from '../lib/providers/fallback';
-import { readBatchDelay, readStrictVerify, writeBatchDelay } from '../lib/storage';
-import { BATCH_DELAY_DEFAULT_SEC } from '../lib/limits';
+import { generateWithFallback } from '../lib/providers/fallback';
+import { readBatchDelay, writeBatchDelay } from '../lib/storage';
+import { BATCH_DELAY_DEFAULT_SEC, KEYWORD_MIN_TARGET } from '../lib/limits';
+import { effectiveTheme, validateTheme } from '../lib/theme';
 import type { Platform, ProviderId } from '../lib/types';
 import { PROVIDER_LABELS, type useProvider } from './useProvider';
 import type { useSession } from './useSession';
@@ -22,11 +32,6 @@ export const ALL_DONE_MSG = 'Semua frame sudah selesai.';
 export const NEED_TEST_MSG = 'Tes koneksi dulu.';
 export const LIMIT_TIP_MSG =
   "Beberapa frame gagal — coba lagi sebentar lagi lewat 'Buat metadata', hanya frame yang gagal yang diproses ulang.";
-// M29 (gerbang Mode Analisis): generate metadata BARU hanya untuk frame yang analisisnya
-// sudah 'siap' di platform aktif. Frame lain DILEWATI dengan pesan ini (status metadata
-// jadi 'gagal' + pesan, isi slot TIDAK diubah). Berlaku HANYA saat memulai generate —
-// data lama tetap boleh diedit manual, dan frame metadata 'siap' tidak dikunci.
-export const NEED_ANALYSIS_MSG = 'Jalankan Analisis dulu di Mode Analisis';
 
 const LIMIT_RE = /429|kuota|limit/i;
 
@@ -39,6 +44,8 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
   const [regenConfirm, setRegenConfirm] = useState<number | null>(null);
   // konfirmasi "Ganti semua hasil yang sudah ada?" untuk Buat ulang semua — per platform
   const [regenAllConfirm, setRegenAllConfirm] = useState<Platform | null>(null);
+  // Fase 1: tema wajib — pesan penolakan + sorotan input tema bila tema efektif tak valid.
+  const [themeError, setThemeError] = useState<string | null>(null);
   // jeda antar foto (detik); direstore dari localStorage setelah mount (hindari mismatch SSR)
   const [delaySec, setDelaySec] = useState(BATCH_DELAY_DEFAULT_SEC);
   const busyRef = useRef(false);
@@ -54,20 +61,20 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
 
   // wajib tes dulu; model provider tetap (satu model per provider) sehingga tak perlu dicek
   function providerReady(): boolean {
-    return provider.status === 'ok';
+    return !provider.isSoon && provider.status === 'ok';
   }
 
-  // M29: pisahkan frame yang lolos gerbang analisis dari yang belum — yang belum langsung
-  // ditandai pesan jelas (bukan diam-diam dilewati) supaya user tahu harus ke Mode Analisis.
-  function partitionGated(ids: number[], platform: Platform): number[] {
-    const runnable: number[] = [];
+  /** Fase 1: tolak generate bila ada tema efektif tak valid — kembalikan pesan atau null bila lolos. */
+  function checkThemes(ids: number[]): string | null {
+    const snap = session.snapshot();
     for (const id of ids) {
-      const f = session.snapshot().frames.find((x) => x.id === id);
+      const f = snap.frames.find((x) => x.id === id);
       if (!f) continue;
-      if (f.analysisStatus?.[platform] === 'siap') runnable.push(id);
-      else session.failFrame(id, platform, NEED_ANALYSIS_MSG);
+      const eff = effectiveTheme(snap.tema, f.tema);
+      const v = validateTheme(eff);
+      if (!v.ok) return `${v.message} Periksa Tema utama${f.tema.trim() ? ` (frame ${f.name})` : ''}.`;
     }
-    return runnable;
+    return null;
   }
 
   async function run(ids: number[], platform: Platform) {
@@ -85,14 +92,13 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
     // input di-snapshot saat mulai: platform & API key terkunci sampai batch selesai
     const apiKey = provider.key.trim();
     const activeProvider: ProviderId = provider.provider;
-    const strictVerify = readStrictVerify();
     const delayMs = opts?.delayMs ?? delaySec * 1000;
     let limitHit = false;
     // provider yang akhirnya memproses frame terakhir (fallback antar provider) → tampil di catatan
     let usedVia = '';
 
     try {
-      const result = await runBatch<PipelineResult>({
+      const result = await runBatch({
         frameIds: ids,
         platform,
         delayMs,
@@ -102,31 +108,73 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
           if (!file) throw new Error(MISSING_FILE_MSG);
           const image = await prepareImage(file);
           if (!getProvider(activeProvider)) throw new Error('Provider tidak tersedia');
-          // observation cache sesi: ganti platform tidak memanggil Tahap A ulang
-          const cached = session.snapshot().frames.find((f) => f.id === _id)?.observation;
-          const out = await withFallback(
-            { provider: activeProvider, apiKey, signal: args.signal },
-            {},
-            (adapter, key) => runFramePipeline({
-              adapter,
-              apiKey: key,
+          const callOnce = (languageFix: boolean, retryNote?: string, promptOverride?: string) =>
+            generateWithFallback({
+              provider: activeProvider,
+              apiKey,
               image,
               platform: args.platform,
               theme: args.theme,
-              cachedObservation: cached,
-              strictVerify,
               signal: args.signal,
-              onWait: args.onWait
-            })
+              onWait: args.onWait,
+              languageFix,
+              retryNote,
+              promptOverride
+            }).then((out) => {
+              usedVia = out.usedFallback ? PROVIDER_LABELS[out.provider] : '';
+              return out.meta;
+            });
+          // Fase 3: hasil dicek bahasa Inggris; bila Indonesia → regenerasi TEPAT satu kali
+          // dengan instruksi koreksi bahasa.
+          const { meta: engMeta, calls: engCalls } = await generateWithEnglishRetry(
+            (fix) => callOnce(fix),
+            args.platform
           );
-          usedVia = out.usedFallback ? PROVIDER_LABELS[out.provider] : '';
-          return out.value;
+          let calls = engCalls;
+          // M32: pasca-proses deterministik (src terverifikasi, satu kata, tanpa latar).
+          let fin = finalizeModelOutput(engMeta, args.platform);
+          // M33 Fase 5: di bawah target 30 → SATU putaran perluasan (+verifikasi
+          // daftar lama) memakai anggaran retry yang sudah ada.
+          if (needsExpansion(fin.meta) && calls < 3) {
+            const note = expansionNote(
+              fin.meta.keywords ?? [],
+              fin.facetsMissing,
+              KEYWORD_MIN_TARGET
+            );
+            const again = await callOnce(false, note);
+            calls++;
+            fin = finalizeModelOutput(again, args.platform);
+          }
+          // M33 Fase 2c: Tahap D verifikasi bergambar untuk keyword berisiko
+          // (synonym/theme/usage) bila anggaran masih ada (total ≤ 3/frame).
+          // Hasil perluasan di atas juga dilewatkan ke filter + Tahap D di sini.
+          if (hasRiskyKeywords(fin.items) && calls < 3) {
+            const obs = engMeta.observation;
+            const dPrompt = buildVerifyPrompt({
+              keywords: fin.meta.keywords ?? [],
+              observation: observationGroundingText(obs),
+              mediaType: obs?.media_type ?? obs?.medium ?? ''
+            });
+            const dRes = await callOnce(false, undefined, dPrompt);
+            calls++;
+            const applied = applyStageRemovals(fin.items, dRes.stageRemove ?? []);
+            fin = {
+              ...fin,
+              items: applied.items,
+              meta: { ...fin.meta, keywords: applied.items.map((x) => x.k) },
+              removed: [...fin.removed, ...applied.removed]
+            };
+          }
+          // Bila setelah itu tetap di bawah target / masih Indonesia, meta tetap
+          // disimpan apa adanya — validasi menandainya (saran target-30,
+          // pemblokir judul/deskripsi atau minimum platform).
+          return fin.meta;
         },
         getImage: (id) => fileStore.get(id),
         getTheme: (id) => {
           const snap = session.snapshot();
           const f = snap.frames.find((x) => x.id === id);
-          return (f?.tema ?? '').trim() || snap.tema.replace(/\s+/g, ' ').trim();
+          return effectiveTheme(snap.tema, f?.tema ?? '');
         },
         onStart: (id) => {
           setCurrentId(id);
@@ -143,17 +191,9 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
           const detik = Math.round(info.waitMs / 1000);
           session.setNote(id, `Menunggu limit reset (percobaan ${info.attempt + 1}/${info.maxAttempts}, ~${detik} dtk)`);
         },
-        onSuccess: (id, pipe) => {
-          session.applyGenerated(id, platform, pipe.metadata);
-          // cache observation (Tahap A 1x per frame); sanitasi/dedupe selalu terlihat
-          if (pipe.observedFresh) session.applyObservation(id, pipe.observation);
-          const bits: string[] = [];
-          if (usedVia) bits.push(`Diproses via ${usedVia} (fallback)`);
-          if (pipe.removedUnsupported.length) {
-            bits.push(`Verifikasi ketat menghapus: ${pipe.removedUnsupported.join(', ')}`);
-          }
-          if (pipe.categoryNeedsReview) bits.push('Kategori perlu ditinjau manual.');
-          session.setNote(id, bits.join(' · '));
+        onSuccess: (id, meta) => {
+          session.applyGenerated(id, platform, meta);
+          session.setNote(id, usedVia ? `via ${usedVia}` : '');
           setProgress((p) => ({ ...p, done: p.done + 1 }));
         },
         onError: (id, message) => {
@@ -189,13 +229,14 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
       setNotice(ALL_DONE_MSG);
       return;
     }
-    // M29: hanya frame yang analisisnya siap yang dijalankan
-    const runnable = partitionGated(ids, platform);
-    if (!runnable.length) {
-      setNotice(NEED_ANALYSIS_MSG);
+    const themeMsg = checkThemes(ids);
+    if (themeMsg) {
+      setThemeError(themeMsg);
+      setNotice(themeMsg);
       return;
     }
-    void run(runnable, platform);
+    setThemeError(null);
+    void run(ids, platform);
   }
 
   function regenerateFrame(id: number) {
@@ -206,47 +247,21 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
       setNotice(NEED_TEST_MSG);
       return;
     }
-    const f = session.snapshot().frames.find((x) => x.id === id);
-    if (!f) return;
-    // M29: gerbang analisis berlaku juga untuk buat-ulang satu frame
-    if (f.analysisStatus?.[platform] !== 'siap') {
-      setRegenConfirm(null);
-      session.failFrame(id, platform, NEED_ANALYSIS_MSG);
+    const themeMsg = checkThemes([id]);
+    if (themeMsg) {
+      setThemeError(themeMsg);
+      setNotice(themeMsg);
       return;
     }
+    setThemeError(null);
+    const f = session.snapshot().frames.find((x) => x.id === id);
+    if (!f) return;
     const filled = hasContent(platform, f.metadata[platform] ?? defaultMetadata(platform));
     if (filled && regenConfirm !== id) {
       setRegenConfirm(id);          // slot sudah berisi → minta konfirmasi "Timpa hasil yang ada?"
       return;
     }
     setRegenConfirm(null);
-    void run([id], platform);
-  }
-
-  // "Analisis ulang gambar": hapus cache observation lalu jalankan pipeline penuh
-  // (Tahap A vision dipanggil lagi). "Buat ulang metadata" memakai cache yang ada.
-  function reobserveFrame(id: number) {
-    if (busyRef.current) return;
-    setNotice('');
-    const platform = session.platform;
-    if (!providerReady()) {
-      setNotice(NEED_TEST_MSG);
-      return;
-    }
-    const f = session.snapshot().frames.find((x) => x.id === id);
-    if (!f) return;
-    if (f.analysisStatus?.[platform] !== 'siap') {
-      setRegenConfirm(null);
-      session.failFrame(id, platform, NEED_ANALYSIS_MSG);
-      return;
-    }
-    const filled = hasContent(platform, f.metadata[platform] ?? defaultMetadata(platform));
-    if (filled && regenConfirm !== id) {
-      setRegenConfirm(id);
-      return;
-    }
-    setRegenConfirm(null);
-    session.clearObservation(id);
     void run([id], platform);
   }
 
@@ -270,24 +285,19 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
       setNotice(ALL_DONE_MSG);
       return;
     }
+    const themeMsg = checkThemes(ids);
+    if (themeMsg) {
+      setThemeError(themeMsg);
+      setNotice(themeMsg);
+      return;
+    }
+    setThemeError(null);
     if (regenAllConfirm !== platform) {
-      // M29: jangan pancing konfirmasi kalau tak ada satu pun yang lolos gerbang analisis
-      const anyRunnable = session.snapshot().frames.some((f) => f.analysisStatus?.[platform] === 'siap');
-      if (!anyRunnable) {
-        setNotice(NEED_ANALYSIS_MSG);
-        return;
-      }
       setRegenAllConfirm(platform);   // "Ganti semua hasil yang sudah ada?"
       return;
     }
     setRegenAllConfirm(null);
-    // M29: hanya frame yang analisisnya siap yang dijalankan ulang
-    const runnable = partitionGated(ids, platform);
-    if (!runnable.length) {
-      setNotice(NEED_ANALYSIS_MSG);
-      return;
-    }
-    void run(runnable, platform);
+    void run(ids, platform);
   }
 
   function dismissRegenAll() {
@@ -296,6 +306,10 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
 
   function dismissRegen() {
     setRegenConfirm(null);
+  }
+
+  function clearThemeError() {
+    setThemeError(null);
   }
 
   function setDelay(sec: number) {
@@ -322,9 +336,10 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
     notice,
     regenConfirm,
     regenAllConfirm,
+    themeError,
+    clearThemeError,
     startBatch,
     regenerateFrame,
-    reobserveFrame,
     regenerateAll,
     cancel,
     dismissRegen,

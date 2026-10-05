@@ -1,7 +1,6 @@
 'use client';
-import type { AppMode, Platform } from '../lib/types';
+import type { Platform } from '../lib/types';
 import type { useSession } from '../hooks/useSession';
-import { ModeToggle } from './ModeToggle';
 import { ThemeToggle } from './ThemeToggle';
 
 const PLATFORM_LABELS: Record<Platform, string> = {
@@ -12,16 +11,11 @@ const PLATFORM_IDS: readonly Platform[] = ['adobe', 'shutterstock'];
 
 export function Header({
   session,
-  disabled,
-  mode,
-  onModeChange
+  disabled
 }: {
   session: ReturnType<typeof useSession>;
   /** true saat batch berjalan — platform terkunci */
   disabled?: boolean;
-  /** M29: mode Analisis/Metadata (disimpan page.tsx, persist stockmeta_mode) */
-  mode: AppMode;
-  onModeChange: (mode: AppMode) => void;
 }) {
   const { platform, setPlatform } = session;
 
@@ -51,10 +45,7 @@ export function Header({
           <ThemeToggle />
         </div>
 
-        {/* M29: sakelar mode Analisis/Metadata menempel dengan segmen platform —
-            di HP menumpuk vertikal selebar penuh, di ≥1120px berdampingan. */}
-        <div className="order-3 flex w-full flex-col gap-1.5 min-[1120px]:order-2 min-[1120px]:ml-auto min-[1120px]:w-auto min-[1120px]:flex-row min-[1120px]:items-center min-[1120px]:gap-2">
-          <ModeToggle mode={mode} onChange={onModeChange} disabled={disabled} />
+        <div className="order-3 w-full min-[1120px]:order-2 min-[1120px]:ml-auto min-[1120px]:w-auto">
           {/* Segmented platform: pelat aktif = aksen fosfor (mode siang: solid kontras AA).
               M23: di <640px tombol memakai font small + padding rapat (segmented ringkas,
               bukan pil raksasa); sm: mengembalikan ukuran desktop. Tinggi sentuh ≥40px

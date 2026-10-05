@@ -16,13 +16,14 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import type { useSession } from '../hooks/useSession';
 import { ADOBE_CATEGORIES, SHUTTERSTOCK_CATEGORIES } from '../lib/categories';
-import { downloadCsv, planCsv, portalFileName } from '../lib/csv';
-import { MAX_DESCRIPTION, MAX_KEYWORDS, MAX_KEYWORDS_ADOBE, MAX_TITLE_CSV, MIN_KEYWORDS_ADOBE, MIN_KEYWORDS_SHUTTER } from '../lib/limits';
+import { downloadCsv } from '../lib/csv';
+import { MAX_DESCRIPTION_SHUTTER, MAX_KEYWORDS, MAX_KEYWORDS_ADOBE, MAX_TITLE_CSV, MIN_KEYWORDS_ADOBE, MIN_KEYWORDS_SHUTTER } from '../lib/limits';
 import { hasContent } from '../lib/metadata';
-import { sanitizeAdobeTitle, CSV_MAX_ROWS } from '../lib/platform-rules';import type { AdobeMetadata, Frame, FrameStatus, ShutterstockMetadata } from '../lib/types';
-import { validateMetadata } from '../lib/validate';
+import type { AdobeMetadata, Frame, FrameStatus, ShutterstockMetadata } from '../lib/types';
+import { hasBlockingNotes, validateMetadata } from '../lib/validate';
 import { CopyButton } from './CopyButton';
 import { KeywordEditor } from './KeywordEditor';
+import { LabelRow } from './LabelRow';
 import { Panel } from './Panel';
 
 type Session = ReturnType<typeof useSession>;
@@ -64,25 +65,22 @@ function Field({ id, label, copyText, note, hint, disabled, children }: {
   const hasRight = note !== undefined || copyText !== undefined;
   return (
     <div className="flex flex-col gap-1.5">
-      {/* M18: flex-wrap bila layar sempit — grup kanan turun ke baris kedua dan tetap
-          rata kanan (ml-auto), sehingga label & tombol salin tidak pernah meluber.
-          M19: flex-1 — baris label mengisi sisa tinggi field. Saat dua field berdampingan
-          (grid Kategori ↔ Tema, M19 E.4) kedua kolom diregangkan ke tinggi baris yang
-          sama, jadi baris label keduanya selalu setara tinggi walau satu kolom punya
-          tombol "Salin" (28/44px) dan kolom lain hanya teks label — kotak dropdown &
-          input di bawahnya pun sejajar persis. Field tunggal tingginya tetap = isi
-          (container auto-height → tanpa ruang tambahan). */}
-      <div className="flex flex-1 flex-wrap items-center justify-between gap-x-2 gap-y-1">
-        <label htmlFor={id} className="text-meta font-semibold uppercase tracking-[0.06em] text-text-muted">
-          {label}
-        </label>
-        {hasRight && (
-          <span className="ml-auto flex shrink-0 items-center gap-1.5">
-            {note}
-            {copyText !== undefined && <CopyButton text={copyText} label={label} disabled={disabled} />}
-          </span>
-        )}
-      </div>
+      {/* Fase 2: baris label satu baris tetap (nowrap, ellipsis bila sempit) — label kiri,
+          grup kanan (counter + Salin) rata kanan sebaris; tinggi min-7 (= tombol Salin)
+          supaya input di bawahnya sejajar vertikal di grid dua kolom. */}
+      <LabelRow
+        id={id}
+        label={label}
+        fill
+        right={
+          hasRight ? (
+            <>
+              {note}
+              {copyText !== undefined && <CopyButton text={copyText} label={label} disabled={disabled} />}
+            </>
+          ) : undefined
+        }
+      />
       {children}
       {hint && <p className="text-small leading-relaxed text-text-muted">{hint}</p>}
     </div>
@@ -110,9 +108,8 @@ const STATUS_LABEL: Record<FrameStatus, string> = {
 export function CaptionSheet({ session }: {
   session: Session;
 }) {
-  const { frames, sel, platform, tema, updateMetadata, setFrameTema, setPortalName, setFrameFlags } = session;
+  const { frames, sel, platform, tema, updateMetadata, setFrameTema } = session;
   const [open, setOpen] = useState(true);
-  const [showDialog, setShowDialog] = useState(false);
 
   const index = frames.findIndex((f) => f.id === sel);
   const frame: Frame | null = index >= 0 ? frames[index] : null;
@@ -122,25 +119,30 @@ export function CaptionSheet({ session }: {
   // saran hanya kalau slot platform aktif sudah berisi — slot kosong jangan dinilai (error frame gagal tetap tampil)
   const notesFor = (f: Frame): ReturnType<typeof validateMetadata> => {
     const sm = f.metadata[platform];
-    if (!sm || !hasContent(platform, sm)) return { errors: [], warnings: [] };
-    return validateMetadata(platform, sm, portalFileName(f));
+    return sm && hasContent(platform, sm) ? validateMetadata(platform, sm, f.name) : [];
   };
-  const result = frame ? notesFor(frame) : { errors: [], warnings: [] };
-  const rowsWithNotes = frames.filter((f) => {
-    const r = notesFor(f);
-    return r.errors.length + r.warnings.length > 0;
+  const notes = frame ? notesFor(frame) : [];
+  const blocking = notes.filter((n) => n.blocking);
+  const suggestions = notes.filter((n) => !n.blocking);
+  const rowsWithNotes = frames.filter((f) => notesFor(f).length > 0).length;
+  // Fase 1: baris dengan error pemblokir (kategori Shutterstock kurang/rangkap) mengunci ekspor.
+  const blockingRows = frames.filter((f) => {
+    const sm = f.metadata[platform];
+    return sm !== undefined && hasContent(platform, sm) && hasBlockingNotes(notesFor(f));
   }).length;
-  // footer/dialog: hanya baris berisi & TANPA error cek keras yang diekspor
-  const plan = planCsv(frames, platform);
-  const exportRows = plan.exportable.length;
-  const canExport = exportRows > 0;
-  // Peringatan pra-unduh: frame berisiko tinggi ikut dihitung (tidak memblokir
-  // kecuali error cek keras). Frame ditahan disembunyikan dari ekspor.
-  const highRiskCount = plan.exportable.filter((f) =>
-    platform === 'adobe'
-      ? f.riskAdobe?.overall === 'tinggi'
-      : f.riskShutterstock?.estimate === 'Kemungkinan ditolak'
-  ).length;
+  // footer: jumlah baris yang benar-benar diekspor (slot berisi) — bukan jumlah frame
+  const exportRows = frames.filter((f) => {
+    const sm = f.metadata[platform];
+    return sm !== undefined && hasContent(platform, sm);
+  }).length;
+  const canExport = frames.some((f) => Boolean(f.metadata[platform])) && blockingRows === 0;
+  const exportTitle = !frames.length
+    ? 'Belum ada frame — upload gambar dulu di lembar kerja.'
+    : blockingRows > 0
+      ? `Perbaiki ${blockingRows} baris dengan error kategori dulu.`
+      : frames.some((f) => Boolean(f.metadata[platform]))
+        ? 'Ekspor metadata yang sudah terisi ke CSV'
+        : 'Belum ada metadata — jalankan Buat metadata dulu.';
 
   const patchAdobe = (patch: Partial<AdobeMetadata>) => {
     if (frame) updateMetadata(frame.id, 'adobe', patch);
@@ -199,16 +201,10 @@ export function CaptionSheet({ session }: {
           <button
             type="button"
             onClick={() => {
-              if (canExport) setShowDialog(true);
+              if (canExport) downloadCsv(frames, platform);
             }}
             aria-disabled={canExport ? undefined : true}
-            title={
-              canExport
-                ? 'Periksa daftar file lalu ekspor metadata ke CSV'
-                : frames.length === 0
-                  ? 'Belum ada frame — upload gambar dulu di lembar kerja.'
-                  : 'Belum ada baris lolos cek keras — perbaiki error dulu.'
-            }
+            title={exportTitle}
             className={`inline-flex items-center gap-2 rounded-md border border-accent/40 bg-accent-tint/60 px-3 py-1 text-small font-semibold text-accent-text transition-colors duration-150 hover:border-accent hover:bg-accent-tint sm:px-3.5 sm:py-1.5 sm:text-body ${
               canExport ? '' : 'cursor-not-allowed opacity-45 hover:border-accent/40 hover:bg-accent-tint/60'
             }`}
@@ -232,6 +228,11 @@ export function CaptionSheet({ session }: {
             Export CSV
           </button>
           <span className="flex flex-wrap items-center gap-3">
+            {blockingRows > 0 && (
+              <span className="text-meta font-medium uppercase tracking-[0.06em] text-error">
+                {blockingRows} baris terkunci — perbaiki kategori
+              </span>
+            )}
             {rowsWithNotes > 0 && (
               <span className="text-meta font-medium uppercase tracking-[0.06em] text-warning">
                 {rowsWithNotes} baris punya saran perbaikan
@@ -320,21 +321,6 @@ export function CaptionSheet({ session }: {
 
         {/* M14: field SELALU dirender — struktur sama seperti kondisi terisi, hanya
             dinonaktifkan (input/select/salin) selama belum ada frame terpilih. */}
-        <Field id="caption-portal" label="Nama file di portal" disabled={!frame} hint="Dipakai apa adanya di kolom Filename CSV — samakan dengan nama di portal.">
-          <input
-            id="caption-portal"
-            type="text"
-            value={frame ? portalFileName(frame) : ''}
-            onChange={(e) => {
-              if (frame) setPortalName(frame.id, e.target.value);
-            }}
-            placeholder={frame?.name ?? ''}
-            disabled={!frame}
-            spellCheck={false}
-            autoCapitalize="none"
-            className="h-10 w-full rounded-md border border-border-control bg-surface-elevated px-3 py-2 font-mono text-body text-text transition-colors duration-150 placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
-          />
-        </Field>
         {platform === 'adobe' ? (
           <>
             <Field
@@ -357,17 +343,11 @@ export function CaptionSheet({ session }: {
                 rows={2}
                 value={title}
                 onChange={(e) => patchAdobe({ title: e.target.value })}
-                placeholder="Judul menjual, spesifik, tanpa frasa generik"
+                placeholder="A red fox running through tall grass at sunrise"
                 disabled={!frame}
                 aria-describedby="caption-title-note"
                 className="w-full resize-none rounded-md border border-border-control bg-surface-elevated px-3 py-2 text-body leading-relaxed text-text transition-colors duration-150 placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
               />
-              {/* sanitasi terlihat: nilai asli tetap tersimpan, ekspor memakai versi bersih */}
-              {sanitizeAdobeTitle(title).changed && title.trim() !== '' && (
-                <p className="text-small text-warning">
-                  Diekspor sebagai “{sanitizeAdobeTitle(title).text}” (koma/karakter khusus diganti).
-                </p>
-              )}
             </Field>
 
             <KeywordEditor
@@ -378,8 +358,9 @@ export function CaptionSheet({ session }: {
               disabled={!frame}
             />
 
-            {/* M19 (E.4): Kategori + Tema berdampingan bila kartu cukup lebar */}
-            <div className="grid gap-3 @md:grid-cols-2 @md:gap-4">
+            {/* M19 (E.4) + M32: Kategori + Tema berdampingan bila kartu cukup lebar;
+                dua kolom sama lebar, align start supaya label & kontrol sejajar. */}
+            <div className="grid items-start gap-3 @md:grid-cols-2 @md:gap-4">
               <Field id="caption-category" label="Kategori" copyText={adobe?.category ?? ''} disabled={!frame}>
                 <div className="relative">
                   <select
@@ -410,19 +391,19 @@ export function CaptionSheet({ session }: {
               note={
                 <FieldNote
                   id="caption-desc-note"
-                  text={`${desc.length}/${MAX_DESCRIPTION}`}
-                  tone={toneFor(desc.length, MAX_DESCRIPTION)}
+                  text={`${desc.length}/${MAX_DESCRIPTION_SHUTTER}`}
+                  tone={toneFor(desc.length, MAX_DESCRIPTION_SHUTTER)}
                 />
               }
             >
-              {/* Hint statis di bawah kotak dihapus — minimal 5 kata tetap divalidasi
-                  via blok "Saran perbaikan". Hanya penghitung di baris label (M18). */}
+              {/* Petunjuk instruksional tetap di bawah kotak; hanya penghitung yang masuk
+                  ke baris label (M18). */}
               <textarea
                 id="caption-desc"
                 rows={3}
                 value={desc}
                 onChange={(e) => patchShutter({ description: e.target.value })}
-                placeholder="Satu dua kalimat yang menggambarkan subjek, gaya, dan suasana"
+                placeholder="A red fox running through tall grass at sunrise, warm light and motion"
                 disabled={!frame}
                 aria-describedby="caption-desc-note"
                 className="w-full resize-none rounded-md border border-border-control bg-surface-elevated px-3 py-2 text-body leading-relaxed text-text transition-colors duration-150 placeholder:text-text-muted hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-50"
@@ -437,8 +418,8 @@ export function CaptionSheet({ session }: {
               disabled={!frame}
             />
 
-            {/* M19 (E.4): dua select kategori berdampingan bila kartu cukup lebar */}
-            <div className="grid gap-3 @md:grid-cols-2 @md:gap-4">
+            {/* M19 (E.4) + M32: dua select kategori berdampingan bila kartu cukup lebar. */}
+            <div className="grid items-start gap-3 @md:grid-cols-2 @md:gap-4">
               <Field id="caption-cat1" label="Kategori utama" copyText={cats[0] ?? ''} disabled={!frame}>
                 <div className="relative">
                   <select
@@ -460,11 +441,12 @@ export function CaptionSheet({ session }: {
                 </div>
               </Field>
 
-              <Field id="caption-cat2" label="Kategori tambahan" copyText={cats[1] ?? ''} disabled={!frame}>
+              <Field id="caption-cat2" label="Kategori tambahan *" copyText={cats[1] ?? ''} disabled={!frame}>
                 <div className="relative">
                   <select
                     id="caption-cat2"
                     value={cats[1] ?? ''}
+                    aria-required="true"
                     onChange={(e) => {
                       const v = e.target.value;
                       patchShutter({ categories: v ? [cats[0], v].filter(Boolean) : cats[0] ? [cats[0]] : [] });
@@ -481,40 +463,6 @@ export function CaptionSheet({ session }: {
                 </div>
               </Field>
             </div>
-
-            {/* Toggle Shutterstock per frame (default mati) → kolom CSV E-G */}
-            <div className="flex flex-wrap gap-x-5 gap-y-2">
-              <label className="inline-flex cursor-pointer items-center gap-2 text-small font-semibold text-text-secondary">
-                <input
-                  type="checkbox"
-                  checked={frame?.illustration === true}
-                  disabled={!frame}
-                  onChange={(e) => {
-                    if (frame) setFrameFlags(frame.id, { illustration: e.target.checked });
-                  }}
-                  className="h-4 w-4 shrink-0 cursor-pointer accent-accent disabled:cursor-not-allowed disabled:opacity-50"
-                />
-                Ilustrasi
-              </label>
-              <label className="inline-flex cursor-pointer items-center gap-2 text-small font-semibold text-text-secondary">
-                <input
-                  type="checkbox"
-                  checked={frame?.editorial === true}
-                  disabled={!frame}
-                  onChange={(e) => {
-                    if (frame) setFrameFlags(frame.id, { editorial: e.target.checked });
-                  }}
-                  className="h-4 w-4 shrink-0 cursor-pointer accent-accent disabled:cursor-not-allowed disabled:opacity-50"
-                />
-                Editorial
-              </label>
-            </div>
-            {frame?.editorial === true && (
-              <p role="note" className="text-small text-warning">
-                Frame ditandai Editorial — tulis format caption editorial secara manual.
-                {/* TODO [VERIFIKASI]: format caption editorial khusus belum dipastikan. */}
-              </p>
-            )}
           </>
         )}
 
@@ -522,25 +470,24 @@ export function CaptionSheet({ session }: {
             M19: di cabang Adobe field ini ikut grid dua kolom bersama Kategori (lihat atas). */}
         {platform === 'shutterstock' && temaField}
 
-        {/* Error cek keras = PEMBLOKIR (frame dilewati saat ekspor); warning = saran. */}
-        {result.errors.length > 0 && (
+        {/* Saran hanya relevan saat ada frame + slot berisi — selain itu tidak dirender.
+            Kotak AMBER lembut (non-pemblokir): judul & ikon warning, isi tetap teks sekunder
+            supaya kontras AA di kedua mode. */}
+        {blocking.length > 0 && (
           <div role="alert" className="rounded-lg border-2 border-error bg-error-tint p-2 sm:p-3">
-            <p className="mb-1.5 font-mono text-meta font-bold uppercase tracking-[0.08em] text-error">
-              Tidak lolos cek keras — frame ini dilewati saat ekspor
+            <p className="mb-1.5 flex items-center gap-1.5 font-mono text-meta font-bold uppercase tracking-[0.08em] text-error">
+              Wajib diperbaiki
             </p>
             <ul className="flex flex-col gap-1.5">
-              {result.errors.map((note, i) => (
-                <li key={`err-${note.field}-${i}`} className="text-small leading-relaxed text-text-secondary">
-                  {note.message}
+              {blocking.map((note, i) => (
+                <li key={`${note.field}-${i}`} className="flex items-start gap-2 text-small leading-relaxed text-text">
+                  <span>{note.message}</span>
                 </li>
               ))}
             </ul>
           </div>
         )}
-        {/* Saran hanya relevan saat ada frame + slot berisi — selain itu tidak dirender.
-            Kotak AMBER lembut (non-pemblokir): judul & ikon warning, isi tetap teks sekunder
-            supaya kontras AA di kedua mode. */}
-        {result.warnings.length > 0 && (
+        {suggestions.length > 0 && (
           <div className="rounded-lg border border-warning/45 bg-warning-tint p-2 sm:p-3">
             <p className="mb-1.5 flex items-center gap-1.5 font-mono text-meta font-bold uppercase tracking-[0.08em] text-warning">
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
@@ -551,8 +498,8 @@ export function CaptionSheet({ session }: {
               Saran perbaikan
             </p>
             <ul className="flex flex-col gap-1.5">
-              {result.warnings.map((note, i) => (
-                <li key={`warn-${note.field}-${i}`} className="flex items-start gap-2 text-small leading-relaxed text-text-secondary">
+              {suggestions.map((note, i) => (
+                <li key={`${note.field}-${i}`} className="flex items-start gap-2 text-small leading-relaxed text-text-secondary">
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" className="mt-0.5 shrink-0 text-warning">
                     <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.3" />
                     <path d="M6 3.4v.1M6 5.4v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -564,66 +511,6 @@ export function CaptionSheet({ session }: {
           </div>
         )}
       </div>
-
-      {/* Dialog pra-unduh: daftar Filename + catatan sama-persis + error/peringatan.
-          Blokir hanya untuk error cek keras; nilai juri TIDAK LOLOS hanya peringatan. */}
-      {showDialog && (
-        <div role="dialog" aria-modal="true" aria-label="Konfirmasi ekspor CSV" className="fixed inset-0 z-50 grid place-items-center bg-surface/80 p-4">
-          <div className="flex max-h-[85vh] w-full max-w-lg flex-col gap-3 overflow-y-auto rounded-xl border border-border bg-surface-elevated p-4">
-            <p className="text-body font-semibold text-text">Ekspor CSV {platform === 'adobe' ? 'Adobe Stock' : 'Shutterstock'}</p>
-            <p className="text-small text-text-secondary">
-              {plan.exportable.length} baris ditulis ke {plan.filename}. Kolom Filename harus sama persis
-              dengan nama file di portal (huruf besar/kecil + ekstensi).
-            </p>
-            <ul className="flex max-h-48 flex-col gap-1 overflow-y-auto rounded-md border border-border p-2 font-mono text-small text-text-secondary">
-              {plan.exportable.map((f) => (
-                <li key={f.id} className="truncate" title={portalFileName(f)}>{portalFileName(f)}</li>
-              ))}
-            </ul>
-            {(plan.skipped.length > 0 || plan.overBytes || plan.overRows) && (
-              <div role="alert" className="rounded-lg border-2 border-error bg-error-tint p-2 text-small text-text-secondary">
-                {plan.skipped.length > 0 && (
-                  <p>{plan.skipped.length} frame dilewati karena error cek keras: {plan.skipped.map((s) => portalFileName(s.frame)).join(', ')}</p>
-                )}
-                {plan.overBytes && <p>Ukuran CSV melebihi 1 MB — kurangi jumlah frame.</p>}
-                {plan.overRows && <p>Lebih dari {CSV_MAX_ROWS} baris — kurangi jumlah frame.</p>}
-              </div>
-            )}
-            {plan.warnCount > 0 && (
-              <p className="text-small text-warning">{plan.warnCount} peringatan non-pemblokir ikut diekspor apa adanya.</p>
-            )}
-            {plan.heldBack.length > 0 && (
-              <p className="text-small text-text-secondary">{plan.heldBack.length} frame ditahan disembunyikan dari ekspor (bukan dihapus).</p>
-            )}
-            {highRiskCount > 0 && (
-              <p role="note" className="text-small text-warning">
-                {highRiskCount} frame berisiko tinggi ikut diekspor (peringatan, tidak memblokir kecuali error cek keras).
-              </p>
-            )}
-            <p className="text-small text-text-muted">Hasil juri TIDAK LOLOS hanya peringatan — tidak memblokir unduhan. Lihat panel kepatuhan.</p>
-            <div className="flex flex-wrap justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowDialog(false)}
-                className="rounded-md border border-border-control px-3 py-1.5 text-small font-semibold text-text-secondary hover:bg-accent-tint hover:text-text"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                disabled={plan.overBytes || plan.overRows || plan.exportable.length === 0}
-                onClick={() => {
-                  downloadCsv(plan.exportable, platform);
-                  setShowDialog(false);
-                }}
-                className="rounded-md border-2 border-accent bg-accent px-3 py-1.5 text-small font-semibold text-accent-contrast disabled:cursor-not-allowed disabled:opacity-45"
-              >
-                Unduh {plan.exportable.length} baris
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </Panel>
   );
 }
