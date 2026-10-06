@@ -1,7 +1,8 @@
 // Gemini live — port dari legacy/js/providers-gemini.js (endpoint, format request,
-// pemetaan error dari BODY respons). SATU model (gemini-3.5-flash, lihat models.ts):
-// tanpa deteksi otomatis, tanpa daftar model. 429 dibedakan: limit per menit → di-retry,
-// kuota harian (RESOURCE_EXHAUSTED) → gagal cepat tanpa retry.
+// pemetaan error dari BODY respons). SATU model tetap (lihat gemini-config.ts):
+// tanpa deteksi otomatis, tanpa daftar model. 429 dibedakan: limit per menit →
+// di-retry, kuota harian / kuota GRATIS habis (RESOURCE_EXHAUSTED / free_tier) →
+// gagal cepat tanpa retry.
 // Key hanya dikirim sebagai query param ke API resmi Google dan TIDAK PERNAH dicetak ke log.
 import { buildMetadataPrompt, parseMetadataResponse } from '../prompt';
 import type { ParsedMetadata } from '../prompt';
@@ -11,6 +12,19 @@ import { MODEL_RETRY_MAX, ProviderError, dailyQuotaError, isDailyQuota, parseRet
 import type { GenerateArgs, ProviderAdapter, TestResult } from './types';
 
 export const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
+
+/** 429 kuota GRATIS habis / model tak tersedia di free tier: tanpa retry, boleh fallback. */
+export const GEMINI_FREE_TIER_EXHAUSTED_MESSAGE =
+  'Kuota gratis Gemini habis atau model ini tidak gratis untuk key ini. Tunggu reset atau pakai provider lain. Jangan mengaktifkan billing jika ingin tetap gratis.';
+
+/**
+ * Heuristik defensif kuota gratis habis (format error asli BELUM terverifikasi live):
+ * body memuat "free_tier" (termasuk varian ejaan "freetier"/"free-tier" ala pesan
+ * kuota Google seperti "...PerModel-FreeTier...") atau "limit: 0".
+ */
+function isFreeTierExhausted(bodyText: string): boolean {
+  return /free[_-]?tier/i.test(bodyText) || /limit:\s*0/i.test(bodyText);
+}
 
 function geminiError(data: unknown): { message: string; blob: string } {
   const err = data && typeof data === 'object' && 'error' in data
@@ -31,8 +45,11 @@ function geminiErrorMessage(status: number, data: unknown): string {
   return 'Koneksi gagal.';
 }
 
-/** Respons gagal → ProviderError; 429 kuota harian TIDAK di-retry (pesan jelas + fallback). */
+/** Respons gagal → ProviderError; 429 kuota harian/gratis TIDAK di-retry (pesan jelas + fallback). */
 function geminiHttpError(status: number, data: unknown, raw: string, headers: Headers): ProviderError {
+  if (status === 429 && isFreeTierExhausted(raw)) {
+    return new ProviderError(GEMINI_FREE_TIER_EXHAUSTED_MESSAGE, { status, retryable: false, dailyQuota: true });
+  }
   if (isDailyQuota(status, raw)) return dailyQuotaError('Gemini', 'Groq');
   return new ProviderError(geminiErrorMessage(status, data), {
     status,

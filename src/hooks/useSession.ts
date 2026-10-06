@@ -127,6 +127,10 @@ export function useSession() {
       const next = { ...base, ...patch } as MetadataFor<P> & { categoryAuto?: boolean };
       // M11: user mengubah kategori sendiri → label "dipilih otomatis oleh sistem" tidak berlaku lagi
       if ('category' in patch || 'categories' in patch) delete next.categoryAuto;
+      // Peringatan validator pasca-AI basi begitu user menyunting isi manual.
+      if ('title' in patch || 'description' in patch || 'keywords' in patch) {
+        delete (next as { warnings?: string[] }).warnings;
+      }
       const content = hasContent(platform, next);
       // kontrak: ada isi → siap; slot dikosongkan → kembali menunggu (status 'gagal' &
       // 'memproses' dipertahankan — pesan error / proses batch tidak terganggu)

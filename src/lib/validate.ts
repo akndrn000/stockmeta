@@ -83,6 +83,10 @@ export function validateMetadata(platform: Platform, metadata: Metadata | undefi
     if ((m as unknown as { themeMismatch?: boolean })?.themeMismatch) {
       notes.push({ field: 'category', message: THEME_MISMATCH_MSG });
     }
+    // Peringatan validator pasca-AI (kata dibuang/dipindah) — non-pemblokir.
+    for (const w of (m as unknown as { warnings?: string[] })?.warnings ?? []) {
+      notes.push({ field: 'keywords', message: w });
+    }
     return notes;
   }
 
@@ -125,6 +129,10 @@ export function validateMetadata(platform: Platform, metadata: Metadata | undefi
   // Fase 4: tema tidak cocok = peringatan non-pemblokir (Shutterstock: di keywords).
   if ((m as unknown as { themeMismatch?: boolean })?.themeMismatch) {
     notes.push({ field: 'keywords', message: THEME_MISMATCH_MSG });
+  }
+  // Peringatan validator pasca-AI (kata dibuang/dipindah) — non-pemblokir.
+  for (const w of (m as unknown as { warnings?: string[] })?.warnings ?? []) {
+    notes.push({ field: 'keywords', message: w });
   }
   return notes;
 }

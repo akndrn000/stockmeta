@@ -16,6 +16,8 @@ import type { Platform } from './types';
 export interface FinalizeResult {
   meta: ParsedMetadata;
   removed: string[];
+  /** Peringatan non-pemblokir (warna/klaim/generik/tumpang tindih) untuk "Saran perbaikan". */
+  warnings: string[];
   themeMismatch: boolean;
   /** Final {kata, src, rel?, kind?} — untuk live-test dan perluasan. */
   items: ProcessItem[];
@@ -57,6 +59,7 @@ export function finalizeModelOutput(
 
   let items: ProcessItem[] = [];
   let removed: string[] = [];
+  let warnings: string[] = [];
   const srcCounts: Record<KeywordSrc, number> = {
     visible: 0,
     attribute: 0,
@@ -71,6 +74,7 @@ export function finalizeModelOutput(
       {
         sourced: meta.sourcedKeywords,
         obs,
+        visibleFacts: meta.visible_facts,
         canonical: meta.themeCanonical ?? '',
         themeFit,
         themeEvidence: meta.themeEvidence ?? '',
@@ -82,6 +86,7 @@ export function finalizeModelOutput(
     );
     items = pp.items;
     removed = pp.removed;
+    warnings = pp.warnings;
     Object.assign(srcCounts, pp.srcCounts);
     out.keywords = pp.keywords;
     delete out.sourcedKeywords;
@@ -101,6 +106,7 @@ export function finalizeModelOutput(
   return {
     meta: out,
     removed,
+    warnings,
     themeMismatch,
     items,
     srcCounts,

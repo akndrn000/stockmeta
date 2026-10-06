@@ -1,12 +1,14 @@
 // SATU MODEL PER PROVIDER — konstanta tunggal di satu tempat, dipakai adapter, UI, dan tes.
 // Tanpa deteksi otomatis, tanpa daftar preferensi, tanpa pemilihan model dinamis.
 import type { ProviderId } from '../types';
+import { GEMINI_MODEL } from './gemini-config';
+
+export { GEMINI_MODEL };
 
 /** Groq: model tetap, limit gratis ±8.000 token/menit. */
 export const GROQ_MODEL = 'qwen/qwen3.8-27b';
 
-/** Gemini: Flash biasa (bukan varian lite). */
-export const GEMINI_MODEL = 'gemini-3.5-flash';
+/** Gemini: Flash-Lite tetap (lihat gemini-config.ts) — varian termurah agar tetap gratis. */
 
 /** OpenRouter: satu alias tetap; OpenRouter menentukan endpoint vision gratisnya sendiri. */
 export const OPENROUTER_MODEL = 'openrouter/free';

@@ -31,6 +31,8 @@ export function hasContent(platform: Platform, m: Metadata): boolean {
 // mengembalikannya (tidak pernah jadi kosong); keywords menimpa penuh kalau model
 // mengembalikannya; kategori datang dari parser sudah ternormalisasi —
 // Shutterstock satu nama → kategori baru berupa [nama].
+// warnings validator (dibuang/dipindah) ikut dari hasil generate bila ada;
+// edit manual lewat updateMetadata yang menghapusnya (lihat useSession).
 // M11: kategori fallback otomatis (categoryAuto) hanya dipakai kalau slot lama masih kosong —
 // generate tanpa kategori tidak boleh menimpa pilihan yang sudah ada, dan benderanya ikut
 // berpindah supaya saran "periksa kembali" tetap melekat pada isinya.
@@ -55,7 +57,8 @@ export function mergeGenerated(platform: Platform, base: Metadata, incoming: Par
       keywords: incoming.keywords ?? b.keywords,
       category,
       ...(categoryAuto ? { categoryAuto } : {}),
-      ...(baseMismatch ? { themeMismatch: true } : {})
+      ...(baseMismatch ? { themeMismatch: true } : {}),
+      ...((incoming.warnings ?? []).length ? { warnings: incoming.warnings } : {})
     };
   }
   const b = base as ShutterstockMetadata;
@@ -78,6 +81,7 @@ export function mergeGenerated(platform: Platform, base: Metadata, incoming: Par
     keywords: incoming.keywords ?? b.keywords,
     categories,
     ...(categoryAuto ? { categoryAuto } : {}),
-    ...(baseMismatch ? { themeMismatch: true } : {})
+    ...(baseMismatch ? { themeMismatch: true } : {}),
+    ...((incoming.warnings ?? []).length ? { warnings: incoming.warnings } : {})
   };
 }

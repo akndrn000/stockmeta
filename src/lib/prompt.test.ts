@@ -258,7 +258,6 @@ describe('parseMetadataResponse', () => {
       { k: 'print', src: 'visible' }
     ]);
   });
-
   it('M32: observasi diperkaya + tahan alias lama (medium/media_type)', () => {
     const p = parseMetadataResponse(JSON.stringify({
       observation: {
@@ -273,5 +272,42 @@ describe('parseMetadataResponse', () => {
     // data lama tetap diterima (alias medium → media_type)
     const old = parseMetadataResponse(JSON.stringify({ observation: { medium: 'vector' } }), 'adobe');
     expect(old.observation?.media_type).toBe('vector');
+  });
+
+  it('visible_facts ditulis dulu + urutan skema: fakta, judul, keywords, kategori', () => {
+    for (const platform of ['adobe', 'shutterstock'] as const) {
+      const p = buildMetadataPrompt({ platform, theme: 'Panen Raya' });
+      expect(p).toContain('visible_facts');
+      expect(p).toContain('Tulis DULU "visible_facts"');
+      const anchor = platform === 'adobe' ? '"title"' : '"description"';
+      expect(p.indexOf('visible_facts')).toBeLessThan(p.indexOf(anchor));
+      expect(p.indexOf(anchor)).toBeLessThan(p.indexOf('"keywords"'));
+      expect(p.indexOf('"keywords"')).toBeLessThan(p.indexOf('"category"'));
+    }
+  });
+
+  it('aturan keyword fakta: dasar, warna per bagian, klaim, 18-28, urutan, generik akhir', () => {
+    for (const platform of ['adobe', 'shutterstock'] as const) {
+      const p = buildMetadataPrompt({ platform });
+      expect(p).toContain('visible_facts');
+      expect(p).toContain('18 sampai 28');
+      expect(p).toContain('menempel pada bagiannya');
+      expect(p).toContain('Bila ragu, pakai istilah umum');
+      expect(p).toContain('Keyword pertama harus berasal dari subjek');
+      expect(p).toContain('10 teratas (Adobe) / 7 teratas (Shutterstock)');
+      expect(p).toContain('Warna dan klaim spesifik di judul/deskripsi HANYA dari visible_facts');
+    }
+  });
+
+  it('visible_facts diparsing (dibatasi) dan tahan respons lama tanpanya', () => {
+    const p = parseMetadataResponse(JSON.stringify({
+      title: 'Orange Cat',
+      visible_facts: ['orange cat', 'bat wings', '  ', 7],
+      keywords: ['cat'],
+      category: 'Animals'
+    }), 'adobe');
+    expect(p.visible_facts).toEqual(['orange cat', 'bat wings', '7']);
+    const old = parseMetadataResponse(JSON.stringify({ keywords: ['cat'] }), 'adobe');
+    expect(old.visible_facts).toBeUndefined();
   });
 });

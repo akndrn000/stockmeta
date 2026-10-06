@@ -85,6 +85,12 @@ function keywordsOf(o: Record<string, unknown>): string[] {
   return Array.isArray(o.keywords) ? o.keywords.map((k) => String(k)) : [];
 }
 
+function warningsOf(o: Record<string, unknown>): string[] | undefined {
+  if (!Array.isArray(o.warnings)) return undefined;
+  const list = o.warnings.map((w) => String(w)).filter(Boolean).slice(0, 12);
+  return list.length ? list : undefined;
+}
+
 function coerceAdobe(o: Record<string, unknown>): AdobeMetadata {
   return {
     title: typeof o.title === 'string' ? o.title : '',
@@ -92,7 +98,8 @@ function coerceAdobe(o: Record<string, unknown>): AdobeMetadata {
     category: typeof o.category === 'string' ? o.category : '',
     // M11: tanda "kategori dipilih otomatis" ikut tersimpan supaya sarannya tetap ada setelah reload
     ...(o.categoryAuto === true ? { categoryAuto: true } : {}),
-    ...(o.themeMismatch === true ? { themeMismatch: true } : {})
+    ...(o.themeMismatch === true ? { themeMismatch: true } : {}),
+    ...(warningsOf(o) ? { warnings: warningsOf(o) } : {})
   };
 }
 
@@ -106,7 +113,8 @@ function coerceShutter(o: Record<string, unknown>): ShutterstockMetadata {
     keywords: keywordsOf(o),
     categories: cats,
     ...(o.categoryAuto === true ? { categoryAuto: true } : {}),
-    ...(o.themeMismatch === true ? { themeMismatch: true } : {})
+    ...(o.themeMismatch === true ? { themeMismatch: true } : {}),
+    ...(warningsOf(o) ? { warnings: warningsOf(o) } : {})
   };
 }
 
