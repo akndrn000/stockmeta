@@ -3,6 +3,7 @@
 // perluasan, dan terapkan hasil Tahap D. Dipakai useBatch (total maksimal
 // 3 panggilan/frame).
 import { KEYWORD_MIN_TARGET } from './limits';
+import { cleanShutterstockDescription } from './metadata';
 import {
   cleanAiTitle,
   normalizeLegacyKeywords,
@@ -98,7 +99,7 @@ export function finalizeModelOutput(
 
   if (platform === 'adobe' && out.title) out.title = cleanAiTitle(out.title);
   if (platform === 'shutterstock' && out.description) {
-    const d = out.description.replace(/\s+/g, ' ').trim();
+    const d = cleanShutterstockDescription(out.description);
     out.description = d ? d.charAt(0).toUpperCase() + d.slice(1) : d;
   }
   if (themeMismatch) out.themeFit = false;

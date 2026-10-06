@@ -17,6 +17,23 @@ export function cleanAdobeTitle(title: string): string {
   return title.replace(/\s+/g, ' ').trim();
 }
 
+// Deskripsi Shutterstock TIDAK BOLEH berkoma (aturan prompt): jaring pengaman bila model
+// tetap mengembalikan koma — ganti setiap koma dengan kata sambung sederhana ("and")
+// atau spasi bila kata sambung sudah ada, lalu rapikan spasi ganda hasil penggantian.
+// Pola mengikuti cleanAdobeTitle di atas (murni, tanpa potong panjang).
+export function cleanShutterstockDescription(desc: string): string {
+  return desc
+    // Koma yang sudah diikuti kata sambung → buang komanya saja (hindari "and and").
+    .replace(/,\s*(and|with|while|as|in|on|under|over|against|beside|near|during|dan|dengan|saat|sambil)\b/gi, ' $1')
+    // Sisa koma → kata sambung sederhana.
+    .replace(/,/g, ' and ')
+    // Rapikan tumpukan "and" + spasi ganda hasil penggantian.
+    .replace(/\b(and\s+){2,}/gi, 'and ')
+    .replace(/\s+/g, ' ')
+    .replace(/\s+([.])/g, '$1')
+    .trim();
+}
+
 export function hasContent(platform: Platform, m: Metadata): boolean {
   return platform === 'adobe'
     ? Boolean((m as AdobeMetadata).title || (m as AdobeMetadata).keywords.length || (m as AdobeMetadata).category)

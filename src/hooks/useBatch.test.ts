@@ -65,7 +65,8 @@ const holderRef: {
 function Harness() {
   const s = useSession();
   const p = useProvider();
-  const b = useBatch(s, p, { delayMs: 0 });
+  // jeda top-up 0 di tes (produksi 1,5 dtk antar percobaan dalam 1 frame)
+  const b = useBatch(s, p, { delayMs: 0, topupDelayMs: 0 });
   // eslint-disable-next-line react-hooks/immutability -- harness pengujian: simpan hasil hook terbaru
   holderRef.current = { s, p, b };
   return createElement('div');
@@ -473,22 +474,37 @@ describe('useBatch - perluasan keyword M32', () => {
     sourcedKeywords: KW30.slice(0, 30).map((k) => ({ k, src: 'visible' as const })),
     observation: { objects: [...KW30], media_type: 'photo' }
   });
+  // Extra top-up yang lolos grounding POOR_OBS (sinonim terverifikasi + usage
+  // non-media-only) tapi tetap tipis → gabungan 8, perluasan tetap jalan.
+  const poorExtra = (): ParsedMetadata => ({
+    sourcedKeywords: [
+      { k: 'vulpine', src: 'synonym', of: 'fox', rel: 'synonym' },
+      { k: 'cub', src: 'synonym', of: 'fox', rel: 'specific' },
+      { k: 'den', src: 'usage' },
+      { k: 'wallpaper', src: 'usage' }
+    ]
+  });
 
-  it('kolam miskin -> satu putaran perluasan dengan daftar + faset, total 2 panggilan', async () => {
+  it('kolam miskin -> 2x top-up (finalisasi grounding menipiskan lagi) lalu perluasan, total 4 panggilan', async () => {
     addFrames(1);
     await ready();
-    script = [{ meta: poor() }, { meta: rich() }];
+    script = [{ meta: poor() }, { meta: poorExtra() }, { meta: rich() }];
 
     act(() => api().b.regenerateFrame(0));
     await flush();
 
-    expect(calls).toBe(2);
-    expect(seenArgs[1].retryNote).toContain('fox');
-    expect(seenArgs[1].retryNote).toContain('Faset yang belum terwakili');
+    // utama (1) + top-up 8 kata (2) + top-up 35 kata mentah (3) + perluasan rich (4)
+    expect(calls).toBe(4);
+    expect(seenArgs[1].promptOverride).toContain('TAMBAHAN');
+    // follow-up ke-2 mencantumkan kata dari follow-up ke-1 (daftar sejauh itu)
+    expect(seenArgs[2].promptOverride).toContain('TAMBAHAN');
+    expect(seenArgs[2].promptOverride).toContain('vulpine');
+    expect(seenArgs[3].retryNote).toContain('fox');
+    expect(seenArgs[3].retryNote).toContain('Faset yang belum terwakili');
     expect(api().s.frames[0].metadata.adobe?.keywords).toHaveLength(30);
   });
 
-  it('tetap miskin setelah perluasan -> Tahap D jalan dalam anggaran, disimpan apa adanya', async () => {
+  it('tetap miskin setelah 3x top-up + perluasan -> Tahap D jalan, catatan tampil, disimpan apa adanya', async () => {
     addFrames(1);
     await ready();
     script = [{ meta: poor() }];
@@ -496,13 +512,17 @@ describe('useBatch - perluasan keyword M32', () => {
     act(() => api().b.regenerateFrame(0));
     await flush();
 
-    // perluasan (2) + Tahap D (3, usage = berisiko): total tetap <= 3
-    expect(calls).toBe(3);
-    expect(seenArgs[2].promptOverride).toContain('"remove"');
+    // utama (1) + top-up duplikat-nous (2, 3) + perluasan (4) + Tahap D (5, usage = berisiko)
+    expect(calls).toBe(5);
+    expect(seenArgs[1].promptOverride).toContain('TAMBAHAN');
+    expect(seenArgs[2].promptOverride).toContain('TAMBAHAN');
+    expect(seenArgs[4].promptOverride).toContain('"remove"');
     expect(api().s.frames[0].metadata.adobe?.keywords).toEqual(['fox', 'ears', 'fur', 'banner']);
+    // user tahu dari UI: sudah upaya maksimal 3x tapi tetap di bawah target
+    expect(api().s.notes[0]).toContain('Keyword di bawah target (4/30) meski sudah 3 percobaan');
   });
 
-  it('Indonesia + miskin -> bahasa dulu lalu perluasan, total tidak lebih dari 3', async () => {
+  it('Indonesia + miskin -> 2x top-up dulu, lalu koreksi bahasa', async () => {
     addFrames(1);
     await ready();
     const indonesian = (): ParsedMetadata => ({ ...poor(), title: 'Seorang pria dengan topi di pasar' });
@@ -511,9 +531,11 @@ describe('useBatch - perluasan keyword M32', () => {
     act(() => api().b.regenerateFrame(0));
     await flush();
 
-    expect(calls).toBeLessThanOrEqual(3);
-    expect(calls).toBe(3);
-    expect(seenArgs[1].languageFix).toBe(true);
+    // utama (1) + top-up duplikat-nous (2) + top-up rich (3) + koreksi bahasa rich (4)
+    expect(calls).toBe(4);
+    expect(seenArgs[1].promptOverride).toContain('TAMBAHAN');
+    expect(seenArgs[2].promptOverride).toContain('TAMBAHAN');
+    expect(seenArgs[3].languageFix).toBe(true);
     expect(api().s.frames[0].metadata.adobe?.keywords).toHaveLength(30);
   });
 });

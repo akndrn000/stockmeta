@@ -657,7 +657,7 @@ export function processSourcedKeywords(
     if (moved.length) warnings.push(`Kata generik dipindah ke akhir: ${moved.join(', ')}.`);
     tailPartitioned = [...head, ...keptTail, ...tailColors];
   }
-  // Kebijakan 30–45: tak melewati batas maksimum platform.
+  // Kebijakan 30–49: tak melewati batas maksimum platform.
   const cap = Math.min(KEYWORD_TARGET_MAX, platformMax(input.platform));
   const final = tailPartitioned.slice(0, cap);
   for (const x of tailPartitioned.slice(cap)) removed.push(x.k);

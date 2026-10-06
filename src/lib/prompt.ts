@@ -1,18 +1,18 @@
 // Prompt anti-generic + parser hasil model — port setia dari legacy/js/prompt-builder.js dan
 // parseJsonLoose + normalisasi di providers-gemini.js/app.js (tanpa panggilan jaringan).
 import { getCategories, normCat, SS_CATEGORIES_REQUIRED } from './categories';
-import { cleanAdobeTitle } from './metadata';
+import { cleanAdobeTitle, cleanShutterstockDescription } from './metadata';
 import {
-  KEYWORD_MIN_TARGET,
   KEYWORD_PHRASE_MAX,
-  KEYWORD_TARGET_MAX,
   KEYWORD_USAGE_MAX,
   MAX_DESCRIPTION_SHUTTER,
   MAX_KEYWORDS,
   MAX_KEYWORDS_ADOBE,
   MAX_TITLE_CSV,
   PLATFORM_TOP_KEYWORDS,
-  SS_DESCRIPTION_SUGGEST
+  SS_DESCRIPTION_SUGGEST,
+  TARGET_KEYWORDS_MAX,
+  TARGET_KEYWORDS_MIN
 } from './limits';
 import { STAGE_B_WITH_IMAGE } from './providers/models';
 import type { Platform } from './types';
@@ -30,8 +30,8 @@ export function buildMetadataPrompt({ platform, theme, languageFix, retryNote }:
   // Urutan field: visible_facts DULU (menentukan keyword), baru title/description,
   // keywords, category. Tanpa field confidence/notes (tak ada konsumennya).
   const jsonFormat = platform === 'adobe'
-    ? `{"visible_facts": array string pendek fakta visual — SATU fakta per butir (objek utama, jumlah, bagian/kostum, warna SETIAP bagian menempel bagiannya, bentuk, motif, bahan, aksi/pose, latar singkat, ada/tidaknya teks, gaya aset), "title": string maks ${MAX_TITLE_CSV} karakter (Inggris, kapital di awal, tanpa koma, boleh multikata), "keywords": array 30-45 objek {k, src, of?, rel?, kind?, standalone?} (maksimal ${MAX_KEYWORDS_ADOBE} kata, yang paling penting dulu), "category": string — salah satu persis dari daftar kategori di atas, "theme_canonical": string Inggris baku untuk tema, "theme_fit": boolean (tema didukung gambar?), "theme_evidence": string elemen gambar pendukung tema (wajib bila theme_fit true), "observation": {...lihat Tahap A...}}`
-    : `{"visible_facts": array string pendek fakta visual — SATU fakta per butir (objek utama, jumlah, bagian/kostum, warna SETIAP bagian menempel bagiannya, bentuk, motif, bahan, aksi/pose, latar singkat, ada/tidaknya teks, gaya aset), "description": string satu kalimat Inggris natural (diawali subjek utama, lalu elemen kunci, lalu tema bila cocok; minimal 5 kata, ideal ${SS_DESCRIPTION_SUGGEST.MIN}–${SS_DESCRIPTION_SUGGEST.MAX} karakter satu-dua kalimat, pagar ${MAX_DESCRIPTION_SHUTTER} karakter, BUKAN daftar kata, boleh multikata), "keywords": array 30-45 objek {k, src, of?, rel?, kind?, standalone?}, "category": array TEPAT ${SS_CATEGORIES_REQUIRED} string BERBEDA persis dari daftar kategori di atas, "theme_canonical": string Inggris baku untuk tema, "theme_fit": boolean, "theme_evidence": string (wajib bila theme_fit true), "observation": {...lihat Tahap A...}}`;
+    ? `{"visible_facts": array string pendek fakta visual — SATU fakta per butir (objek utama, jumlah, bagian/kostum, warna SETIAP bagian menempel bagiannya, bentuk, motif, bahan, aksi/pose, latar singkat, ada/tidaknya teks, gaya aset), "title": string maks ${MAX_TITLE_CSV} karakter (Inggris, kapital di awal, tanpa koma, boleh multikata), "keywords": array ${TARGET_KEYWORDS_MIN}-${TARGET_KEYWORDS_MAX} objek {k, src, of?, rel?, kind?, standalone?} (maksimal ${MAX_KEYWORDS_ADOBE} kata, yang paling penting dulu), "category": string — salah satu persis dari daftar kategori di atas, "theme_canonical": string Inggris baku untuk tema, "theme_fit": boolean (tema didukung gambar?), "theme_evidence": string elemen gambar pendukung tema (wajib bila theme_fit true), "observation": {...lihat Tahap A...}}`
+    : `{"visible_facts": array string pendek fakta visual — SATU fakta per butir (objek utama, jumlah, bagian/kostum, warna SETIAP bagian menempel bagiannya, bentuk, motif, bahan, aksi/pose, latar singkat, ada/tidaknya teks, gaya aset), "description": string SATU kalimat Inggris natural TANPA koma sama sekali (diawali subjek utama, lalu elemen kunci, lalu tema bila cocok; minimal 5 kata, ideal ${SS_DESCRIPTION_SUGGEST.MIN}–${SS_DESCRIPTION_SUGGEST.MAX} karakter SATU kalimat, pagar ${MAX_DESCRIPTION_SHUTTER} karakter, BUKAN daftar kata, boleh multikata), "keywords": array ${TARGET_KEYWORDS_MIN}-${TARGET_KEYWORDS_MAX} objek {k, src, of?, rel?, kind?, standalone?}, "category": array TEPAT ${SS_CATEGORIES_REQUIRED} string BERBEDA persis dari daftar kategori di atas, "theme_canonical": string Inggris baku untuk tema, "theme_fit": boolean, "theme_evidence": string (wajib bila theme_fit true), "observation": {...lihat Tahap A...}}`;
 
   const lines = [
     ENGLISH_INSTRUCTION,
@@ -111,8 +111,8 @@ export function buildMetadataPrompt({ platform, theme, languageFix, retryNote }:
     '   (graphic, design, clipart, icon, dan sejenisnya) DILARANG kecuali tercatat',
     '   sebagai bagian media_type. DILARANG MENGARANG: bila tidak ada hubungan dengan',
     '   gambar dan tema, jangan dibuat.',
-    `4. JUMLAH: target ${KEYWORD_MIN_TARGET} sampai ${KEYWORD_TARGET_MAX} keyword. Urutan: subjek`,
-    '   utama dan varian terdekat, kata inti tema_canonical, elemen/kostum kunci, jenis',
+    `4. JUMLAH: Hasilkan ANTARA ${TARGET_KEYWORDS_MIN} SAMPAI ${TARGET_KEYWORDS_MAX} kata kunci (bukan kurang dari ${TARGET_KEYWORDS_MIN} kecuali gambar benar-benar sangat sederhana/minim elemen). Instruksi kuat ini adalah permintaan AWAL — bila hasil tetap di bawah ${TARGET_KEYWORDS_MIN}, satu follow-up top-up otomatis (jaring pengaman, lihat providers/topup.ts) akan meminta tambahannya. Kata kunci HARUS akurat dan benar-benar relevan dengan apa yang TERLIHAT di gambar dan tema yang diberikan — JANGAN mengarang kata kunci yang tidak berhubungan hanya untuk mengejar jumlah. Urutan: paling relevan/spesifik dulu, baru variasi sinonim, kategori umum, mood/gaya, warna, komposisi, dan konteks tema. Kembangkan dari berbagai sudut: subjek utama, aksi/pose, latar/lingkungan, gaya visual (misal flat design, 3D, vector, dsb), warna dominan, mood/emosi, kategori penggunaan (misal untuk desain apa), istilah terkait tema musiman kalau ada tema yang diisi. Detail urutan: subjek`,
+    '   utama dan varian terdekat, kata inti theme_canonical, elemen/kostum kunci, jenis',
     '   media, gaya/suasana, sinonim/induk, konsep tema abstrak, usage, warna identitas',
     '   (maksimal 2, paling akhir). Judul dan deskripsi tetap boleh multikata.',
     '5. DASAR FAKTA: setiap keyword harus berdasar visible_facts, atau konsep',
@@ -123,8 +123,10 @@ export function buildMetadataPrompt({ platform, theme, languageFix, retryNote }:
     '7. Spesies, usia, jenis kelamin, dan profesi (kitten, puppy, baby, child, boy,',
     '   girl, man, woman, family, couple, dan sejenisnya) hanya bila jelas terlihat.',
     '   Bila ragu, pakai istilah umum ("cat", bukan "kitten").',
-    '8. Lebih baik 18 sampai 28 keyword yang spesifik dan benar daripada mengisi',
-    '   sampai jumlah maksimum dengan kata umum.',
+    '8. AKURASI SEBELUM KUANTITAS: Jangan tambahkan kata kunci yang tidak relevan',
+    '   hanya untuk mencapai jumlah minimum — kualitas dan relevansi lebih penting',
+    '   daripada sekadar jumlah. Bila gambar benar-benar sangat sederhana/minim elemen,',
+    '   hasil di bawah target dapat diterima daripada mengarang kata generik.',
     '9. Frasa = frasa pencarian yang wajar ("moon lantern", "cat costume"), bukan',
     '   tumpukan kata acak. Hindari tumpang tindih: jangan menulis kata tunggal dan',
     '   beberapa frasa yang hanya menambah kata kecil padanya, berulang-ulang.',
@@ -160,7 +162,8 @@ export function buildMetadataPrompt({ platform, theme, languageFix, retryNote }:
   );
   if (platform === 'shutterstock') {
     lines.push(
-      `Shutterstock WAJIB mengembalikan TEPAT ${SS_CATEGORIES_REQUIRED} kategori BERBEDA dari daftar di atas (tidak boleh kosong, tidak boleh sama).`
+      `Shutterstock WAJIB mengembalikan TEPAT ${SS_CATEGORIES_REQUIRED} kategori BERBEDA dari daftar di atas (tidak boleh kosong, tidak boleh sama).`,
+      'Deskripsi Shutterstock TIDAK BOLEH mengandung tanda koma sama sekali. Tulis sebagai SATU kalimat mengalir alami menggunakan kata sambung (and, with, as, while, dan sejenisnya) alih-alih koma untuk menggabungkan elemen. Deskripsi harus tetap akurat menggambarkan apa yang terlihat di gambar DAN konsisten dengan tema yang diberikan (kalau tema diisi).'
     );
   }
   if (languageFix) lines.push('', LANGUAGE_FIX_INSTRUCTION);
@@ -392,7 +395,10 @@ export function parseMetadataResponse(raw: string, platform: Platform): ParsedMe
     out.title = platform === 'adobe' ? cleanAdobeTitle(t).slice(0, MAX_TITLE_CSV) : t.trim().slice(0, 200);
   }
   const d = pick(obj, 'description');
-  if (typeof d === 'string' && d.trim()) out.description = d.trim().slice(0, MAX_DESCRIPTION_SHUTTER);
+  if (typeof d === 'string' && d.trim()) {
+    const cleaned = platform === 'shutterstock' ? cleanShutterstockDescription(d) : d.trim();
+    if (cleaned) out.description = cleaned.slice(0, MAX_DESCRIPTION_SHUTTER);
+  }
 
   // Fase 4: tema kanonis + fit/evidence + grup keyword + observasi (semua opsional,
   // kompatibel respons lama yang hanya punya keywords flat).

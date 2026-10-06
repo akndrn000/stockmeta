@@ -1275,3 +1275,201 @@ belum ada di legacy (atau berubah dari legacy) — legacy tetap jadi acuan untuk
 - Satuan (M14): lima nilai piksel tetap pada elemen struktural diganti rem (grid `9.375rem`,
   popover `2.625rem`, batas chip `12.5rem`, radius panel `0.875rem`, radius dot `0.1875rem`);
   ukuran font tetap px sebagai skala tipografi yang disengaja.
+
+## Perbaikan pasca-M27 (M28) — kualitas hasil AI: target keyword 30–49 + deskripsi SS tanpa koma
+
+Dua perbaikan pada kualitas hasil AI — PROMPT ke model, bukan sekadar validasi UI.
+
+### 1. Jumlah kata kunci: target 30–49 yang tegas dan akurat
+
+Masalah: hasil AI sering jauh di bawah target meski batas atas (49) dan minimum keras
+(5 Adobe / 7 Shutterstock) sudah ada di validasi — prompt hanya menyebut batas maksimal,
+bahkan aturan lama menyebut "lebih baik 18–28" sehingga model nyaman berhenti di belasan.
+
+- `src/lib/limits.ts`: konstanta baru **`TARGET_KEYWORDS_MIN = 30`** (target kualitas yang
+  didorong lewat prompt, BUKAN validasi keras baru) + **`TARGET_KEYWORDS_MAX = 49`**;
+  `KEYWORD_MIN_TARGET` / `KEYWORD_TARGET_MAX` dipertahankan sebagai alias agar impor lama
+  tak rusak. Batas keras `MIN_KEYWORDS_ADOBE` (5) / `MIN_KEYWORDS_SHUTTER` (7) tidak berubah.
+  Cap finalisasi (`keywordGroups.ts`, `Math.min(KEYWORD_TARGET_MAX, platformMax)`) kini 49.
+- `src/lib/prompt.ts` (`buildMetadataPrompt`, aturan 4): instruksi EKSPLISIT dan TEGAS —
+  "Hasilkan ANTARA 30 SAMPAI 49 kata kunci (bukan kurang dari 30 kecuali gambar
+  benar-benar sangat sederhana/minim elemen). Kata kunci HARUS akurat dan benar-benar
+  relevan dengan apa yang TERLIHAT di gambar dan tema yang diberikan — JANGAN mengarang
+  kata kunci yang tidak berhubungan hanya untuk mengejar jumlah. Urutan: paling
+  relevan/spesifik dulu, baru variasi sinonim, kategori umum, mood/gaya, warna, komposisi,
+  dan konteks tema. Kembangkan dari berbagai sudut: subjek utama, aksi/pose,
+  latar/lingkungan, gaya visual (misal flat design, 3D, vector, dsb), warna dominan,
+  mood/emosi, kategori penggunaan, istilah terkait tema musiman kalau ada tema yang diisi."
+  Format JSON kini meminta `array 30-49 objek` (dulu `30-45`).
+- Aturan 8 lama ("lebih baik 18 sampai 28") DIGANTI prinsip **AKURASI SEBELUM KUANTITAS**:
+  "Jangan tambahkan kata kunci yang tidak relevan hanya untuk mencapai jumlah minimum —
+  kualitas dan relevansi lebih penting daripada sekadar jumlah. Bila gambar benar-benar
+  sangat sederhana/minim elemen, hasil di bawah target dapat diterima daripada mengarang
+  kata generik."
+- `src/lib/validate.ts`: `KEYWORD_THIN_MSG` kini berbunyi persis
+  "Kata kunci kurang dari 30 — pertimbangkan menambah kata kunci relevan untuk visibilitas
+  pencarian lebih baik." (saran non-pemblokir, memakai `TARGET_KEYWORDS_MIN`; batas keras
+  5/7 tetap pemblokir terpisah).
+
+### 2. Deskripsi Shutterstock tidak boleh pakai koma
+
+- `src/lib/prompt.ts` (Shutterstock saja): larangan EKSPLISIT dan TEGAS —
+  "Deskripsi TIDAK BOLEH mengandung tanda koma sama sekali. Tulis sebagai SATU kalimat
+  mengalir alami menggunakan kata sambung (and, with, as, while, dan sejenisnya)
+  alih-alih koma untuk menggabungkan elemen. Deskripsi harus tetap akurat menggambarkan
+  apa yang terlihat di gambar DAN konsisten dengan tema yang diberikan (kalau tema diisi)."
+  Format JSON deskripsi ikut menegaskan "SATU kalimat … TANPA koma sama sekali".
+- `src/lib/metadata.ts`: fungsi baru **`cleanShutterstockDescription`** (mengikuti pola
+  `cleanAdobeTitle`) — koma yang sudah diikuti kata sambung → buang komanya saja
+  (hindari "and and"); sisa koma → " and "; lalu rapikan spasi ganda/titik. Dipakai di
+  `parseMetadataResponse` (prompt.ts, hanya platform shutterstock) dan `finalizeModelOutput`
+  (finalize.ts) sebagai jaring pengaman bila model tetap mengembalikan koma.
+- `src/lib/validate.ts`: konstanta baru **`SS_COMMA_MSG`** —
+  "Deskripsi masih mengandung koma — hapus koma agar menjadi satu kalimat mengalir."
+  (saran non-pemblokir bila koma masih lolos pembersihan otomatis).
+
+### 3. Tes & verifikasi
+
+- `prompt.test.ts`: asersi `30 sampai 45` → `30 SAMPAI 49` (via konstanta); aturan
+  `18 sampai 28` diganti asersi akurasi; baru: target tegas + sudut pengembangan,
+  larangan koma Shutterstock (Adobe negatif), parser membersihkan koma otomatis.
+- `validate.test.ts`: pesan tipis baru persis + bukti batas keras tetap terpisah; kasus
+  daftar-kata kini mengharapkan 2 saran (daftar kata + koma); baru: koma lolos → saran
+  koma saja, tanpa koma → tanpa saran koma.
+- `metadata.test.ts`: 4 tes baru `cleanShutterstockDescription` (hapus koma + rapikan
+  spasi, daftar berkoma tanpa "and and", koma sebelum kata sambung, tanpa koma).
+- `keywordGroups.ts` komentar `30–45` → `30–49`; `fase4.table.test.ts` asersi
+  `Hanya 1 keyword` → `Kata kunci kurang dari`.
+- Verifikasi: `npm run test` **368/368**, `npx tsc --noEmit` 0, `npm run lint` 0,
+  `npm run build` sukses. Tes manual DISARANKAN: generate 2–3 foto asli dengan tema
+  diisi, hitung kata kunci (harus mendekati/dalam 30–49, bukan di bawah 20), cek
+  deskripsi Shutterstock tanpa koma dan relevan gambar+tema.
+
+## Perbaikan pasca-M28 (M29) — top-up keyword otomatis, bukan tahap migrasi baru
+
+Bukti dunia nyata: hasil generate masih sering jauh di bawah target 30 (contoh: 15/49)
+meski instruksi prompt M28 sudah tegas — kata-kata saja TIDAK CUKUP memaksa model
+vision kecil patuh konsisten. Jawabannya mekanisme, bukan kalimat prompt baru.
+
+### 1. Satu lapisan bersama: `generateWithFallback` (bukan 3x di 3 provider)
+
+- Modul baru **`src/lib/providers/topup.ts`** (murni, tanpa jaringan): `TOPUP_TARGET_MIN/MAX`
+  (35/40 — rentang yang diminta di prompt follow-up), `platformKeywordMax` (49 Adobe /
+  50 Shutterstock), `countKeywords` (flat + bersumber), `existingKeywordList`,
+  `needsTopup` (< `TARGET_KEYWORDS_MIN`), `buildTopupPrompt`, `mergeTopupKeywords`.
+- **`src/lib/providers/fallback.ts`** (`withTopup` di dalam `generateWithFallback`):
+  setelah hasil pertama sukses dan < 30 → SATU follow-up ke adapter & key YANG SAMA
+  dengan GAMBAR yang sama dikirim ulang + `promptOverride` top-up ("…TAMBAHAN kata
+  kunci… bukan mengulang [daftar lama]… sekitar 35-40… sudut belum tercakup… HARUS
+  akurat, jangan mengarang… format objek bersumber yang sama + bahasa Inggris"),
+  lalu merge + dedupe case-insensitive + cap platform. Berlaku untuk hasil provider
+  aktif maupun cadangan (konsisten Gemini/Groq/OpenRouter tanpa duplikasi).
+- Batasan anti-numpuk: dilewati bila `promptOverride` (verifikasi Tahap D), bila
+  `languageFix`/`retryNote` (retry adalah jaring pengaman KEDUA — maksimal +1 panggilan
+  per frame dibanding sebelumnya), atau bila sinyal batal. Follow-up gagal
+  (network/limit) → hasil pertama dipakai apa adanya (lebih baik sedikit daripada
+  frame gagal total). Progress batch tetap 1 frame (cuma sedikit lebih lama).
+- Format extra = objek bersumber seperti prompt utama supaya lolos verifikasi
+  grounding finalisasi; merge TIDAK PERNAH mengarang `src` dan TIDAK PERNAH
+  menghilangkan kata hasil pertama (extra hanya best-effort; tanpa tambahan →
+  referensi `first` dikembalikan utuh).
+- `src/lib/prompt.ts` aturan 4 DITAMBAHI satu kalimat (instruksi kuat dipertahankan
+  penuh sebagai permintaan awal): top-up disebut eksplisit sebagai follow-up otomatis
+  bila hasil tetap < 30.
+
+### 2. Tes
+
+- **`src/lib/providers/topup.test.ts`** (baru, 16 tes): isi prompt (daftar lama,
+  35-40, anti-mengarang, JSON bersumber, Inggris); ambang 29/30; merge
+  bersumber+bersumber (35 dari 15+25 minus 5 duplikat, urutan, field lain utuh),
+  dedupe case-insensitive, cap 49/50, flat+flat, no-op referensi-sama; integrasi
+  `generateWithFallback` mock: 15 → follow-up (gambar sama + daftar lama di prompt)
+  → 35; follow-up 429 → hasil pertama utuh tanpa throw; 30+ → 1 panggilan; Tahap D
+  dan retry (`languageFix`/`retryNote`) → tanpa top-up bersarang.
+- **`src/hooks/useBatch.test.ts`** (3 tes perluasan M32 disesuaikan — aliran baru):
+  miskin → top-up (tetap tipis) → perluasan = 3 panggilan (`TAMBAHAN` di `seenArgs[1]`,
+  `retryNote` di `[2]`); persisten-miskin = 4 (top-up + perluasan + Tahap D);
+  Indonesia = 3 (`TAMBAHAN` di `[1]`, `languageFix` di `[2]`). Harness KW30/30-sumber
+  lain tidak tersentuh (30 = tidak perlu top-up).
+- Verifikasi: `npm run test` **384/384** (368 + 16 baru), `npx tsc --noEmit` 0,
+  `npm run lint` 0, `npm run build` sukses.
+
+### 3. Konfirmasi jujur cakupan uji
+
+- **HANYA mock — TIDAK diuji dengan panggilan API asli.** Tidak ada API key di
+  lingkungan ini dan `scripts/live-test.ts` memanggil `adapter.generateForImage`
+  langsung (melewati lapisan fallback, jadi top-up tidak tercakup di sana).
+- Angka "15 → 35" di atas adalah hasil mock terkontrol, BUKAN hasil model nyata.
+- **Tindak lanjut manual wajib**: generate 2–3 foto asli bertema; catat jumlah keyword
+  SEBELUM (matikan top-up sementara bila perlu) vs SESUDAH top-up — harapkan total
+  mendekati/dalam 30–49 dengan akurasi terjaga (finalisasi grounding tetap membuang
+  karangan, validasi tetap menyarankan bila < 30).
+
+## Perbaikan pasca-M29 (M30) — top-up jadi LOOP maks 3 panggilan/frame, bukan tahap migrasi baru
+
+Bukti nyata (Gemini DAN Groq, dua provider berbeda): hasil konsisten di bawah 20–30
+kata kunci meski top-up M29 (1x follow-up) sudah ada — satu kali follow-up TERBUKTI
+TIDAK CUKUP. Diagnosis log sementara M30 tidak sempat dibaca dari run pengguna,
+sehingga perbaikan ini mengambil asumsi paling defensif: model kecil memang sering
+tidak patuh dalam 1–2 percobaan, jadi diberi MAKSIMAL 3 percobaan lalu berhenti
+jujur (bukan infinite loop, bukan klaim sembuh tanpa bukti).
+
+### 1. Loop di `withTopup` (`fallback.ts`), tetap satu tempat untuk 3 provider
+
+- Panggilan 1 (awal) → kalau < 30: follow-up 1 → merge+dedupe → hitung ulang → kalau
+  masih < 30: follow-up 2 → merge+dedupe → hitung ulang → STOP apa pun hasilnya.
+  **Maksimal 3 panggilan API per frame, TIDAK BOLEH lebih.**
+- Tiap follow-up mencantumkan daftar keyword SEJAUH ITU (hasil awal + tambahan
+  follow-up sebelumnya, via `existingKeywordList(current)`), supaya follow-up ke-2
+  tidak mengulang kata yang baru ditambahkan follow-up ke-1.
+- Jeda `TOPUP_ATTEMPT_DELAY_MS = 1500` antar percobaan dalam 1 frame (tidak menembak
+  beruntun → rate limit); tidur abortable — batal di tengah → `Dibatalkan` diteruskan
+  (tidak ditelan seperti M29), frame kembali `menunggu` seperti biasa.
+- Pengecualian tetap: Tahap D (`promptOverride`) dan retry bahasa/perluasan
+  (`languageFix`/`retryNote`) tidak di-top-up (anti-numpuk, maks +1/frame vs M28).
+- Konstanta baru di `topup.ts`: `TOPUP_MAX_CALLS = 3`, `TOPUP_ATTEMPT_DELAY_MS`,
+  `sleepAbortable`; `FallbackDeps.topupDelayMs` (0 di tes) mengikuti preseden
+  `delayMs` `useBatch`; `FallbackGenerateArgs.onTopup({attempt, count})` untuk
+  observabilitas per percobaan (dipakai skrip live); `FallbackResult` + 
+  `topupAttempts`/`topupCount`.
+
+### 2. Gagal setelah 3x = TERLIHAT, bukan silent fail
+
+- `console.warn` PERMANEN (bukan debug sementara — yang sementara M30 sudah dihapus
+  semua): `[topup] Frame gagal capai target keyword: X/30 setelah 3 percobaan
+  (provider: Y)` — gampang difilter, untuk mendeteksi batas kemampuan nyata model.
+- Catatan frame di UI (mekanisme `setNote` yang sama seperti "Menunggu limit reset"):
+  `Keyword di bawah target (X/30) meski sudah 3 percobaan` — digabung dengan `via …`
+  bila fallback (`·` sebagai pemisah). Disimpan per-frame (`Map`) supaya retry
+  berikutnya tidak menghapusnya.
+- Progress batch tetap 1 frame (detail 3 panggilan internal tidak bocor ke progress).
+
+### 3. Tes (mock) & verifikasi statis
+
+- `topup.test.ts` (+5): follow-up ke-2 memakai daftar sejauh itu (prompt mengandung
+  kata dari follow-up ke-1); persisten-tipis → tepat 3 panggilan + 1 warn persis;
+  cukup di 2 panggilan → tanpa warn; `sleepAbortable` + konstanta loop.
+- `fallback.test.ts`: `topupDelayMs: 0` di harness; ekspektasi sukses tanpa keyword
+  kini `topupAttempts: 3, topupCount: 0` (loop jalan penuh, merge no-op).
+- `useBatch.test.ts` (3 tes M32, harness `topupDelayMs: 0`): miskin → 4 panggilan
+  (1+2 top-up+perluasan); persisten-miskin → 5 panggilan + Tahap D + **asersi catatan
+  UI** `Keyword di bawah target (4/30)…`; Indonesia → 4 panggilan. Ditemukan saat
+  pengerjaan: finalisasi grounding vs observasi panggilan PERTAMA bisa menipiskan
+  lagi hasil merge (kata extra yang tak tercatat di observasi awal dibuang) — by
+  design (akurasi dulu), didokumentasikan di tes.
+- Verifikasi: `npm run test` **389/389**, `npx tsc --noEmit` 0, `npm run lint` 0,
+  `npm run build` sukses.
+
+### 4. Uji live dengan API asli: STATUS MENUNGGU (belum ada angka — tidak difabrikasi)
+
+Skrip baru **`scripts/live-topup-test.ts`** (jalur aplikasi asli, bukan mock):
+`GEMINI_KEY=… npx tsx scripts/live-topup-test.ts gemini foto.jpg adobe "Tema"` —
+mencetak `[live] panggilan 1/2/3: N keyword` + hasil finalisasi. **Cara verifikasi
+yang diminta**: user menjalankan skrip ini untuk 2–3 foto berbeda (Gemini dulu),
+lalu melaporkan 4 angka per foto (setelah panggilan 1, 2, 3, dan akhir). Klaim
+"diperbaiki" HANYA sah setelah angka nyata itu ada — sampai saat itu status M30 =
+mekanisme terpasang + teruji mock, efektivitas dunia nyata BELUM terbukti.
+Kemungkinan nyata yang diakui di muka: SETELAH 3 panggilan pun model vision kecil
+gratis bisa tetap di bawah 30 untuk gambar sederhana — itu batas kemampuan model,
+bukan bug yang bisa dipaksakan; warn + catatan UI memang dirancang untuk
+menjadikan batas itu terlihat, bukan disembunyikan.

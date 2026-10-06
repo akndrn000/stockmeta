@@ -37,7 +37,9 @@ function setup(opts: {
   });
   const getKey = vi.fn((id: ProviderId): string => keys[id as Id] ?? '');
   const isEnabled = vi.fn(() => enabled);
-  return { getAdapter, getKey, isEnabled, deps: { getAdapter, getKey, isEnabled } };
+  // top-up tanpa jeda di tes (produksi 1,5 dtk antar percobaan)
+  const deps = { getAdapter, getKey, isEnabled, topupDelayMs: 0 };
+  return { getAdapter, getKey, isEnabled, deps };
 }
 
 describe('canFallback', () => {
@@ -55,10 +57,11 @@ describe('canFallback', () => {
 });
 
 describe('generateWithFallback', () => {
-  it('provider aktif sukses → tanpa sentuh provider lain', async () => {
+  it('provider aktif sukses → tanpa sentuh provider lain (top-up no-op: extra kosong)', async () => {
     const s = setup({ primary: async () => META });
     const out = await generateWithFallback(ARGS, s.deps);
-    expect(out).toEqual({ meta: META, provider: 'groq', usedFallback: false });
+    // META tanpa keyword → loop top-up jalan sampai 3x tapi merge no-op
+    expect(out).toEqual({ meta: META, provider: 'groq', usedFallback: false, topupAttempts: 3, topupCount: 0 });
     expect(s.getAdapter).toHaveBeenCalledTimes(1);
     expect(s.getKey).not.toHaveBeenCalled();
   });

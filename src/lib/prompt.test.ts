@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ADOBE_CATEGORIES, SHUTTERSTOCK_CATEGORIES } from './categories';
-import { MAX_DESCRIPTION_SHUTTER, MAX_KEYWORDS_ADOBE, MAX_TITLE_CSV, SS_DESCRIPTION_SUGGEST } from './limits';
+import { MAX_DESCRIPTION_SHUTTER, MAX_KEYWORDS_ADOBE, MAX_TITLE_CSV, SS_DESCRIPTION_SUGGEST, TARGET_KEYWORDS_MAX, TARGET_KEYWORDS_MIN } from './limits';
 import { buildMetadataPrompt, buildVerifyPrompt, parseMetadataResponse } from './prompt';
 import { STAGE_B_WITH_IMAGE } from './providers/models';
 
@@ -25,7 +25,7 @@ describe('buildMetadataPrompt', () => {
     expect(p).toContain(SHUTTERSTOCK_CATEGORIES.join(', '));
     expect(p).not.toContain(ADOBE_CATEGORIES.join(', '));
     // Fase 4: deskripsi satu kalimat Inggris natural, minimal 5 kata
-    expect(p).toContain('satu kalimat');
+    expect(p.toLowerCase()).toContain('satu kalimat');
     expect(p).toContain('minimal 5 kata');
     // M33: pagar 2048 + ideal 100–250, tanpa perintah deskripsi panjang
     expect(p).toContain(`pagar ${MAX_DESCRIPTION_SHUTTER} karakter`);
@@ -97,7 +97,7 @@ describe('buildMetadataPrompt', () => {
       expect(p).toContain('HANYA SATU KATA');
       expect(p).toContain('"usage"');
       expect(p).toContain('DILARANG MENGARANG');
-      expect(p).toContain('30 sampai 45');
+      expect(p).toContain(`${TARGET_KEYWORDS_MIN} SAMPAI ${TARGET_KEYWORDS_MAX}`);
       expect(p).toContain('boleh multikata');
       // tanpa contoh terikat tema
       expect(p.toLowerCase()).not.toContain('halloween');
@@ -286,17 +286,53 @@ describe('parseMetadataResponse', () => {
     }
   });
 
-  it('aturan keyword fakta: dasar, warna per bagian, klaim, 18-28, urutan, generik akhir', () => {
+  it('aturan keyword fakta: dasar, warna per bagian, klaim, akurasi-dulu, urutan, generik akhir', () => {
     for (const platform of ['adobe', 'shutterstock'] as const) {
       const p = buildMetadataPrompt({ platform });
       expect(p).toContain('visible_facts');
-      expect(p).toContain('18 sampai 28');
+      expect(p).not.toContain('18 sampai 28');
+      expect(p).toContain('Jangan tambahkan kata kunci yang tidak relevan');
+      expect(p).toContain('kualitas dan relevansi lebih penting');
       expect(p).toContain('menempel pada bagiannya');
       expect(p).toContain('Bila ragu, pakai istilah umum');
       expect(p).toContain('Keyword pertama harus berasal dari subjek');
       expect(p).toContain('10 teratas (Adobe) / 7 teratas (Shutterstock)');
       expect(p).toContain('Warna dan klaim spesifik di judul/deskripsi HANYA dari visible_facts');
     }
+  });
+
+  it('target keyword 30-49 tegas + akurat + sudut pengembangan', () => {
+    for (const platform of ['adobe', 'shutterstock'] as const) {
+      const p = buildMetadataPrompt({ platform });
+      expect(p).toContain(`ANTARA ${TARGET_KEYWORDS_MIN} SAMPAI ${TARGET_KEYWORDS_MAX}`);
+      expect(p).toContain('kecuali gambar benar-benar sangat sederhana');
+      expect(p).toContain('HARUS akurat dan benar-benar relevan');
+      expect(p).toContain('JANGAN mengarang kata kunci yang tidak berhubungan');
+      expect(p).toContain('paling relevan/spesifik dulu');
+      expect(p).toContain('Kembangkan dari berbagai sudut');
+      expect(p).toContain('aksi/pose');
+      expect(p).toContain('gaya visual');
+      expect(p).toContain('kategori penggunaan');
+    }
+  });
+
+  it('shutterstock: deskripsi TIDAK BOLEH berkoma + satu kalimat mengalir', () => {
+    const p = buildMetadataPrompt({ platform: 'shutterstock' });
+    expect(p).toContain('TIDAK BOLEH mengandung tanda koma sama sekali');
+    expect(p).toContain('SATU kalimat mengalir alami');
+    expect(p).toContain('kata sambung');
+    expect(p).toContain('konsisten dengan tema yang diberikan');
+    const a = buildMetadataPrompt({ platform: 'adobe' });
+    expect(a).not.toContain('TIDAK BOLEH mengandung tanda koma sama sekali');
+  });
+
+  it('shutterstock: parser membersihkan koma deskripsi otomatis', () => {
+    const p = parseMetadataResponse(JSON.stringify({
+      description: 'A cat sitting on a table, with soft light, and a calm mood',
+      category: ['Nature', 'Objects']
+    }), 'shutterstock');
+    expect(p.description).not.toContain(',');
+    expect(p.description).toContain('soft light');
   });
 
   it('visible_facts diparsing (dibatasi) dan tahan respons lama tanpanya', () => {
