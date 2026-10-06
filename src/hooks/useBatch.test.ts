@@ -518,8 +518,7 @@ describe('useBatch - perluasan keyword M32', () => {
   });
 });
 
-describe('useBatch - Tahap D verifikasi M33', () => {
-  it('kaya berisiko -> Tahap D menghapus yang salah, total 2 panggilan', async () => {
+describe('useBatch - Tahap D verifikasi M33', () => {  it('kaya berisiko -> Tahap D menghapus yang salah, total 2 panggilan', async () => {
     const OBS = {
       objects: ['cat'],
       parts: ['wings', 'collar', 'stars', 'moon', 'branch', 'trunk'],
@@ -577,6 +576,67 @@ describe('useBatch - Tahap D verifikasi M33', () => {
     expect(kws).not.toContain('ghost');
     expect(kws[0]).toBe('cat');
     expect(kws.slice(0, 5)).toContain('halloween');
+  });
+});
+
+describe('useBatch - warna judul tanpa dasar visual: tepat satu retry lalu strip', () => {
+  // 30 keyword berdasar penuh (tanpa perluasan) supaya retry HANYA untuk warna.
+  const RICH30 = ['fox', 'wolf', 'coyote', 'jackal', 'eagle', 'hawk', 'owl', 'deer',
+    'bear', 'trees', 'leaves', 'acorn', 'trail', 'pond', 'fur', 'wood', 'stone',
+    'stripes', 'circle', 'calm', 'cheerful', 'orange', 'poster', 'banner',
+    'vintage', 'morning', 'sunrise', 'forest', 'river', 'moss'];
+  const facts = {
+    objects: [...RICH30],
+    colors: ['orange'],
+    media_type: 'photo'
+  };
+  const rich = (title: string): ParsedMetadata => ({
+    title,
+    sourcedKeywords: RICH30.map((k) => ({ k, src: 'visible' as const })),
+    observation: facts,
+    visible_facts: ['orange fox in forest at sunrise']
+  });
+
+  it('judul memuat Black tanpa dasar → tepat 1 retry, lalu Black hilang + peringatan tersimpan', async () => {
+    addFrames(1);
+    await ready();
+    const richKitten = (): ParsedMetadata => ({
+      ...rich('Cute Orange Fox with Wings'),
+      sourcedKeywords: [
+        ...RICH30.map((k) => ({ k, src: 'visible' as const })),
+        { k: 'kitten', src: 'visible' as const }
+      ]
+    });
+    script = [
+      { meta: rich('Cute Black Fox with Wings') },
+      { meta: richKitten() }
+    ];
+
+    act(() => api().b.regenerateFrame(0));
+    await flush();
+
+    expect(calls).toBe(2);
+    expect(seenArgs[1].retryNote).toContain('black');
+    const f = api().s.frames[0];
+    expect(f.status.adobe).toBe('siap');
+    expect(f.metadata.adobe?.title ?? '').not.toMatch(/black/i);
+    expect(f.metadata.adobe?.keywords ?? []).not.toContain('kitten');
+    expect(f.metadata.adobe?.warnings?.some((w) => w.includes('kitten'))).toBe(true);
+  });
+
+  it('tetap salah setelah retry → warna dihapus deterministik tanpa retry kedua', async () => {
+    addFrames(1);
+    await ready();
+    script = [{ meta: rich('Cute Black Fox with Wings') }];
+
+    act(() => api().b.regenerateFrame(0));
+    await flush();
+
+    expect(calls).toBe(2);
+    const f = api().s.frames[0];
+    expect(f.status.adobe).toBe('siap');
+    expect(f.metadata.adobe?.title ?? '').not.toMatch(/black/i);
+    expect(f.metadata.adobe?.warnings?.some((w) => w.includes('dihapus dari judul'))).toBe(true);
   });
 });
 

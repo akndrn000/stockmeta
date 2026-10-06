@@ -93,6 +93,14 @@ describe('gemini.generateForImage', () => {
     ]);
   });
 
+  it('body request TANPA parameter "tools" (tanpa grounding/code execution berbayar)', async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes({ candidates: [{ content: { parts: [{ text: '{"keywords":[]}' }] } }] }));
+    await gemini.generateForImage(genArgs);
+    const body = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
+    expect(body).not.toHaveProperty('tools');
+    expect(JSON.stringify(body)).not.toContain('"tools"');
+  });
+
   it('429 RESOURCE_EXHAUSTED (kuota harian) → TIDAK di-retry, pesan jelas Indonesia', async () => {
     fetchMock.mockResolvedValueOnce(jsonRes({
       error: {
@@ -103,6 +111,33 @@ describe('gemini.generateForImage', () => {
     }, 429));
     await expect(gemini.generateForImage(genArgs)).rejects.toThrow(
       'Kuota harian Gemini habis, coba lagi besok atau pakai Groq.'
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('429 kuota GRATIS habis ("free_tier") → TANPA retry, pesan jelas + layak fallback', async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes({
+      error: {
+        code: 429,
+        message: "Quota exceeded for quota metric 'GenerateRequestsPerDayPerProjectPerModel-FreeTier'",
+        status: 'RESOURCE_EXHAUSTED'
+      }
+    }, 429));
+    const err = await gemini.generateForImage(genArgs).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toBe(
+      'Kuota gratis Gemini habis atau model ini tidak gratis untuk key ini. Tunggu reset atau pakai provider lain. Jangan mengaktifkan billing jika ingin tetap gratis.'
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect((err as { dailyQuota?: boolean }).dailyQuota).toBe(true);
+  });
+
+  it('429 kuota GRATIS habis ("limit: 0") → TANPA retry, pesan yang sama', async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes({
+      error: { code: 429, message: 'Quota exceeded, limit: 0 for FreeTier quota', status: 'RESOURCE_EXHAUSTED' }
+    }, 429));
+    await expect(gemini.generateForImage(genArgs)).rejects.toThrow(
+      'Kuota gratis Gemini habis atau model ini tidak gratis untuk key ini.'
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });

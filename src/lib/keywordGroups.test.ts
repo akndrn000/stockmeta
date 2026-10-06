@@ -10,12 +10,17 @@ import {
 } from './limits';
 import {
   cleanAiTitle,
+  factWordSet,
   normalizeLegacyKeywords,
   normalizeSingle,
   observationGroundingText,
-  processSourcedKeywords
+  processSourcedKeywords,
+  stemKeyword,
+  stripUngroundedColorWords,
+  titleColorIssue
 } from './keywordGroups';
 import type { SourcedKeyword } from './prompt';
+import type { Platform } from './types';
 
 const OBS = {
   objects: ['cat'],
@@ -382,8 +387,7 @@ describe('M34 Fase 1d — kembar: satu komponen per frasa, subjek dilindungi', (
   });
 });
 
-describe('M34 Fase 2 — inti tema ≤ posisi 3 meski banyak sekunder', () => {
-  it('frasa subjek posisi 1, inti tema posisi 2–3, sekunder ≤3 di 10 teratas', () => {
+describe('M34 Fase 2 — inti tema ≤ posisi 3 meski banyak sekunder', () => {  it('frasa subjek posisi 1, inti tema posisi 2–3, sekunder ≤3 di 10 teratas', () => {
     const r = run(
       [
         src('syringe', 'visible'),
@@ -439,5 +443,178 @@ describe('M34 Fase 2 — inti tema ≤ posisi 3 meski banyak sekunder', () => {
       }
     );
     expect(r.keywords.slice(0, 10)).toContain('tray');
+  });
+});
+
+// Kasus nyata: kucing oranye berkostum sayap kelelawar (Adobe). Fakta visual
+// TANPA 'black'/'kitten' — keduanya harus dibuang dengan peringatan; generik
+// (vector, illustration, icon, cute) ke posisi setelah 10 teratas.
+const REAL_FACTS = [
+  'orange cat', 'dark purple bat wings', 'crescent moon', 'stars', 'costume', 'vector style'
+];
+const REAL_OBS = {
+  objects: ['cat'],
+  parts: ['bat wings', 'costume', 'crescent moon', 'stars'],
+  colors: ['orange', 'dark purple'],
+  media_type: 'vector illustration'
+};
+const REAL_TITLE = 'Orange Cat with Bat Wings Costume';
+
+function realSourced(): SourcedKeyword[] {
+  const s = (k: string, src: SourcedKeyword['src'], extra?: Partial<SourcedKeyword>): SourcedKeyword =>
+    ({ k, src, ...extra });
+  return [
+    s('cat', 'visible'),
+    s('halloween', 'theme', { kind: 'event' }),
+    s('bat wings', 'visible'),
+    s('vector', 'attribute'),
+    s('illustration', 'attribute'),
+    s('costume', 'visible'),
+    s('pet', 'synonym', { of: 'cat', rel: 'parent' }),
+    s('cute', 'theme', { kind: 'mood' }),
+    s('kitten', 'visible'),
+    s('icon', 'attribute'),
+    s('black cat', 'visible'),
+    s('spooky', 'theme', { kind: 'mood' }),
+    s('halloween costume', 'visible'),
+    s('orange cat', 'visible'),
+    s('crescent moon', 'visible'),
+    s('stars', 'visible'),
+    s('cats', 'visible'),
+    s('dark', 'attribute'),
+    s('cat costume', 'visible')
+  ];
+}
+
+function realRun(platform: Platform) {
+  return processSourcedKeywords({
+    sourced: realSourced(),
+    obs: REAL_OBS,
+    visibleFacts: REAL_FACTS,
+    canonical: 'Halloween',
+    themeFit: true,
+    themeEvidence: 'costume in frame',
+    mediaType: 'vector illustration',
+    platform,
+    titleText: REAL_TITLE
+  });
+}
+
+describe('fakta visual: warna & klaim tanpa dasar dibuang + peringatan', () => {
+  it.each(['adobe', 'shutterstock'] as const)('platform %s: black cat + kitten dibuang, orange cat tetap', (platform) => {
+    const r = realRun(platform);
+    expect(r.keywords).not.toContain('black cat');
+    expect(r.keywords).not.toContain('kitten');
+    expect(r.keywords).toContain('orange cat');
+    expect(r.keywords).toContain('cat');
+    expect(r.warnings).toContain(
+      "Kata kunci 'black cat' dibuang: warna 'black' tidak ada di fakta visual."
+    );
+    expect(r.warnings.some((w) => w.includes("'kitten'") && w.includes('tidak terlihat'))).toBe(true);
+  });
+
+  it.each(['adobe', 'shutterstock'] as const)('platform %s: generik setelah slot teratas, urutan stabil', (platform) => {
+    const top = platform === 'adobe' ? 10 : 7;
+    const r = realRun(platform);
+    for (const g of ['vector', 'illustration', 'icon', 'cute']) {
+      expect(r.keywords.indexOf(g)).toBeGreaterThanOrEqual(top);
+    }
+    // keyword pertama dari subjek yang juga ada di judul
+    expect(r.keywords[0]).toBe('cat');
+    expect(REAL_TITLE.toLowerCase()).toContain('cat');
+    // tanpa duplikat / varian plural
+    const stems = r.keywords.map((k) => k.split(' ').map(stemKeyword).join(' '));
+    expect(new Set(stems).size).toBe(stems.length);
+  });
+
+  it('warna cocok dipertahankan; warna campuran per bagian dipertahankan', () => {
+    const r = processSourcedKeywords({
+      sourced: [
+        { k: 'orange cat', src: 'visible' },
+        { k: 'dark purple wings', src: 'visible' },
+        { k: 'purple', src: 'attribute' }
+      ],
+      obs: REAL_OBS,
+      visibleFacts: REAL_FACTS,
+      canonical: '',
+      themeFit: false,
+      themeEvidence: '',
+      mediaType: 'vector illustration',
+      platform: 'adobe',
+      titleText: 'Orange Cat with Dark Purple Wings'
+    });
+    expect(r.keywords).toContain('orange cat');
+    expect(r.keywords).toContain('dark purple wings');
+    // 'purple' sendirian = potongan frasa (aturan orphan lama) — cakupannya
+    // sudah diwakili 'dark purple wings'
+    expect(r.keywords).not.toContain('purple');
+    expect(r.warnings).toEqual([]);
+  });
+
+  it('klaim kitten DENGAN dukungan fakta dipertahankan', () => {
+    const r = processSourcedKeywords({
+      sourced: [{ k: 'kitten', src: 'visible' }],
+      obs: { objects: ['kitten'], colors: [] },
+      visibleFacts: ['small kitten'],
+      canonical: '',
+      themeFit: false,
+      themeEvidence: '',
+      mediaType: 'photo',
+      platform: 'adobe',
+      titleText: 'A kitten sleeps'
+    });
+    expect(r.keywords).toContain('kitten');
+  });
+
+  it('batas 3 token sama; token tema inti boleh 4', () => {
+    const mk = (k: string): SourcedKeyword => ({ k, src: 'visible' });
+    const r = processSourcedKeywords({
+      sourced: [mk('silk'), mk('silk shirt'), mk('silk dress'), mk('silk tie'), mk('cotton')],
+      obs: { objects: ['shirt', 'dress', 'tie'], parts: ['silk'], materials: ['silk', 'cotton'], colors: [] },
+      canonical: '',
+      themeFit: false,
+      themeEvidence: '',
+      mediaType: 'photo',
+      platform: 'adobe',
+      titleText: ''
+    });
+    expect(r.keywords).toContain('silk');
+    expect(r.keywords).toContain('silk shirt');
+    expect(r.keywords).toContain('silk dress');
+    expect(r.keywords).not.toContain('silk tie');
+    expect(r.keywords).toContain('cotton');
+    expect(r.warnings.some((w) => w.includes('silk tie') && w.includes('silk'))).toBe(true);
+  });
+
+  it('generik maksimal 3; sisanya dibuang dengan peringatan', () => {
+    const mk = (k: string): SourcedKeyword => ({ k, src: 'attribute' });
+    const many = ['a0', 'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9', 'a10']
+      .map((k) => ({ k, src: 'visible' as const }));
+    const r = processSourcedKeywords({
+      sourced: [...many, mk('vector'), mk('illustration'), mk('icon'), mk('design')],
+      obs: { objects: ['a0', 'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9', 'a10'], colors: [] },
+      canonical: '',
+      themeFit: false,
+      themeEvidence: '',
+      mediaType: 'photo',
+      platform: 'adobe',
+      titleText: ''
+    });
+    const kept = r.keywords.filter((k) => ['vector', 'illustration', 'icon', 'design'].includes(k));
+    expect(kept).toHaveLength(3);
+    expect(r.warnings.some((w) => w.includes('kata generik'))).toBe(true);
+  });
+});
+
+describe('judul/deskripsi: warna tanpa dasar terdeteksi lalu dihapus', () => {
+  const words = factWordSet(REAL_OBS, REAL_FACTS);
+  it('titleColorIssue menunjuk warna yang salah; null bila benar', () => {
+    expect(titleColorIssue('Cute Black Cat with Bat Wings', words)).toBe('black');
+    expect(titleColorIssue('Orange Cat with Bat Wings', words)).toBeNull();
+  });
+  it('stripUngroundedColorWords menghapus + melapor', () => {
+    const out = stripUngroundedColorWords('Cute Black Cat with Bat Wings', words);
+    expect(out.text).toBe('Cute Cat with Bat Wings');
+    expect(out.removed).toEqual(['black']);
   });
 });

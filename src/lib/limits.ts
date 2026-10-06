@@ -55,6 +55,45 @@ export const LOW_VALUE_DESCRIPTORS: readonly string[] = [
   'symmetric', 'symmetrical', 'front view', 'centered', 'centre',
   'clean', 'simple', 'minimal', 'empty'
 ];
+// Urutan keyword menentukan peringkat pencarian: berapa slot teratas yang harus
+// bebas kata generik. Shutterstock 7 perlu diverifikasi di panduan kontributor.
+export const PLATFORM_TOP_KEYWORDS = { adobe: 10, shutterstock: 7 } as const;
+// Kata generik ditaruh paling akhir (bukan kata utama), bukan dihapus: maksimal
+// ini yang dipertahankan, sisanya dibuang dengan peringatan.
+export const GENERIC_TAIL_MAX = 3;
+// Tumpang tindih: paling banyak keyword yang boleh memuat token yang sama
+// (token tema inti boleh satu lebih banyak). Singular/plural dianggap sama.
+export const KEYWORD_TOKEN_OVERLAP_MAX = 3;
+export const KEYWORD_THEME_TOKEN_OVERLAP_MAX = 4;
+// SATU-SATUNYA sumber kata warna untuk gerbang fakta visual (kata utuh,
+// cocok tanpa peduli huruf). Jangan definisikan ulang di modul lain.
+export const COLOR_WORDS: readonly string[] = [
+  'black', 'white', 'red', 'orange', 'yellow', 'green', 'blue',
+  'purple', 'violet', 'pink', 'brown', 'gray', 'grey', 'gold',
+  'silver', 'beige', 'teal', 'cyan', 'turquoise', 'maroon', 'navy'
+];
+// SATU-SATUNYA sumber klaim spesifik (spesies/usia/gender/kelompok): hanya sah
+// bila terlihat di fakta visual, kecuali sinonim terverifikasi (of+rel).
+// Jangan definisikan ulang di modul lain.
+export const SPECIFIC_CLAIM_WORDS: readonly string[] = [
+  'kitten', 'kittens', 'puppy', 'puppies', 'baby', 'babies',
+  'child', 'children', 'kid', 'kids', 'toddler', 'toddlers',
+  'teen', 'teens', 'teenager', 'teenagers',
+  'boy', 'boys', 'girl', 'girls', 'man', 'men', 'woman', 'women',
+  'family', 'families', 'couple', 'couples'
+];
+// SATU-SATUNYA sumber kata generik-ekor: bukan kata utama, dipindah ke posisi
+// setelah PLATFORM_TOP_KEYWORDS (bukan dihapus). Kata tema (src theme) yang
+// kebetulan generik tidak dihitung dalam GENERIC_TAIL_MAX. Jangan definisikan
+// ulang di modul lain.
+export const GENERIC_TAIL_WORDS: readonly string[] = [
+  'vector', 'vectors', 'illustration', 'illustrations', 'icon', 'icons',
+  'graphic', 'graphics', 'design', 'designs', 'art', 'artwork',
+  'image', 'images', 'picture', 'pictures', 'cute', 'beautiful',
+  'simple', 'flat', 'cartoon', 'cartoons', 'style', 'styles',
+  'concept', 'concepts', 'element', 'elements', 'symbol', 'symbols',
+  'set', 'collection', 'collections'
+];
 // M32 — kata media: hanya sah bila sesuai media_type pengamatan.
 export const MEDIA_WORDS: readonly string[] = [
   'illustration', 'illustrations', 'vector', 'vectors',

@@ -93,6 +93,10 @@ Batas gratis tiap provider berubah dari waktu ke waktu. Cek konsol provider masi
 
 Bila sering muncul pemberitahuan **Menunggu limit reset**, naikkan **Jeda antar foto** ke 12 atau 20 detik. Retry berjalan otomatis (maksimal 5 percobaan), dan frame yang tetap gagal bisa diproses ulang dengan tombol **Coba lagi frame gagal**.
 
+Kata kunci diturunkan dari fakta visual gambar: warna dan klaim spesifik (misalnya `kitten`) diverifikasi terhadap fakta itu, kata generik (`vector`, `illustration`, `cute`, dan sejenisnya) ditaruh paling akhir, dan setiap kata yang dibuang atau dipindah tercatat di **Saran perbaikan**.
+
+Gemini memakai model tetap `gemini-3.1-flash-lite` (ubah di `src/lib/providers/gemini-config.ts`). Agar tetap gratis, pakai API key dari proyek Google tanpa billing dan cek label paketnya di `aistudio.google.com/apikey`; batas kuota dilihat di `aistudio.google.com/rate-limit`. Di free tier, Google dapat memakai input untuk memperbaiki produknya, jadi hindari mengunggah gambar yang belum dirilis.
+
 ## Format CSV
 
 Ekspor mengikuti template resmi masing-masing portal.

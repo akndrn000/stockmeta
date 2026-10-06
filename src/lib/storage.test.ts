@@ -272,3 +272,16 @@ describe('removeSession', () => {
     expect(loadSession()).toBeNull();
   });
 });
+
+describe('warnings validator', () => {
+  it('roundtrip ikut tersimpan; tanpa warnings tetap absen', () => {
+    const w = ["Kata kunci 'black cat' dibuang: warna 'black' tidak ada di fakta visual."];
+    saveSession(session({
+      imgs: [frame({ metadata: { adobe: { title: 'T', keywords: ['cat'], category: 'Animals', warnings: w } } })]
+    }));
+    const loaded = loadSession();
+    expect(loaded?.imgs[0].metadata.adobe?.warnings).toEqual(w);
+    saveSession(session());
+    expect(loadSession()?.imgs[0].metadata.adobe?.warnings).toBeUndefined();
+  });
+});

@@ -11,6 +11,7 @@ import {
   MAX_KEYWORDS,
   MAX_KEYWORDS_ADOBE,
   MAX_TITLE_CSV,
+  PLATFORM_TOP_KEYWORDS,
   SS_DESCRIPTION_SUGGEST
 } from './limits';
 import { STAGE_B_WITH_IMAGE } from './providers/models';
@@ -26,14 +27,24 @@ export const LANGUAGE_FIX_INSTRUCTION =
 
 export function buildMetadataPrompt({ platform, theme, languageFix, retryNote }: { platform: Platform; theme?: string; languageFix?: boolean; retryNote?: string }): string {
   const cats = getCategories(platform);
+  // Urutan field: visible_facts DULU (menentukan keyword), baru title/description,
+  // keywords, category. Tanpa field confidence/notes (tak ada konsumennya).
   const jsonFormat = platform === 'adobe'
-    ? `{"title": string maks ${MAX_TITLE_CSV} karakter (Inggris, kapital di awal, tanpa koma, boleh multikata), "keywords": array 30-45 objek {k, src, of?, rel?, kind?, standalone?} (maksimal ${MAX_KEYWORDS_ADOBE} kata, yang paling penting dulu), "category": string — salah satu persis dari daftar kategori di atas, "theme_canonical": string Inggris baku untuk tema, "theme_fit": boolean (tema didukung gambar?), "theme_evidence": string elemen gambar pendukung tema (wajib bila theme_fit true), "observation": {...lihat Tahap A...}}`
-    : `{"description": string satu kalimat Inggris natural (diawali subjek utama, lalu elemen kunci, lalu tema bila cocok; minimal 5 kata, ideal ${SS_DESCRIPTION_SUGGEST.MIN}–${SS_DESCRIPTION_SUGGEST.MAX} karakter satu-dua kalimat, pagar ${MAX_DESCRIPTION_SHUTTER} karakter, BUKAN daftar kata, boleh multikata), "keywords": array 30-45 objek {k, src, of?, rel?, kind?, standalone?}, "category": array TEPAT ${SS_CATEGORIES_REQUIRED} string BERBEDA persis dari daftar kategori di atas, "theme_canonical": string Inggris baku untuk tema, "theme_fit": boolean, "theme_evidence": string (wajib bila theme_fit true), "observation": {...lihat Tahap A...}}`;
+    ? `{"visible_facts": array string pendek fakta visual — SATU fakta per butir (objek utama, jumlah, bagian/kostum, warna SETIAP bagian menempel bagiannya, bentuk, motif, bahan, aksi/pose, latar singkat, ada/tidaknya teks, gaya aset), "title": string maks ${MAX_TITLE_CSV} karakter (Inggris, kapital di awal, tanpa koma, boleh multikata), "keywords": array 30-45 objek {k, src, of?, rel?, kind?, standalone?} (maksimal ${MAX_KEYWORDS_ADOBE} kata, yang paling penting dulu), "category": string — salah satu persis dari daftar kategori di atas, "theme_canonical": string Inggris baku untuk tema, "theme_fit": boolean (tema didukung gambar?), "theme_evidence": string elemen gambar pendukung tema (wajib bila theme_fit true), "observation": {...lihat Tahap A...}}`
+    : `{"visible_facts": array string pendek fakta visual — SATU fakta per butir (objek utama, jumlah, bagian/kostum, warna SETIAP bagian menempel bagiannya, bentuk, motif, bahan, aksi/pose, latar singkat, ada/tidaknya teks, gaya aset), "description": string satu kalimat Inggris natural (diawali subjek utama, lalu elemen kunci, lalu tema bila cocok; minimal 5 kata, ideal ${SS_DESCRIPTION_SUGGEST.MIN}–${SS_DESCRIPTION_SUGGEST.MAX} karakter satu-dua kalimat, pagar ${MAX_DESCRIPTION_SHUTTER} karakter, BUKAN daftar kata, boleh multikata), "keywords": array 30-45 objek {k, src, of?, rel?, kind?, standalone?}, "category": array TEPAT ${SS_CATEGORIES_REQUIRED} string BERBEDA persis dari daftar kategori di atas, "theme_canonical": string Inggris baku untuk tema, "theme_fit": boolean, "theme_evidence": string (wajib bila theme_fit true), "observation": {...lihat Tahap A...}}`;
 
   const lines = [
     ENGLISH_INSTRUCTION,
     '',
     'TAHAP A — AMATI GAMBAR (tulis apa adanya, kata tunggal Inggris per butir):',
+    'Tulis DULU "visible_facts", BARU "observation" dan metadata. Satu butir = satu',
+    'fakta pendek: objek utama, JUMLAH tiap objek, bagian/kostum/aksesori/dekorasi,',
+    'warna SETIAP bagian (warna menempel pada bagiannya — jangan menempelkan satu',
+    'warna ke seluruh subjek bila tidak benar), bentuk, motif, bahan, aksi/pose,',
+    'latar singkat, ADA atau TIDAK ADANYA teks di gambar, dan gaya aset (photo,',
+    'vector, illustration). JANGAN mengarang. visible_facts tidak ditampilkan ke',
+    'pembeli tetapi MENENTUKAN keyword: setiap warna dan klaim spesifik di keyword,',
+    'judul, dan deskripsi HARUS ada tertulis di sini.',
     'Isi "observation" dengan yang BENAR-BENAR terlihat. "objects" HANYA berisi',
     'subjek utama gambar (satu-dua benda/makhluk, mis. untuk foto close-up mata:',
     'objects boleh ["eye"]); anatomi generik (ears, eyes, mouth, nose, face, head,',
@@ -104,11 +115,36 @@ export function buildMetadataPrompt({ platform, theme, languageFix, retryNote }:
     '   utama dan varian terdekat, kata inti tema_canonical, elemen/kostum kunci, jenis',
     '   media, gaya/suasana, sinonim/induk, konsep tema abstrak, usage, warna identitas',
     '   (maksimal 2, paling akhir). Judul dan deskripsi tetap boleh multikata.',
+    '5. DASAR FAKTA: setiap keyword harus berdasar visible_facts, atau konsep',
+    '   event/season/mood/activity/usage yang didukung tema DAN cocok dengan gambar',
+    '   (maksimal 6 keyword konsep seperti ini).',
+    '6. WARNA: hanya warna yang tertulis di visible_facts, menempel pada bagiannya.',
+    '   DILARANG pasangan yang saling bertentangan untuk satu bagian yang sama.',
+    '7. Spesies, usia, jenis kelamin, dan profesi (kitten, puppy, baby, child, boy,',
+    '   girl, man, woman, family, couple, dan sejenisnya) hanya bila jelas terlihat.',
+    '   Bila ragu, pakai istilah umum ("cat", bukan "kitten").',
+    '8. Lebih baik 18 sampai 28 keyword yang spesifik dan benar daripada mengisi',
+    '   sampai jumlah maksimum dengan kata umum.',
+    '9. Frasa = frasa pencarian yang wajar ("moon lantern", "cat costume"), bukan',
+    '   tumpukan kata acak. Hindari tumpang tindih: jangan menulis kata tunggal dan',
+    '   beberapa frasa yang hanya menambah kata kecil padanya, berulang-ulang.',
+    '   Singular dan plural dianggap sama.',
+    '10. DILARANG: merek, nama orang, nama seniman, "AI generated", kata promosi.',
+    '11. Kata generik (vector, illustration, icon, cute, dan sejenisnya) BUKAN kata',
+    '    utama — validator menaruhnya paling akhir.',
+    '',
+    'URUTAN KEYWORD (menentukan peringkat pencarian): posisi 1-3 subjek utama paling',
+    'spesifik (frasa benda yang paling pas); posisi 4-7 ciri visual pembeda (bagian,',
+    'motif, warna per bagian, aksi); sisa slot teratas untuk tema/acara/konsep pembeli',
+    `yang cocok gambar; setelahnya kata sekunder, generik dan gaya aset paling akhir. ${PLATFORM_TOP_KEYWORDS.adobe} teratas (Adobe) / ${PLATFORM_TOP_KEYWORDS.shutterstock} teratas (Shutterstock) bebas kata generik.`,
+    'Keyword pertama harus berasal dari subjek yang juga ada di judul/deskripsi.',
     '',
     'ATURAN PENTING UNTUK TITLE/DESCRIPTION:',
     "- JANGAN gunakan frasa generik seperti 'isolated on white background', 'stock photo', atau sejenisnya kecuali itu benar-benar bagian penting dari komposisi visual",
     '- Fokus pada SUBJEK, AKSI, GAYA VISUAL, dan MOOD yang spesifik dan bisa dicari orang',
     '- Kalau ada elemen musiman/perayaan yang terlihat jelas (kostum, dekorasi, warna khas), sebutkan secara eksplisit dengan istilah Inggris baku',
+    '- Warna dan klaim spesifik di judul/deskripsi HANYA dari visible_facts.',
+    '- Jangan menyebut jenis aset generik (vector, illustration, dan sejenisnya) bila tidak menambah nilai cari.',
     '',
     'TEMA: kembalikan theme_canonical (Inggris baku, kapital natural), theme_fit (boolean), theme_evidence (elemen konkret pendukung; theme_fit true tanpa evidence = false). Bila false: jangan masukkan istilah tema, tulis dari isi gambar.',
     '',
@@ -225,6 +261,14 @@ export interface ParsedMetadata {
   themeFit?: boolean;
   themeEvidence?: string;
   observation?: ImageObservation;
+  /**
+   * Fakta visual dua-tahap-dalam-satu-request: array string pendek yang ditulis
+   * AI SEBELUM judul/keyword (warna menempel bagiannya). Tidak ditampilkan di UI.
+   * Validator memakai ini + observation sebagai dasar warna dan klaim spesifik.
+   */
+  visible_facts?: string[];
+  /** Peringatan validator pasca-AI (dibuang/dipindah) — diteruskan ke slot via merge. */
+  warnings?: string[];
   /** M33 Fase 2c: kata yang dihapus model pada Tahap D verifikasi. */
   stageRemove?: string[];
 }
@@ -360,6 +404,15 @@ export function parseMetadataResponse(raw: string, platform: Platform): ParsedMe
   if (typeof te === 'string' && te.trim()) out.themeEvidence = te.trim().slice(0, 300);
   // theme_fit true tanpa evidence konkret diperlakukan false.
   if (out.themeFit === true && !out.themeEvidence) out.themeFit = false;
+  const vf = pick(obj, 'visible_facts') ?? pick(obj, 'visiblefacts');
+  if (Array.isArray(vf)) {
+    const facts = vf
+      .map((x) => String(x ?? '').trim())
+      .filter(Boolean)
+      .slice(0, 40)
+      .map((s) => s.slice(0, 80));
+    if (facts.length) out.visible_facts = facts;
+  }
   const ob = pick(obj, 'observation');
   if (ob && typeof ob === 'object') {
     const o = ob as Record<string, unknown>;

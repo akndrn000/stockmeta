@@ -93,6 +93,10 @@ Free-tier limits change over time. Check each provider's console for current num
 
 If you often see **Waiting for limit reset**, raise the **Delay between photos** to 12 or 20 seconds. Retries run automatically (up to 5 attempts), and frames that still fail can be reprocessed with the **Retry failed frames** button.
 
+Keywords are derived from the image's visual facts: colors and specific claims (for example `kitten`) are verified against those facts, generic words (`vector`, `illustration`, `cute`, and the like) are placed last, and every removed or moved word is recorded under the improvement suggestions.
+
+Gemini uses the fixed model `gemini-3.1-flash-lite` (change it in `src/lib/providers/gemini-config.ts`). To stay free, use an API key from a Google project without billing and check its plan label at `aistudio.google.com/apikey`; quota limits are shown at `aistudio.google.com/rate-limit`. On the free tier, Google may use inputs to improve its products, so avoid uploading unreleased images.
+
 ## CSV format
 
 Exports follow each portal's official template.

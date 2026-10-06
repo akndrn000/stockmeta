@@ -12,13 +12,18 @@
 import {
   ANATOMY_STOPLIST,
   BACKGROUND_STOPLIST,
+  COLOR_WORDS,
   GENERIC_FILLER_WORDS,
+  GENERIC_TAIL_MAX,
+  GENERIC_TAIL_WORDS,
   KEYWORD_COLOR_MAX,
   KEYWORD_MEDIA_MAX,
   KEYWORD_PHRASE_MAX,
   KEYWORD_PHRASE_WORDS_MAX,
   KEYWORD_PHRASE3_MAX,
   KEYWORD_TARGET_MAX,
+  KEYWORD_THEME_TOKEN_OVERLAP_MAX,
+  KEYWORD_TOKEN_OVERLAP_MAX,
   KEYWORD_USAGE_MAX,
   LOW_VALUE_DESCRIPTORS,
   MAX_KEYWORDS,
@@ -26,6 +31,8 @@ import {
   MEDIA_ONLY_USAGE,
   MEDIA_WORDS,
   ORPHAN_HEAD_STOPLIST,
+  PLATFORM_TOP_KEYWORDS,
+  SPECIFIC_CLAIM_WORDS,
   THEME_CONCEPT_MAX
 } from './limits';
 import { isIndonesianKeyword } from './language';
@@ -41,6 +48,9 @@ const MEDIA = new Set(MEDIA_WORDS.map((w) => w.toLowerCase()));
 const ANATOMY = new Set(ANATOMY_STOPLIST.map((w) => w.toLowerCase()));
 const MEDIA_ONLY = new Set(MEDIA_ONLY_USAGE.map((w) => w.toLowerCase()));
 const ORPHAN_HEAD = new Set(ORPHAN_HEAD_STOPLIST.map((w) => w.toLowerCase()));
+const COLOR = new Set(COLOR_WORDS.map((w) => w.toLowerCase()));
+const CLAIM = new Set(SPECIFIC_CLAIM_WORDS.map((w) => w.toLowerCase()));
+const GENTAIL = new Set(GENERIC_TAIL_WORDS.map((w) => w.toLowerCase()));
 
 const VALID_SRC: readonly string[] = ['visible', 'attribute', 'synonym', 'theme', 'usage'];
 const VALID_REL: readonly string[] = ['synonym', 'parent', 'specific'];
@@ -106,9 +116,76 @@ export function observationGroundingText(obs?: {
 const squashSet = (list: string[] = []): Set<string> =>
   new Set(list.map((x) => squash(x)).filter(Boolean));
 
+/**
+ * Teks fakta visual untuk grounding: observation (tanpa latar/komposisi) +
+ * visible_facts AI. Satu-satunya dasar warna dan klaim spesifik.
+ */
+export function factsText(obs?: ImageObservation, visibleFacts?: string[]): string {
+  const base = observationGroundingText(obs);
+  const extra = (visibleFacts ?? []).map((s) => String(s ?? '').trim()).filter(Boolean).join(' ');
+  return extra ? base + ' ' + extra : base;
+}
+
+/** Himpunan kata fakta (kecil + squash) untuk pencocokan kata utuh. */
+export function factWordSet(obs?: ImageObservation, visibleFacts?: string[]): Set<string> {
+  return observationWords(factsText(obs, visibleFacts));
+}
+
+/** true bila keyword generik-ekor: kata tunggal generik, atau frasa yang semua
+ *  katanya generik/media/warna dengan minimal satu kata generik. */
+function isTailGeneric(k: string): boolean {
+  const toks = String(k ?? '').toLowerCase().split(/[^a-z]+/).filter(Boolean);
+  return toks.length > 0
+    && toks.some((w) => inSet(GENTAIL, w))
+    && toks.every((w) => inSet(GENTAIL, w) || inSet(MEDIA, w) || inSet(COLOR, w));
+}
+
+/** Warna pertama di teks yang tak ada utuh di fakta (tanpa peduli huruf), atau null. */
+export function titleColorIssue(text: string, words: Set<string>): string | null {
+  for (const w of String(text ?? '').toLowerCase().split(/[^a-z]+/).filter(Boolean)) {
+    if (inSet(COLOR, w) && !words.has(w) && !words.has(squash(w)) && !words.has(stemKeyword(w))) {
+      return w;
+    }
+  }
+  return null;
+}
+
+/** Hapus kata warna tanpa dasar dari judul/deskripsi (deterministik, pasca-retry). */
+export function stripUngroundedColorWords(
+  text: string,
+  words: Set<string>
+): { text: string; removed: string[] } {
+  const removed: string[] = [];
+  const kept = String(text ?? '')
+    .split(/(\s+)/)
+    .filter((seg) => {
+      if (/^\s*$/.test(seg)) return true;
+      const w = seg.toLowerCase().replace(/[^a-z]/g, '');
+      if (w && inSet(COLOR, w) && !words.has(w) && !words.has(squash(w)) && !words.has(stemKeyword(w))) {
+        if (!removed.includes(w)) removed.push(w);
+        return false;
+      }
+      return true;
+    })
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const out = kept && removed.length ? kept.charAt(0).toUpperCase() + kept.slice(1) : kept;
+  return { text: out, removed };
+}
+
+/** Instruksi retry perbaikan warna judul (digabung dengan alasan retry lain). */
+export function colorRetryNote(color: string): string {
+  return `Perbaikan judul: warna '${color}' tidak ada di fakta visual`
+    + ' — tulis ulang judul/deskripsi HANYA dengan warna yang tertulis di'
+    + ' visible_facts, tanpa menambah warna lain. Keyword yang sudah benar jangan diubah.';
+}
+
 export interface ProcessInput {
   sourced: SourcedKeyword[];
   obs?: ImageObservation;
+  /** Fakta visual AI (ditulis sebelum keyword); digabung dengan obs untuk grounding. */
+  visibleFacts?: string[];
   /** Kata inti theme_canonical (sudah dinormalisasi pemanggil bila perlu). */
   canonical: string;
   themeFit: boolean;
@@ -134,6 +211,8 @@ export interface ProcessResult {
   items: ProcessItem[];
   keywords: string[];
   removed: string[];
+  /** Peringatan non-pemblokir untuk "Saran perbaikan" (satu per buang/pindah). */
+  warnings: string[];
   srcCounts: Record<KeywordSrc, number>;
   themeMismatch: boolean;
 }
@@ -173,7 +252,8 @@ export function processSourcedKeywords(
   const wordsMax = opts?.wordsMax ?? KEYWORD_PHRASE_WORDS_MAX;
   const phrase3Max = opts?.phrase3Max ?? KEYWORD_PHRASE3_MAX;
   const removed: string[] = [];
-  const obs = observationWords(observationGroundingText(input.obs));
+  const warnings: string[] = [];
+  const obs = factWordSet(input.obs, input.visibleFacts);
   const objects = squashSet(input.obs?.objects);
   const moods = squashSet([...(input.obs?.moods ?? []), ...(input.obs?.styles ?? [])]);
   const colors = squashSet(input.obs?.colors);
@@ -217,7 +297,7 @@ export function processSourcedKeywords(
     if (toks.length > 1) responsePhrases.set(toks.join(' '), toks);
   }
 
-  interface Kept extends ProcessItem { isMedia: boolean; isColor: boolean; isPhrase: boolean }
+  interface Kept extends ProcessItem { isMedia: boolean; isColor: boolean; isPhrase: boolean; isTail: boolean }
   const kept: Kept[] = [];
   const seenStem = new Set<string>();
 
@@ -290,15 +370,17 @@ export function processSourcedKeywords(
       removed.push(raw);
       continue;
     }
-    // Kata pengisi generik: hanya bila tercatat di media_type.
+    // Kata pengisi generik: hanya bila tercatat di media_type. Kata
+    // generik-ekor dikecualikan — demosi deterministik ke akhir, bukan hapus.
+    const tailGeneric = isTailGeneric(k);
     const filler = !isPhrase && inSet(FILLER, k);
-    if (filler && !inMediaType(k)) {
+    if (!tailGeneric && filler && !inMediaType(k)) {
       removed.push(raw);
       continue;
     }
     const isMedia = (!isPhrase && inSet(MEDIA, k)) || (filler && inMediaType(k));
     // Kata media (murni) hanya dari media_type pengamatan.
-    if (!isPhrase && inSet(MEDIA, k) && !inMediaType(k)) {
+    if (!tailGeneric && !isPhrase && inSet(MEDIA, k) && !inMediaType(k)) {
       removed.push(raw);
       continue;
     }
@@ -308,10 +390,36 @@ export function processSourcedKeywords(
     const rel = (VALID_REL as readonly string[]).includes(relRaw) ? (relRaw as KeywordRel) : undefined;
     const kind = (VALID_KIND as readonly string[]).includes(kindRaw) ? (kindRaw as KeywordThemeKind) : undefined;
     const standalone = item?.standalone === true;
-    // c) grounding per src (kata media/pengisi-media dikecualikan — sumbernya media_type).
+    // Gerbang warna: setiap kata warna harus utuh di fakta visual. Frasa tiga
+    // kata dikecualikan — sudah dijaga gerbang nama-observasi/subjek-judul
+    // (judulnya sendiri ditangani retry/strip warna).
+    const missingColor = words.length < 3
+      ? words.filter((w) => inSet(COLOR, w)).find((w) => {
+        const lw = low(w);
+        return !obs.has(lw) && !obs.has(squash(w)) && !obs.has(stemKeyword(w));
+      })
+      : undefined;
+    if (missingColor) {
+      removed.push(raw);
+      warnings.push(`Kata kunci '${raw}' dibuang: warna '${low(missingColor)}' tidak ada di fakta visual.`);
+      continue;
+    }
+    // Gerbang klaim spesifik: wajib terlihat di fakta visual, kecuali sinonim
+    // terverifikasi (of ada di pengamatan + rel valid).
+    const claimHit = words.find((w) => {
+      if (!inSet(CLAIM, w)) return false;
+      const lw = low(w);
+      return !obs.has(lw) && !obs.has(squash(w)) && !obs.has(stemKeyword(w));
+    });
+    if (claimHit && !(s === 'synonym' && rel !== undefined)) {
+      removed.push(raw);
+      warnings.push(`Kata kunci '${raw}' dibuang: '${low(claimHit)}' tidak terlihat di fakta visual.`);
+      continue;
+    }
+    // c) grounding per src (kata media/pengisi-media/generik-ekor dikecualikan).
     const grounded = (w: string): boolean =>
       obs.has(low(w)) || obs.has(squash(w)) || obs.has(stemKeyword(w));
-    if (!isMedia && (s === 'visible' || s === 'attribute')) {
+    if (!isMedia && !tailGeneric && (s === 'visible' || s === 'attribute')) {
       // Gerbang subjek-judul melewati grounding (komponennya belum tentu di obs).
       const ok =
         (isPhrase3 && titleSubjectPhrase) ||
@@ -362,9 +470,10 @@ export function processSourcedKeywords(
         continue;
       }
     }
-    // Dedupe stem (stabil: yang pertama menang). Kunci mempertahankan digit
-    // (squash membuangnya — "fest0" vs "fest1" harus tetap berbeda).
-    const key = low(k).replace(/[^a-z0-9]+/g, '');
+    // Dedupe stem per token (stabil: yang pertama menang; singular/plural
+    // dianggap sama — "cats" vs "cat", "black cats" vs "black cat"). Kunci
+    // mempertahankan digit (squash membuangnya — "fest0" vs "fest1" berbeda).
+    const key = words.map((w) => stemKeyword(w)).join('');
     if (seenStem.has(key) || seenStem.has(stemKeyword(k))) {
       removed.push(raw);
       continue;
@@ -379,7 +488,8 @@ export function processSourcedKeywords(
       ...(standalone ? { standalone: true as const } : {}),
       isMedia,
       isColor: !isPhrase && colors.has(squash(k)),
-      isPhrase
+      isPhrase,
+      isTail: tailGeneric
     });
   }
 
@@ -427,11 +537,29 @@ export function processSourcedKeywords(
     }
   }
   const pool2 = pool.filter((x) => !twinDrop.has(x.k));
+  // Tumpang tindih: paling banyak KEYWORD_TOKEN_OVERLAP_MAX keyword memuat token
+  // yang sama (token tema inti: KEYWORD_THEME_TOKEN_OVERLAP_MAX). Kelebihan dibuang
+  // dari urutan paling bawah (urutan model), dengan peringatan.
+  const tokenCounts = new Map<string, number>();
+  const pool3 = pool2.filter((x) => {
+    const toks = x.k.split(' ').map((w) => stemKeyword(low(w)));
+    const cap = (t: string): number => (canon.has(t) || canon.has(squash(t))
+      ? KEYWORD_THEME_TOKEN_OVERLAP_MAX
+      : KEYWORD_TOKEN_OVERLAP_MAX);
+    const over = toks.find((t) => (tokenCounts.get(t) ?? 0) >= cap(t));
+    if (over) {
+      removed.push(x.k);
+      warnings.push(`Kata kunci '${x.k}' dibuang: terlalu banyak kata memakai '${over}'.`);
+      return false;
+    }
+    for (const t of toks) tokenCounts.set(t, (tokenCounts.get(t) ?? 0) + 1);
+    return true;
+  });
   const mediaSet = new Set(
-    overCap(pool2.filter((x) => x.isMedia), KEYWORD_MEDIA_MAX).map((x) => x.k)
+    overCap(pool3.filter((x) => x.isMedia), KEYWORD_MEDIA_MAX).map((x) => x.k)
   );
   const colorSet = new Set(
-    overCap(pool2.filter((x) => x.isColor && !mediaSet.has(x.k)), KEYWORD_COLOR_MAX).map((x) => x.k)
+    overCap(pool3.filter((x) => x.isColor && !mediaSet.has(x.k)), KEYWORD_COLOR_MAX).map((x) => x.k)
   );
 
   // M34 Fase 2 — urutan komersial stabil: frasa subjek di posisi 1, inti tema
@@ -458,7 +586,7 @@ export function processSourcedKeywords(
     if (x.src === 'usage') return 7;
     return 8;
   };
-  const ordered = pool2
+  const ordered = pool3
     .filter((x) => (x.isMedia ? mediaSet.has(x.k) : true))
     .filter((x) => (x.isColor && !x.isMedia ? colorSet.has(x.k) : true))
     .sort((a, b) => rank(a) - rank(b));
@@ -499,10 +627,40 @@ export function processSourcedKeywords(
     const [evicted] = balanced.splice(swapAt + 1, 1);
     balanced.splice(idx, 0, evicted);
   }
+  // Kata generik-ekor ke akhir (reorder deterministik, bukan hapus): daftar
+  // lebih panjang dari slot teratas platform → generik pindah setelah slot
+  // teratas, warna identitas tetap paling akhir. Maksimal GENERIC_TAIL_MAX
+  // generik non-tema dipertahankan, sisanya dibuang dengan peringatan.
+  const top = PLATFORM_TOP_KEYWORDS[input.platform];
+  let tailPartitioned = balanced;
+  if (balanced.length > top) {
+    const head: Kept[] = [];
+    const tail: Kept[] = [];
+    const tailColors: Kept[] = [];
+    for (const x of balanced) {
+      if (x.isColor && !x.isMedia && !mediaSet.has(x.k)) tailColors.push(x);
+      else if (x.isTail) tail.push(x);
+      else head.push(x);
+    }
+    const keptTail: Kept[] = [];
+    let genericCount = 0;
+    for (const x of tail) {
+      if (x.src === 'theme' || genericCount < GENERIC_TAIL_MAX) {
+        keptTail.push(x);
+        if (x.src !== 'theme') genericCount++;
+      } else {
+        removed.push(x.k);
+        warnings.push(`Kata kunci '${x.k}' dibuang: melebihi ${GENERIC_TAIL_MAX} kata generik.`);
+      }
+    }
+    const moved = tail.filter((x) => balanced.indexOf(x) < top).map((x) => x.k);
+    if (moved.length) warnings.push(`Kata generik dipindah ke akhir: ${moved.join(', ')}.`);
+    tailPartitioned = [...head, ...keptTail, ...tailColors];
+  }
   // Kebijakan 30–45: tak melewati batas maksimum platform.
   const cap = Math.min(KEYWORD_TARGET_MAX, platformMax(input.platform));
-  const final = balanced.slice(0, cap);
-  for (const x of balanced.slice(cap)) removed.push(x.k);
+  const final = tailPartitioned.slice(0, cap);
+  for (const x of tailPartitioned.slice(cap)) removed.push(x.k);
 
   const srcCounts: Record<KeywordSrc, number> = {
     visible: 0,
@@ -523,6 +681,7 @@ export function processSourcedKeywords(
     })),
     keywords: final.map((x) => x.k),
     removed,
+    warnings,
     srcCounts,
     themeMismatch: !input.themeFit
   };

@@ -6,12 +6,15 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/).
 ## [Belum dirilis]
 
 ### Ditambahkan
+- Fakta visual `visible_facts` di prompt agar keyword, warna, dan klaim spesifik
+  berdasar isi gambar; kata generik dipindah ke akhir dengan peringatan di saran.
 - Provider **OpenRouter** di samping Groq dan Gemini.
 - Badge status koneksi (`AKTIF`, `GAGAL`, dan sebagainya) di samping label **API key**.
 - README baru dengan banner, diagram alur kerja dan privasi, pratinjau mode siang dan malam, serta versi bahasa Inggris.
 - `CONTRIBUTING.md` dan `LICENSE` (MIT).
 
 ### Diubah
+- Gemini memakai model tetap **gemini-3.1-flash-lite** (di `src/lib/providers/gemini-config.ts`); 429 kuota gratis habis gagal cepat dengan pesan jelas tanpa retry.
 - **Tema utama sekarang wajib** diisi sebelum metadata dibuat.
 - Tab **Metadata** bisa dipakai langsung tanpa menjalankan analisis gambar terlebih dulu.
 - Batas judul Adobe Stock mengikuti aturan portal: maksimal 200 karakter, dengan kata kunci 5 sampai 49.

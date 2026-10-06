@@ -14,11 +14,16 @@ describe('models.ts', () => {
 
   it('nilai model sesuai spek', () => {
     expect(GROQ_MODEL).toBe('qwen/qwen3.8-27b');
-    expect(GEMINI_MODEL).toBe('gemini-3.5-flash');
+    expect(GEMINI_MODEL).toBe('gemini-3.1-flash-lite');
     expect(OPENROUTER_MODEL).toBe('openrouter/free');
     expect(PROVIDER_MODELS.groq).toBe(GROQ_MODEL);
     expect(PROVIDER_MODELS.gemini).toBe(GEMINI_MODEL);
     expect(PROVIDER_MODELS.openrouter).toBe(OPENROUTER_MODEL);
+  });
+
+  it('GEMINI_MODEL tetap varian flash gratis (pengaman agar model berbayar tak terpasang)', () => {
+    expect(GEMINI_MODEL).toMatch(/^gemini-\d+(\.\d+)?-flash(-lite)?$/);
+    expect(GEMINI_MODEL).not.toMatch(/pro|image|live|tts|veo|imagen|preview/i);
   });
 
   it('adapter mengambil model dari models.ts (bukan literal sendiri)', () => {

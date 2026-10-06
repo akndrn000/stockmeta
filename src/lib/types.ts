@@ -16,6 +16,8 @@ export interface AdobeMetadata {
   categoryAuto?: boolean;
   /** Fase 4: tema tidak cocok dengan gambar (non-pemblokir, dari theme_fit model). */
   themeMismatch?: boolean;
+  /** Peringatan non-pemblokir validator pasca-AI (dibuang/dipindah) → "Saran perbaikan". */
+  warnings?: string[];
 }
 
 export interface ShutterstockMetadata {
@@ -26,6 +28,8 @@ export interface ShutterstockMetadata {
   categoryAuto?: boolean;
   /** Fase 4: tema tidak cocok dengan gambar (non-pemblokir). */
   themeMismatch?: boolean;
+  /** sama dengan AdobeMetadata.warnings */
+  warnings?: string[];
 }
 
 export interface MetadataByPlatform {

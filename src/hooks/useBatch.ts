@@ -14,7 +14,13 @@ import {
 import { fileStore } from '../lib/fileStore';
 import { prepareImage } from '../lib/image';
 import { defaultMetadata, hasContent } from '../lib/metadata';
-import { observationGroundingText } from '../lib/keywordGroups';
+import {
+  colorRetryNote,
+  factWordSet,
+  factsText,
+  stripUngroundedColorWords,
+  titleColorIssue
+} from '../lib/keywordGroups';
 import { buildVerifyPrompt } from '../lib/prompt';
 import { getProvider } from '../lib/providers';
 import { generateWithFallback } from '../lib/providers/fallback';
@@ -134,15 +140,27 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
           let calls = engCalls;
           // M32: pasca-proses deterministik (src terverifikasi, satu kata, tanpa latar).
           let fin = finalizeModelOutput(engMeta, args.platform);
-          // M33 Fase 5: di bawah target 30 → SATU putaran perluasan (+verifikasi
-          // daftar lama) memakai anggaran retry yang sudah ada.
-          if (needsExpansion(fin.meta) && calls < 3) {
-            const note = expansionNote(
+          // SATU slot retry korektif: warna judul/deskripsi tanpa dasar visual
+          // digabung dengan perluasan keyword (maksimal satu retry per frame —
+          // jangan ada retry kedua).
+          const fixNotes: string[] = [];
+          const firstWords = factWordSet(engMeta.observation, engMeta.visible_facts);
+          const colorIssue = titleColorIssue(
+            fin.meta.title ?? fin.meta.description ?? '',
+            firstWords
+          );
+          if (colorIssue) fixNotes.push(colorRetryNote(colorIssue));
+          // M33 Fase 5: di bawah target 30 → perluasan (+verifikasi daftar lama)
+          // memakai slot retry yang sama.
+          if (needsExpansion(fin.meta)) {
+            fixNotes.push(expansionNote(
               fin.meta.keywords ?? [],
               fin.facetsMissing,
               KEYWORD_MIN_TARGET
-            );
-            const again = await callOnce(false, note);
+            ));
+          }
+          if (fixNotes.length && calls < 3) {
+            const again = await callOnce(false, fixNotes.join(' '));
             calls++;
             fin = finalizeModelOutput(again, args.platform);
           }
@@ -153,7 +171,7 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
             const obs = engMeta.observation;
             const dPrompt = buildVerifyPrompt({
               keywords: fin.meta.keywords ?? [],
-              observation: observationGroundingText(obs),
+              observation: factsText(obs, engMeta.visible_facts),
               mediaType: obs?.media_type ?? obs?.medium ?? ''
             });
             const dRes = await callOnce(false, undefined, dPrompt);
@@ -169,7 +187,34 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
           // Bila setelah itu tetap di bawah target / masih Indonesia, meta tetap
           // disimpan apa adanya — validasi menandainya (saran target-30,
           // pemblokir judul/deskripsi atau minimum platform).
-          return fin.meta;
+          // Warna judul/deskripsi yang masih tanpa dasar → hapus deterministik
+          // (tanpa retry kedua) + peringatan; warnings validator ikut tersimpan.
+          const outMeta = { ...fin.meta };
+          const outWarnings = [...fin.warnings];
+          const factUnion = new Set([
+            ...factWordSet(engMeta.observation, engMeta.visible_facts),
+            ...factWordSet(fin.meta.observation, fin.meta.visible_facts)
+          ]);
+          if (platform === 'adobe' && outMeta.title) {
+            const stripped = stripUngroundedColorWords(outMeta.title, factUnion);
+            if (stripped.removed.length) {
+              outMeta.title = stripped.text;
+              outWarnings.push(
+                `Kata warna '${stripped.removed.join(`', '`)}' dihapus dari judul: tidak ada di fakta visual.`
+              );
+            }
+          } else if (platform === 'shutterstock' && outMeta.description) {
+            const stripped = stripUngroundedColorWords(outMeta.description, factUnion);
+            if (stripped.removed.length) {
+              outMeta.description = stripped.text;
+              outWarnings.push(
+                `Kata warna '${stripped.removed.join(`', '`)}' dihapus dari deskripsi: tidak ada di fakta visual.`
+              );
+            }
+          }
+          // Hanya tempel bila ada isi (kontrak lama: slot tanpa peringatan tak punya key ini).
+          if (outWarnings.length) outMeta.warnings = outWarnings.slice(0, 12);
+          return outMeta;
         },
         getImage: (id) => fileStore.get(id),
         getTheme: (id) => {

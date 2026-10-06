@@ -240,5 +240,15 @@ describe('validateMetadata - kebijakan 30 (M32)', () => {
     const notes = validateMetadata('adobe', adobe({ title: 'A fox rests', keywords: kws(30), category: 'Animals' }));
     expect(notes).toEqual([]);
   });
+
+  it('warnings validator tampil sebagai saran non-pemblokir di keywords', () => {
+    const w = "Kata kunci 'black cat' dibuang: warna 'black' tidak ada di fakta visual.";
+    const notes = validateMetadata('adobe', adobe({
+      title: 'Orange cat', keywords: kws(30), category: 'Animals', warnings: [w]
+    }));
+    const hit = notes.find((x) => x.field === 'keywords' && x.message === w);
+    expect(hit).toBeDefined();
+    expect(hit!.blocking).toBeFalsy();
+  });
 });
 
