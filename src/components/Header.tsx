@@ -30,12 +30,29 @@ export function Header({
       {/* M23: disiplin mobile — baris atas lebih rapat di <640px (sm: mengembalikan
           nilai desktop); target sentuh tetap ≥44px lewat blok CSS globals. */}
       <div className="shell flex flex-wrap items-center gap-x-3 gap-y-1.5 pb-2 pt-2 sm:gap-x-4 sm:gap-y-2 sm:pb-3 sm:pt-3">
-        {/* Brand: indikator fosfor + wordmark hijau — satu-satunya aksen utama */}
+        {/* Brand: penanda ikon (geometri sama dengan favicon icon.svg) + wordmark
+            hijau — satu-satunya aksen utama. Ukuran ikon 20px: setinggi wordmark
+            sehingga tinggi baris header tidak berubah. */}
         <div className="order-1 flex items-center gap-2">
-          <span
+          <svg
             aria-hidden="true"
-            className="glow h-3 w-3 rounded-[0.1875rem] bg-accent sm:h-3.5 sm:w-3.5"
-          />
+            width="20"
+            height="20"
+            viewBox="0 0 64 64"
+            className="glow h-5 w-5"
+          >
+            <rect width="64" height="64" rx="14" fill="#20e875" />
+            <rect
+              x="14"
+              y="13"
+              width="28"
+              height="27"
+              fill="none"
+              stroke="#04120a"
+              strokeWidth="6"
+            />
+            <rect x="14" y="36" width="37" height="11" rx="2" fill="#04120a" />
+          </svg>
           <h1 className="text-title font-extrabold tracking-[-0.03em] text-accent-text sm:text-brand">
             StockMeta
           </h1>

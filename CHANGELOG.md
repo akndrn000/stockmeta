@@ -6,6 +6,9 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/).
 ## [Belum dirilis]
 
 ### Ditambahkan
+- Ikon StockMeta baru (bingkai foto + batang label): `icon.svg`, `favicon.ico`
+  (16/32/48), `apple-icon.png`, ikon PWA 192/512 + maskable, `manifest.ts`,
+  `opengraph-image.png`, dan penanda merek yang sama di header.
 - Fakta visual `visible_facts` di prompt agar keyword, warna, dan klaim spesifik
   berdasar isi gambar; kata generik dipindah ke akhir dengan peringatan di saran.
 - Provider **OpenRouter** di samping Groq dan Gemini.

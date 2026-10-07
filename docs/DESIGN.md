@@ -345,6 +345,37 @@ Aturan audit (cara M25/M27 memverifikasi, wajib diulang tiap mengubah responsif)
 - Verifikasi M18: `vitest` **188/188**, `tsc --noEmit` **0**, `eslint` **0**, `next build`
   sukses, `impeccable detect --json src` → **`[]`** (exit 0).
 
+## Ikon dan merek
+
+Konsep: **bingkai foto + batang label** — kotak hijau solid berisi bingkai
+foto bergaris tebal yang ditembus batang caption di kanan bawah (foto stok +
+metadata). Dua bentuk glif, tanpa gradasi/bayangan/teks, garis ≥4 unit di
+kanvas 64 — terbaca sampai 16 px. Pemenang dipilih dari render 16–180 px di
+bilah gelap/terang (bingkai+label menang atas varian tag-lubang dan monogram S
+yang detailnya hilang di 16 px).
+
+| Berkas | Peran |
+| --- | --- |
+| `src/app/icon.svg` | Sumber kebenaran (hijau `#20e875`, glif `#04120a`) → favicon tab |
+| `src/app/favicon.ico` | 16/32/48 px untuk bookmark & browser lama |
+| `src/app/apple-icon.png` | 180 px full-bleed (iOS membulatkan sendiri) |
+| `public/icon-192.png`, `public/icon-512.png` | Ikon PWA full-bleed |
+| `public/icon-maskable-512.png` | Maskable, glif di dalam safe-area 80% |
+| `src/app/manifest.ts` | Web manifest (`/manifest.webmanifest`) |
+| `src/app/opengraph-image.png` | Pratinjau tautan 1200×630 |
+| Header `Header.tsx` | SVG inline 20 px, geometri sama dengan favicon |
+
+Warna ikon memakai token malam (`--accent #20e875`, `--accent-contrast
+#04120a`) supaya menyala di bilah gelap maupun terang; `viewport.themeColor`
+di `layout.tsx` mengikuti `--bg` tiap mode (`#050907` / `#f0f3f1`).
+
+Ekspor ulang (hanya Pillow, tanpa dep npm baru — modul python `playwright`
+tidak tersedia di env ini dan tidak dibutuhkan):
+
+```bash
+python scripts/export-icons.py
+```
+
 ## Keputusan sadar M29
 
 - **Semua garis/border halaman = hijau di kedua mode** — audit `border-*`/`ring-*` di

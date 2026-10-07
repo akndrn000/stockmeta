@@ -11,6 +11,7 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://stockmeta-gold.vercel.app/"),
   title: "StockMeta — Metadata AI untuk Adobe Stock & Shutterstock",
   description:
     "Buat judul, deskripsi, kata kunci, dan kategori unggahan stok secara batch dengan Gemini atau Groq. API key disimpan hanya di browser Anda.",
@@ -18,10 +19,17 @@ export const metadata: Metadata = {
 
 // M19: viewport mengikuti lebar perangkat + safe-area (HP berponi/landscape) tanpa
 // memblokir zoom (tanpa maximumScale/userScalable) — API Next 16 "viewport" export.
+// themeColor per skema = --bg tiap mode (globals.css), supaya bilah browser menyatu
+// dengan latar halaman. Jangan tambah <meta name="theme-color"> manual — Next yang
+// menghasilkannya dari sini.
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  viewportFit: 'cover'
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: dark)', color: '#050907' },
+    { media: '(prefers-color-scheme: light)', color: '#f0f3f1' },
+  ],
 };
 
 // Nilai sama dengan THEME_KEY ('stockmeta_theme') di src/lib/storage.ts — sengaja inline

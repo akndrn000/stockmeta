@@ -22,8 +22,13 @@
   <rect x="0.5" y="0.5" width="1279" height="359" rx="19.5" fill="none" stroke="#22e27a" stroke-opacity="0.35"/>
 
   <!-- Brand -->
-  <rect x="72" y="86" width="46" height="46" rx="10" fill="#22e27a"/>
-  <path d="M84 109l8 8 14-16" fill="none" stroke="#08100c" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Brand: ikon yang sama dengan favicon (bingkai foto + batang label).
+       Palet banner (#22e27a/#08100c) dipertahankan agar serasi dengan pil/grid. -->
+  <g transform="translate(72 86) scale(0.71875)">
+    <rect width="64" height="64" rx="14" fill="#22e27a"/>
+    <rect x="14" y="13" width="28" height="27" fill="none" stroke="#08100c" stroke-width="6"/>
+    <rect x="14" y="36" width="37" height="11" rx="2" fill="#08100c"/>
+  </g>
   <text x="138" y="124" font-size="58" font-weight="700" class="ink">StockMeta</text>
 
   <text x="72" y="190" font-size="22" class="ink">Metadata AI untuk Adobe Stock &amp; Shutterstock</text>
