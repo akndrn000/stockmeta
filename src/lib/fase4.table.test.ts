@@ -392,7 +392,7 @@ describe('M34 kolam kaya/miskin dan anggaran panggilan', () => {
       keywords: fin.meta.keywords ?? [],
       category: 'Animals'
     });
-    const thin = notes.find((n) => n.message.startsWith('Hanya 1 keyword'));
+    const thin = notes.find((n) => n.message.startsWith('Kata kunci kurang dari'));
     expect(thin).toBeDefined();
     expect(thin!.blocking).toBeFalsy();
   });

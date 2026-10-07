@@ -2,12 +2,23 @@
 // ATAU 503 setelah retry habis → frame diproses lewat provider lain yang key-nya tersimpan.
 // Tiap provider tetap memakai SATU model (lihat models.ts). Tanpa key lain / toggle mati →
 // gagal dengan pesan asli provider aktif (jangan fallback diam-diam).
+import { TARGET_KEYWORDS_MIN } from '../limits';
 import type { ParsedMetadata } from '../prompt';
 import { readFallback, readKey } from '../storage';
 import type { Platform, ProviderId } from '../types';
 import { getProvider } from './index';
 import { ProviderError } from './retry';
 import type { WaitInfo } from './retry';
+import {
+  TOPUP_ATTEMPT_DELAY_MS,
+  TOPUP_MAX_CALLS,
+  buildTopupPrompt,
+  countKeywords,
+  existingKeywordList,
+  mergeTopupKeywords,
+  needsTopup,
+  sleepAbortable
+} from './topup';
 import type { ImageInput, ProviderAdapter } from './types';
 
 /** Urutan provider cadangan (di luar provider aktif). */
@@ -34,6 +45,8 @@ export interface FallbackGenerateArgs {
   retryNote?: string;
   /** M33 Fase 2c: prompt pengganti Tahap D (gambar tetap dikirim). */
   promptOverride?: string;
+  /** Observabilitas top-up (opsional): dipanggil tiap percobaan (1 = awal, 2-3 = follow-up). */
+  onTopup?: (info: { attempt: number; count: number }) => void;
 }
 
 export interface FallbackDeps {
@@ -42,6 +55,8 @@ export interface FallbackDeps {
   getKey?: (id: ProviderId) => string;
   /** toggle panel provider (bawaan: localStorage, default aktif) */
   isEnabled?: () => boolean;
+  /** jeda antar percobaan top-up (bawaan TOPUP_ATTEMPT_DELAY_MS; 0 di tes) */
+  topupDelayMs?: number;
 }
 
 export interface FallbackResult {
@@ -50,6 +65,10 @@ export interface FallbackResult {
   provider: ProviderId;
   /** true bila provider cadangan yang dipakai */
   usedFallback: boolean;
+  /** total panggilan generateForImage untuk frame ini (1 awal + follow-up, maks 3) */
+  topupAttempts: number;
+  /** jumlah keyword hasil lapisan provider (sebelum finalisasi) */
+  topupCount: number;
 }
 
 export async function generateWithFallback(
@@ -76,9 +95,104 @@ export async function generateWithFallback(
   const active = getAdapter(opts.provider);
   if (!active) throw new ProviderError('Provider tidak tersedia', { retryable: false });
 
+  // Top-up keyword: LOOP maksimal TOPUP_MAX_CALLS panggilan total (1 awal + 2
+  // follow-up) ke adapter & key yang SAMA, gambar yang sama dikirim ulang tiap
+  // percobaan — model butuh konteks visual lagi. Tiap follow-up mencantumkan daftar
+  // keyword SEJAUH ITU (bukan cuma panggilan pertama) agar tak mengulang. Jeda
+  // singkat antar percobaan supaya tak memicu rate limit. Tetap satu frame di
+  // progress batch; follow-up gagal → hasil sejauh itu (batal → tetap batal).
+  // Logging: SELALU console.warn (client-side — generateWithFallback dipanggil dari
+  // hook useBatch di browser, jadi muncul di browser Console; tidak ada API route
+  // server di jalur ini). Tiap baris berdiri sendiri di LUAR try/catch supaya tidak
+  // tertelan: entry → hasil tiap follow-up / gagal → ringkasan akhir bila mentok.
+  const withTopup = async (
+    adapter: ProviderAdapter,
+    apiKey: string,
+    meta: ParsedMetadata
+  ): Promise<{ meta: ParsedMetadata; attempts: number }> => {
+    const initialCount = countKeywords(meta);
+    const need = needsTopup(meta);
+    console.warn(
+      `[topup] provider=${adapter.id} awal=${initialCount} threshold=${TARGET_KEYWORDS_MIN} perlu_topup=${need}`
+    );
+    const once = { meta, attempts: 1 };
+    if (opts.promptOverride) {
+      console.warn(`[topup] dilewati (Tahap D promptOverride), awal=${initialCount}`);
+      return once;   // Tahap D verifikasi → bukan metadata
+    }
+    // Retry (koreksi bahasa / perluasan useBatch) adalah jaring pengaman KEDUA —
+    // jangan menumpuk top-up di atasnya (maksimal +1 panggilan per frame).
+    if (opts.languageFix || opts.retryNote) {
+      console.warn(`[topup] dilewati (retry bahasa/perluasan), awal=${initialCount}`);
+      return once;
+    }
+    opts.onTopup?.({ attempt: 1, count: initialCount });
+    if (!need) {
+      console.warn(`[topup] tidak perlu top-up, hasil awal sudah cukup: ${initialCount}`);
+      return { meta, attempts: 1 };
+    }
+    let current = meta;
+    let attempts = 1;
+    let followup = 0;
+    const delayMs = deps.topupDelayMs ?? TOPUP_ATTEMPT_DELAY_MS;
+    while (attempts < TOPUP_MAX_CALLS && needsTopup(current)) {
+      if (opts.signal?.aborted) throw new ProviderError('Dibatalkan', { retryable: false });
+      if (delayMs > 0) {
+        await sleepAbortable(delayMs, opts.signal);
+        if (opts.signal?.aborted) throw new ProviderError('Dibatalkan', { retryable: false });
+      }
+      // Panggilan follow-up di try tersendiri: gagal → LOG DULU lalu break
+      // (batal → lempar ulang tanpa log gagal, itu pembatalan user bukan error).
+      let extra: ParsedMetadata;
+      try {
+        extra = await adapter.generateForImage({
+          apiKey,
+          image: opts.image,
+          platform: opts.platform,
+          theme: opts.theme,
+          signal: opts.signal,
+          onWait: opts.onWait,
+          promptOverride: buildTopupPrompt(existingKeywordList(current))
+        });
+      } catch (e) {
+        if (opts.signal?.aborted) throw e;   // batal → batal beneran, jangan ditelan
+        const msg = e instanceof Error && e.message ? e.message : String(e);
+        console.warn(`[topup] follow-up gagal: ${msg}, pakai hasil yang ada: ${countKeywords(current)}`);
+        break;   // follow-up gagal → hasil sejauh ini (lebih baik sedikit daripada gagal total)
+      }
+      // Sukses: hitung + merge + LOG di luar try/catch di atas (tak bisa tertelan).
+      const extraCount = countKeywords(extra);
+      current = mergeTopupKeywords(current, extra, opts.platform);
+      const total = countKeywords(current);
+      followup++;
+      if (followup === 1) {
+        console.warn(`[topup] follow-up-1 hasil=${extraCount} total_setelah_merge=${total}`);
+      } else {
+        console.warn(`[topup] follow-up-2 hasil=${extraCount} total_final=${total}`);
+      }
+      attempts++;
+      opts.onTopup?.({ attempt: attempts, count: total });
+    }
+    const count = countKeywords(current);
+    // PERMANEN (bukan debug): pemantauan batas kemampuan nyata provider/model.
+    if (attempts >= TOPUP_MAX_CALLS && count < TARGET_KEYWORDS_MIN) {
+      console.warn(
+        `[topup] Frame gagal capai target keyword: ${count}/${TARGET_KEYWORDS_MIN} setelah ${attempts} percobaan (provider: ${adapter.id})`
+      );
+    }
+    return { meta: current, attempts };
+  };
+
   try {
     const meta = await run(active, opts.apiKey);
-    return { meta, provider: opts.provider, usedFallback: false };
+    const topped = await withTopup(active, opts.apiKey, meta);
+    return {
+      meta: topped.meta,
+      provider: opts.provider,
+      usedFallback: false,
+      topupAttempts: topped.attempts,
+      topupCount: countKeywords(topped.meta)
+    };
   } catch (err) {
     if (!enabled || opts.signal?.aborted || !canFallback(err)) throw err;
     for (const id of FALLBACK_ORDER) {
@@ -89,7 +203,14 @@ export async function generateWithFallback(
       if (!adapter) continue;
       try {
         const meta = await run(adapter, key);
-        return { meta, provider: id, usedFallback: true };
+        const topped = await withTopup(adapter, key, meta);
+        return {
+          meta: topped.meta,
+          provider: id,
+          usedFallback: true,
+          topupAttempts: topped.attempts,
+          topupCount: countKeywords(topped.meta)
+        };
       } catch { /* provider cadangan juga gagal → coba berikutnya */ }
     }
     throw err;   // tak ada key lain / semua cadangan gagal → pesan jelas dari provider aktif

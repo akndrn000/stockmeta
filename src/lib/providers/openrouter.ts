@@ -12,27 +12,64 @@ import type { GenerateArgs, ProviderAdapter, TestResult } from './types';
 
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
 
-function openrouterMessage(data: unknown): string {
+function openrouterMessageDetail(data: unknown): { message: string; code: string } {
   const err: unknown = data && typeof data === 'object' && 'error' in data
     ? (data as { error?: unknown }).error
     : undefined;
-  // OpenRouter memakai dua bentuk: {"error":{"message":"…"}} (gaya OpenAI) atau {"error":"…"}
-  if (typeof err === 'string') return err.trim();
-  const msg = err && typeof err === 'object' && 'message' in err
-    ? (err as { message?: unknown }).message
+  // OpenRouter memakai dua bentuk: {"error":{"message":"…","code":…}} (gaya OpenAI)
+  // atau {"error":"…"} — code bisa string maupun angka.
+  if (typeof err === 'string') return { message: err.trim(), code: '' };
+  if (err && typeof err === 'object') {
+    const e = err as { message?: unknown; code?: unknown };
+    const message = typeof e.message === 'string' ? e.message.trim() : '';
+    const code = typeof e.code === 'string' || typeof e.code === 'number' ? String(e.code) : '';
+    if (message || code) return { message, code };
+  }
+  // Defensif: bentuk tak resmi {"message":"…"} di top-level — jangan hilangkan info.
+  const top = data && typeof data === 'object' && 'message' in data
+    ? (data as { message?: unknown }).message
     : undefined;
-  return typeof msg === 'string' ? msg.trim() : '';
+  if (typeof top === 'string' && top.trim()) return { message: top.trim(), code: '' };
+  return { message: '', code: '' };
+}
+
+/**
+ * Potongan body mentah untuk diagnostik (dibatasi 200 char, satu baris).
+ * Body respons TIDAK PERNAH berisi API key (key hanya di header Authorization),
+ * jadi snippet ini aman ditampilkan ke frame yang gagal.
+ */
+function rawSnippet(raw: string, max = 200): string {
+  const t = raw.replace(/\s+/g, ' ').trim();
+  if (!t) return '';
+  return t.length > max ? t.slice(0, max) + '…' : t;
 }
 
 function openrouterErrorMessage(status: number, data: unknown, raw: string): string {
-  const msg = openrouterMessage(data);
-  if (msg) return msg;
-  if (status === 401 || status === 403) return 'Key salah — API key ditolak OpenRouter.';
+  const { message, code } = openrouterMessageDetail(data);
+  const statusPart = status ? ` (HTTP ${status})` : '';
+  // 1. Pesan ASLI dari body selalu menang — plus code + status HTTP, JANGAN generik.
+  if (message) {
+    const codePart = code ? ` [code ${code}]` : '';
+    return `${message}${codePart}${statusPart}`;
+  }
+  if (code) return `OpenRouter error [code ${code}]${statusPart}`;
+  // 2. Status dikenal tanpa pesan asli — tetap sertakan status (bukan generik buta).
+  if (status === 401 || status === 403) return 'Key salah — API key ditolak OpenRouter.' + statusPart;
   if (status === 429) return 'Batas kuota tercapai (429) — coba lagi nanti.';
   if (status === 402) return 'Kredit tidak cukup (402) — free tier OpenRouter mungkin sedang penuh.';
-  // body non-JSON (mis. halaman error gateway) → pesan generik, jangan tampilkan potongan mentah
-  if (raw && !data) return `Respons tidak terbaca dari OpenRouter${status ? ` (HTTP ${status}).` : '.'}`;
-  if (status) return 'OpenRouter menolak permintaan (' + status + ').';
+  // 3. Body non-JSON (mis. halaman error gateway) → status + potongan mentah.
+  if (raw && !data) {
+    const snippet = rawSnippet(raw);
+    return `OpenRouter error${statusPart}${snippet ? `: ${snippet}` : ' — body tidak terbaca.'}`;
+  }
+  // 4. JSON tanpa error.message yang dikenal → tampilkan JSON ringkas + status.
+  if (data) {
+    let jsonSnippet = '';
+    try { jsonSnippet = rawSnippet(JSON.stringify(data)); } catch { jsonSnippet = ''; }
+    return `OpenRouter error${statusPart}${jsonSnippet ? `: ${jsonSnippet}` : '.'}`;
+  }
+  // 5. Benar-benar tanpa body.
+  if (status) return `OpenRouter error${statusPart} — body kosong.`;
   return 'Koneksi gagal.';
 }
 

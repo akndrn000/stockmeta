@@ -25,7 +25,8 @@ import { buildVerifyPrompt } from '../lib/prompt';
 import { getProvider } from '../lib/providers';
 import { generateWithFallback } from '../lib/providers/fallback';
 import { readBatchDelay, writeBatchDelay } from '../lib/storage';
-import { BATCH_DELAY_DEFAULT_SEC, KEYWORD_MIN_TARGET } from '../lib/limits';
+import { BATCH_DELAY_DEFAULT_SEC, KEYWORD_MIN_TARGET, TARGET_KEYWORDS_MIN } from '../lib/limits';
+import { TOPUP_MAX_CALLS } from '../lib/providers/topup';
 import { effectiveTheme, validateTheme } from '../lib/theme';
 import type { Platform, ProviderId } from '../lib/types';
 import { PROVIDER_LABELS, type useProvider } from './useProvider';
@@ -41,7 +42,7 @@ export const LIMIT_TIP_MSG =
 
 const LIMIT_RE = /429|kuota|limit/i;
 
-export function useBatch(session: Session, provider: ProviderApi, opts?: { delayMs?: number }) {
+export function useBatch(session: Session, provider: ProviderApi, opts?: { delayMs?: number; topupDelayMs?: number }) {
   const [busy, setBusy] = useState(false);
   const [currentId, setCurrentId] = useState<number | null>(null);
   const [progress, setProgress] = useState({ done: 0, failed: 0, total: 0 });
@@ -103,6 +104,9 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
     let limitHit = false;
     // provider yang akhirnya memproses frame terakhir (fallback antar provider) → tampil di catatan
     let usedVia = '';
+    // top-up sudah upaya maksimal (3x) tapi keyword tetap di bawah target → tampil
+    // di catatan frame itu (Map per frame: retry berikutnya tak boleh menghapusnya)
+    const topupShortNotes = new Map<number, string>();
 
     try {
       const result = await runBatch({
@@ -127,8 +131,14 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
               languageFix,
               retryNote,
               promptOverride
-            }).then((out) => {
+            }, { topupDelayMs: opts?.topupDelayMs }).then((out) => {
               usedVia = out.usedFallback ? PROVIDER_LABELS[out.provider] : '';
+              if (out.topupAttempts >= TOPUP_MAX_CALLS && out.topupCount < TARGET_KEYWORDS_MIN) {
+                topupShortNotes.set(
+                  _id,
+                  `Keyword di bawah target (${out.topupCount}/${TARGET_KEYWORDS_MIN}) meski sudah ${TOPUP_MAX_CALLS} percobaan`
+                );
+              }
               return out.meta;
             });
           // Fase 3: hasil dicek bahasa Inggris; bila Indonesia → regenerasi TEPAT satu kali
@@ -239,7 +249,10 @@ export function useBatch(session: Session, provider: ProviderApi, opts?: { delay
         },
         onSuccess: (id, meta) => {
           session.applyGenerated(id, platform, meta);
-          session.setNote(id, usedVia ? `via ${usedVia}` : '');
+          session.setNote(
+            id,
+            [usedVia ? `via ${usedVia}` : '', topupShortNotes.get(id) ?? ''].filter(Boolean).join(' · ') || ''
+          );
           setProgress((p) => ({ ...p, done: p.done + 1 }));
         },
         onError: (id, message) => {

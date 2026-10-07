@@ -30,11 +30,13 @@ export const MIN_DESCRIPTION_WORDS = 5;
 export const THEME_CONCEPT_MAX = 10;
 // Deteksi bahasa Fase 3: >20% keyword Indonesia → regenerasi sekali.
 export const INDONESIAN_KEYWORD_RATIO_LIMIT = 0.2;
-// M32 — kebijakan 30: target setiap generasi 30–45 keyword (tak melewati
-// batas maksimum platform). Di bawah target = saran; batas minimum platform
-// tetap pemblokir.
-export const KEYWORD_MIN_TARGET = 30;
-export const KEYWORD_TARGET_MAX = 45;
+// Target kualitas keyword 30–49: didorong lewat prompt, BUKAN validasi keras.
+// Batas keras minimum validasi tetap MIN_KEYWORDS_ADOBE (5) / MIN_KEYWORDS_SHUTTER (7).
+// KEYWORD_MIN_TARGET dipertahankan sebagai alias lama agar impor lama tak rusak.
+export const TARGET_KEYWORDS_MIN = 30;
+export const TARGET_KEYWORDS_MAX = 49;
+export const KEYWORD_MIN_TARGET = TARGET_KEYWORDS_MIN;
+export const KEYWORD_TARGET_MAX = TARGET_KEYWORDS_MAX;
 // M32 — batas per sumber: konteks pemakaian maksimal 4, kata media maksimal 3,
 // warna identitas maksimal 2.
 export const KEYWORD_USAGE_MAX = 4;

@@ -1,7 +1,7 @@
 // Tes fallback ANTAR PROVIDER: aktif gagal karena 429 kuota harian / 503 setelah retry habis
 // → diproses provider lain yang key-nya tersimpan; toggle mati atau tanpa key lain → gagal
 // dengan pesan asli. Adapter & key disuntikkan lewat deps (tanpa jaringan, tanpa localStorage).
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ParsedMetadata } from '../prompt';
 import type { ProviderId } from '../types';
 import { FALLBACK_ORDER, canFallback, generateWithFallback } from './fallback';
@@ -37,7 +37,9 @@ function setup(opts: {
   });
   const getKey = vi.fn((id: ProviderId): string => keys[id as Id] ?? '');
   const isEnabled = vi.fn(() => enabled);
-  return { getAdapter, getKey, isEnabled, deps: { getAdapter, getKey, isEnabled } };
+  // top-up tanpa jeda di tes (produksi 1,5 dtk antar percobaan)
+  const deps = { getAdapter, getKey, isEnabled, topupDelayMs: 0 };
+  return { getAdapter, getKey, isEnabled, deps };
 }
 
 describe('canFallback', () => {
@@ -55,10 +57,16 @@ describe('canFallback', () => {
 });
 
 describe('generateWithFallback', () => {
-  it('provider aktif sukses → tanpa sentuh provider lain', async () => {
+  // withTopup SELALU console.warn (produksi: browser Console) — dibisukan di sini
+  // supaya output tes bersih; isi log di-assert di topup.test.ts.
+  beforeEach(() => { vi.spyOn(console, 'warn').mockImplementation(() => {}); });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it('provider aktif sukses → tanpa sentuh provider lain (top-up no-op: extra kosong)', async () => {
     const s = setup({ primary: async () => META });
     const out = await generateWithFallback(ARGS, s.deps);
-    expect(out).toEqual({ meta: META, provider: 'groq', usedFallback: false });
+    // META tanpa keyword → loop top-up jalan sampai 3x tapi merge no-op
+    expect(out).toEqual({ meta: META, provider: 'groq', usedFallback: false, topupAttempts: 3, topupCount: 0 });
     expect(s.getAdapter).toHaveBeenCalledTimes(1);
     expect(s.getKey).not.toHaveBeenCalled();
   });

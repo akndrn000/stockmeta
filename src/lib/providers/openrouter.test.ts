@@ -32,21 +32,39 @@ describe('openrouter.testConnection', () => {
     expect(url).not.toContain('kunci');
   });
 
-  it('error.message dari body OpenRouter dibawa utuh saat key ditolak', async () => {
+  it('error.message dari body OpenRouter dibawa utuh + status HTTP saat key ditolak', async () => {
     fetchMock.mockResolvedValueOnce(jsonRes(
       { error: { message: 'Invalid API key provided' } }, 401
     ));
     expect(await openrouter.testConnection('salah')).toEqual({
       ok: false,
-      message: 'Invalid API key provided'
+      message: 'Invalid API key provided (HTTP 401)'
     });
   });
 
-  it('respons non-JSON (halaman error gateway) → pesan generik, bukan potongan body mentah', async () => {
+  it('error.code ikut ditampilkan bila ada (diagnostik, bukan generik)', async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes(
+      { error: { message: 'No endpoints found', code: 404 } }, 404
+    ));
+    expect(await openrouter.testConnection('kunci')).toEqual({
+      ok: false,
+      message: 'No endpoints found [code 404] (HTTP 404)'
+    });
+  });
+
+  it('respons non-JSON (halaman error gateway) → status + potongan body mentah', async () => {
     fetchMock.mockResolvedValueOnce(new Response('<html>Bad Gateway</html>', { status: 502 }));
     expect(await openrouter.testConnection('kunci')).toEqual({
       ok: false,
-      message: 'Respons tidak terbaca dari OpenRouter (HTTP 502).'
+      message: 'OpenRouter error (HTTP 502): <html>Bad Gateway</html>'
+    });
+  });
+
+  it('JSON tanpa error.message dikenal → status + ringkasan JSON (tetap ada info)', async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes({ unexpected: 'shape' }, 500));
+    expect(await openrouter.testConnection('kunci')).toEqual({
+      ok: false,
+      message: 'OpenRouter error (HTTP 500): {"unexpected":"shape"}'
     });
   });
 });
@@ -115,9 +133,9 @@ describe('openrouter.generateForImage', () => {
     expect(second.messages[0].content).toEqual(first.messages[0].content);   // prompt & gambar identik
   });
 
-  it('error non-retryable (404) membawa pesan body utuh, satu panggilan saja', async () => {
+  it('error non-retryable (404) membawa pesan body utuh + status, satu panggilan saja', async () => {
     fetchMock.mockResolvedValueOnce(jsonRes({ error: { message: 'No endpoints found' } }, 404));
-    await expect(gen('RAHASIA-LAIN')).rejects.toThrow('No endpoints found');
+    await expect(gen('RAHASIA-LAIN')).rejects.toThrow('No endpoints found (HTTP 404)');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0][0])).not.toContain('RAHASIA-LAIN');
   });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AUTO_CATEGORY_MSG, validateMetadata } from './validate';
+import { AUTO_CATEGORY_MSG, KEYWORD_THIN_MSG, SS_COMMA_MSG, validateMetadata } from './validate';
 import {
   MAX_DESCRIPTION_SHUTTER,
   MAX_FILENAME,
@@ -9,7 +9,8 @@ import {
   MIN_DESCRIPTION_WORDS,
   MIN_KEYWORDS_ADOBE,
   MIN_KEYWORDS_SHUTTER,
-  SS_DESCRIPTION_SUGGEST
+  SS_DESCRIPTION_SUGGEST,
+  TARGET_KEYWORDS_MIN
 } from './limits';
 import type { AdobeMetadata, ShutterstockMetadata } from './types';
 
@@ -118,11 +119,33 @@ describe('validateMetadata — Shutterstock', () => {
     expect(hit!.message).toContain(`${SS_DESCRIPTION_SUGGEST.MIN}–${SS_DESCRIPTION_SUGGEST.MAX}`);
   });
 
-  it('deskripsi mirip daftar kata (banyak koma, sedikit kata) disarankan', () => {
+  it('deskripsi mirip daftar kata (banyak koma, sedikit kata) disarankan + jaring pengaman koma', () => {
     const notes = validateMetadata('shutterstock', shutter({ description: 'coffee, tea, juice, bread, water', keywords: kws(30), categories: ['Abstract', 'Nature'] }));
     expect(notes).toEqual([
-      { field: 'description', message: 'Deskripsi terlihat seperti daftar kata — tulis kalimat utuh.' }
+      { field: 'description', message: 'Deskripsi terlihat seperti daftar kata — tulis kalimat utuh.' },
+      { field: 'description', message: SS_COMMA_MSG }
     ]);
+  });
+
+  it('deskripsi berkoma (kalimat utuh tapi lolos pembersihan) → saran koma saja', () => {
+    const notes = validateMetadata('shutterstock', shutter({
+      description: 'A warm cup of coffee in the morning, with soft golden light and calm mood over the hills.',
+      keywords: kws(30),
+      categories: ['Abstract', 'Nature']
+    }));
+    const hit = notes.find((n) => n.message === SS_COMMA_MSG);
+    expect(hit).toBeDefined();
+    expect(hit!.field).toBe('description');
+    expect(hit!.blocking).toBeFalsy();
+  });
+
+  it('deskripsi tanpa koma → tanpa saran koma', () => {
+    const notes = validateMetadata('shutterstock', shutter({
+      description: 'A warm cup of coffee in the morning with soft golden light and calm mood over the hills.',
+      keywords: kws(30),
+      categories: ['Abstract', 'Nature']
+    }));
+    expect(notes.find((n) => n.message === SS_COMMA_MSG)).toBeUndefined();
   });
 
   it('deskripsi kalimat utuh ≥ 5 kata tanpa daftar koma → tanpa saran deskripsi', () => {
@@ -228,12 +251,17 @@ describe('validateMetadata - kebijakan 30 (M32)', () => {
     expect(hitS!.blocking).toBe(true);
   });
 
-  it('di bawah target 30 = saran non-pemblokir dengan hitungan', () => {
+  it('di bawah target 30 = saran non-pemblokir visibilitas (bukan error keras)', () => {
     const notes = validateMetadata('shutterstock', shutter({ description: 'A calm lake at sunrise with soft light over hills.', keywords: kws(12), categories: ['Nature', 'Parks/Outdoor'] }));
-    const thin = notes.find((x) => x.message.startsWith('Hanya 12 keyword'));
+    const thin = notes.find((x) => x.message === KEYWORD_THIN_MSG(12));
     expect(thin).toBeDefined();
     expect(thin!.blocking).toBeFalsy();
-    expect(thin!.message).toContain('target 30');
+    expect(thin!.field).toBe('keywords');
+    expect(thin!.message).toBe(`Kata kunci kurang dari ${TARGET_KEYWORDS_MIN} — pertimbangkan menambah kata kunci relevan untuk visibilitas pencarian lebih baik.`);
+    // Batas keras minimum tetap ada terpisah (bukan pengganti).
+    const hard = validateMetadata('shutterstock', shutter({ description: 'A calm lake at sunrise with soft light over hills.', keywords: kws(6), categories: ['Nature', 'Parks/Outdoor'] }));
+    expect(hard.find((x) => x.message.includes('minimal 7'))?.blocking).toBe(true);
+    expect(hard.find((x) => x.message === KEYWORD_THIN_MSG(6))).toBeDefined();
   });
 
   it('30+ keyword = tanpa saran tipis', () => {
