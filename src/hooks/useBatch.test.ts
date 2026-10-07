@@ -89,6 +89,9 @@ const flush = () => act(async () => { await new Promise((r) => setTimeout(r, 0))
 
 beforeEach(() => {
   localStorage.clear();
+  // withTopup SELALU console.warn (produksi: browser Console) — dibisukan di sini
+  // supaya output tes bersih; isi log di-assert di topup.test.ts.
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
   fileStore.clear();
   script = [];
   calls = 0;
@@ -104,6 +107,7 @@ beforeEach(() => {
 afterEach(async () => {
   registry.gemini = gemini;
   registry.groq = groq;
+  vi.restoreAllMocks();
   await act(async () => root.unmount());
   host.remove();
 });

@@ -1,7 +1,7 @@
 // Tes fallback ANTAR PROVIDER: aktif gagal karena 429 kuota harian / 503 setelah retry habis
 // → diproses provider lain yang key-nya tersimpan; toggle mati atau tanpa key lain → gagal
 // dengan pesan asli. Adapter & key disuntikkan lewat deps (tanpa jaringan, tanpa localStorage).
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ParsedMetadata } from '../prompt';
 import type { ProviderId } from '../types';
 import { FALLBACK_ORDER, canFallback, generateWithFallback } from './fallback';
@@ -57,6 +57,11 @@ describe('canFallback', () => {
 });
 
 describe('generateWithFallback', () => {
+  // withTopup SELALU console.warn (produksi: browser Console) — dibisukan di sini
+  // supaya output tes bersih; isi log di-assert di topup.test.ts.
+  beforeEach(() => { vi.spyOn(console, 'warn').mockImplementation(() => {}); });
+  afterEach(() => { vi.restoreAllMocks(); });
+
   it('provider aktif sukses → tanpa sentuh provider lain (top-up no-op: extra kosong)', async () => {
     const s = setup({ primary: async () => META });
     const out = await generateWithFallback(ARGS, s.deps);

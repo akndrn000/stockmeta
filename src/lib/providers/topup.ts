@@ -1,8 +1,8 @@
 // Top-up keyword otomatis — JARING PENGAMAN, bukan pengganti instruksi prompt.
 // Fakta dunia nyata: model vision kecil kadang mengembalikan jauh di bawah target
 // (mis. 15/49) meski prompt sudah tegas — kata-kata saja tidak cukup memaksa patuh.
-// Mekanisme: hasil pertama < TARGET_KEYWORDS_MIN → SATU panggilan follow-up ke
-// provider YANG SAMA dengan GAMBAR yang sama + daftar yang sudah ada (anti-ulang),
+// Mekanisme: hasil pertama < TARGET_KEYWORDS_MIN → hingga DUA panggilan follow-up
+// (total maks TOPUP_MAX_CALLS = 3) ke provider YANG SAMA dengan GAMBAR yang sama + daftar yang sudah ada (anti-ulang),
 // lalu merge + dedupe + cap. Follow-up gagal → hasil pertama dipakai apa adanya.
 // Dipakai generateWithFallback (fallback.ts) — SATU tempat untuk Gemini, Groq,
 // OpenRouter — tanpa duplikasi di 3 file provider.
@@ -53,16 +53,31 @@ export function needsTopup(meta: ParsedMetadata): boolean {
  * Prompt follow-up singkat + mandiri (tiap panggilan API stateless): minta TAMBAHAN
  * kata kunci dalam format objek bersumber yang SAMA dengan prompt utama supaya
  * lolos verifikasi grounding finalisasi (tanpa src yang sah = dibuang di sana).
+ * Dipakai SEMUA follow-up (1 dan 2 — loop withTopup di fallback.ts memakai
+ * fungsi ini tiap percobaan): menunjuk SUDUT PANDANG SPESIFIK yang belum
+ * tereksplorasi, bukan "tambah lagi" generik yang terbukti menghasilkan sedikit
+ * kata baru.
  */
 export function buildTopupPrompt(existing: string[]): string {
   const list = existing.length ? existing.join(', ') : '-';
   return [
-    'Berdasarkan gambar yang sama, berikan TAMBAHAN kata kunci relevan',
+    'Berdasarkan gambar yang sama, berikan TAMBAHAN kata kunci BARU yang relevan',
     `(bukan mengulang yang sudah ada: [${list}])`,
     `sampai total mencapai sekitar ${TOPUP_TARGET_MIN}-${TOPUP_TARGET_MAX} kata kunci.`,
-    'Fokus pada sudut pandang yang belum tercakup: detail visual spesifik,',
-    'konteks penggunaan, istilah terkait industri/desain, variasi sinonim yang relevan.',
-    'HARUS tetap akurat sesuai gambar, jangan mengarang.',
+    `Kata kunci yang sudah ada: [${list}]. Tambahkan kata kunci BARU dari`,
+    'kategori-kategori berikut yang BELUM terwakili di daftar di atas',
+    '(cek dulu satu-satu, jangan ulangi):',
+    '1. Gaya/format visual (contoh: flat design, line art, 2D, minimalis, kartun',
+    '— sesuaikan dengan gaya gambar sebenarnya).',
+    '2. Jenis aset (contoh: vector, icon, clipart, graphic resource',
+    '— sesuai format gambar).',
+    '3. Konteks penggunaan (contoh: kartu ucapan, media sosial, desain web, cetak,',
+    'undangan — HANYA yang relevan).',
+    '4. Sinonim atau istilah alternatif untuk subjek utama yang belum disebut.',
+    '5. Istilah budaya/musiman terkait tema (kalau tema diisi).',
+    'HARUS tetap akurat dan relevan dengan gambar — JANGAN memaksakan kategori',
+    'yang tidak cocok, jangan mengarang. Kalau satu kategori tidak relevan untuk',
+    'gambar ini, lewati kategori itu.',
     'Tulis SELURUH keyword dalam bahasa Inggris.',
     'Kembalikan HANYA JSON valid {"keywords": [{"k": kata, "src": salah satu',
     'visible|attribute|synonym|theme|usage, "of": kata sumber bila synonym,',

@@ -1473,3 +1473,107 @@ Kemungkinan nyata yang diakui di muka: SETELAH 3 panggilan pun model vision keci
 gratis bisa tetap di bawah 30 untuk gambar sederhana — itu batas kemampuan model,
 bukan bug yang bisa dipaksakan; warn + catatan UI memang dirancang untuk
 menjadikan batas itu terlihat, bukan disembunyikan.
+
+## Perbaikan pasca-M30 (M31) — prompt follow-up menunjuk sudut pandang spesifik, bukan tahap migrasi baru
+
+Masalah: prompt follow-up M29/M30 hanya meminta "tambah lagi" secara umum
+("sudut pandang yang belum tercakup: detail visual spesifik, konteks penggunaan,
+…") — terbukti menghasilkan sedikit kata baru karena model tidak diberi tahu
+kategori konkret apa yang belum tereksplorasi.
+
+- `src/lib/providers/topup.ts` (`buildTopupPrompt`): prompt follow-up kini
+  eksplisit menyebutkan KATEGORI yang harus dieksplorasi dan BELUM terwakili di
+  daftar yang sudah ada (model diminta cek satu-satu, jangan ulangi):
+  1. Gaya/format visual (flat design, line art, 2D, minimalis, kartun —
+     sesuaikan gaya gambar sebenarnya);
+  2. Jenis aset (vector, icon, clipart, graphic resource — sesuai format gambar);
+  3. Konteks penggunaan (kartu ucapan, media sosial, desain web, cetak,
+     undangan — HANYA yang relevan);
+  4. Sinonim/istilah alternatif subjek utama yang belum disebut;
+  5. Istilah budaya/musiman terkait tema (kalau tema diisi).
+  Pagar akurasi dipertahankan + dipertegas: HARUS tetap akurat dan relevan —
+  JANGAN memaksakan kategori yang tidak cocok (kalau satu kategori tidak
+  relevan, lewati), jangan mengarang; SELURUH keyword bahasa Inggris; format
+  JSON objek bersumber yang sama (lolos grounding finalisasi); target
+  35-40 + klausul anti-ulang dipertahankan.
+- Berlaku untuk SEMUA follow-up (1 dan 2): loop `withTopup` di `fallback.ts`
+  memakai `buildTopupPrompt` yang sama tiap percobaan, jadi tidak ada jalur
+  follow-up lama yang tersisa. Komentar header `topup.ts` diselaraskan
+  (hingga DUA follow-up, total maks 3 panggilan).
+- `src/lib/providers/topup.test.ts` (+1): tes baru meng-assert lima kategori +
+  `TAMBAHAN kata kunci BARU` + `BELUM terwakili` + `JANGAN memaksakan kategori`
+  + `lewati kategori itu`; tes lama (anti-ulang, 35-40, JSON bersumber,
+  Inggris, `TAMBAHAN` di `promptOverride` follow-up) tetap lolos tanpa ubahan.
+- Verifikasi: `npm run test` **390/390**, `npx tsc --noEmit` 0,
+  `npm run lint` 0, `npm run build` sukses.
+- Batasan jujur: efektivitas terhadap model nyata tetap perlu uji live
+  (`scripts/live-topup-test.ts`, 2–3 foto, catat N per panggilan 1/2/3 +
+  akhir) — klaim "menambah kata baru" HANYA sah setelah angka nyata ada.
+
+## Perbaikan pasca-M31 (M32) — error OpenRouter anti-generik + logging topup, bukan tahap migrasi baru
+
+### 1. Pesan error OpenRouter: selalu pesan asli + status HTTP, tidak pernah generik buta
+
+Temuan: tidak ada literal `"Provider returned error"` di codebase — pesan generik
+yang dimaksud adalah dua cabang di `openrouterErrorMessage`
+(`openrouter.ts`): `OpenRouter menolak permintaan (status).` (body JSON dibuang)
+dan `Respons tidak terbaca dari OpenRouter (HTTP status).` (potongan body
+mentah disembunyikan). Keduanya menyulitkan diagnosis frame gagal.
+
+- `src/lib/providers/openrouter.ts`: `openrouterMessage` →
+  **`openrouterMessageDetail`** (mengembalikan `{ message, code }` — `code` dari
+  `{"error":{"message":"…","code":…}}` selama ini diabaikan, kini ditampilkan;
+  bentuk string `{"error":"…"}` dan defensif top-level `{"message":"…"}` tetap
+  ditangani) + helper **`rawSnippet`** (200 char, satu baris).
+  Urutan `openrouterErrorMessage` yang baru — TIDAK ADA cabang tanpa detail:
+  1. pesan asli menang → `pesan [code X] (HTTP S)` (contoh:
+     `No endpoints found [code 404] (HTTP 404)`);
+  2. status dikenal tanpa pesan asli → pesan ramah + status
+     (`Key salah — … . (HTTP 401)`, kuota 429, kredit 402);
+  3. body non-JSON → `OpenRouter error (HTTP S): <potongan mentah>`
+     (dulu potongan disembunyikan);
+  4. JSON tanpa `error.message` → `OpenRouter error (HTTP S): <ringkasan JSON>`;
+  5. tanpa body sama sekali → `OpenRouter error (HTTP S) — body kosong.`
+- Aman: snippet berasal dari body respons (tidak pernah berisi API key — key
+  hanya di header `Authorization`); pesan ini yang tampil di frame gagal via
+  `ProviderError.message` seperti biasa (tidak ada jalur error baru).
+- `openrouter.test.ts` (+2, total 9): ekspektasi lama yang generik diperbarui
+  (`Invalid API key provided (HTTP 401)`, `OpenRouter error (HTTP 502):
+  <html>Bad Gateway</html>`, `No endpoints found (HTTP 404)`); baru: `code`
+  ikut tampil + JSON tak dikenal tetap membawa status & ringkasan.
+  Groq/Gemini TIDAK diubah (cakupan = OpenRouter sesuai permintaan).
+
+### 2. Logging topup: SELALU `console.warn`, format konsisten, tak bisa tertelan
+
+- `src/lib/providers/fallback.ts` (`withTopup` — di sinilah fungsi itu tinggal,
+  bukan di `topup.ts`; satu-satunya definisi, dipakai jalur aktif maupun
+  cadangan): setiap pemanggilan kini SELALU membuka dengan
+  `[topup] provider=<id> awal=<N> threshold=30 perlu_topup=<true/false>`,
+  lalu sesuai alur:
+  - tidak perlu → `[topup] tidak perlu top-up, hasil awal sudah cukup: <N>`;
+  - dilewati (Tahap D `promptOverride` / retry bahasa-perluasan) →
+    `[topup] dilewati (…) , awal=<N>` (sebelumnya diam total);
+  - tiap follow-up sukses → `[topup] follow-up-1 hasil=<H>
+    total_setelah_merge=<T>` / `[topup] follow-up-2 hasil=<H2>
+    total_final=<T2>` (`hasil` = keyword mentah extra, `total` = sesudah
+    merge+dedupe — bedanya terlihat bila dedupe membuang duplikat);
+  - follow-up gagal (network/limit) → `[topup] follow-up gagal: <pesan asli
+    error>, pakai hasil yang ada: <N>`; warn lama "gagal capai target"
+    setelah 3x dipertahankan sebagai baris penutup.
+  - Anti-telan: baris sukses/gagal ditulis di LUAR `try/catch`
+    (panggilan API di `try` tersendiri, merge+log sesudahnya); `catch`
+    me-log DULU baru `break`; `batal` (abort) dilempar ulang tanpa log
+    gagal (itu pembatalan user, bukan error) — tapi log entry sudah
+    terlanjur keluar sebelum throw, jadi tiap pemanggilan minimal
+    meninggalkan 1 baris.
+- Client-side, bukan server: `generateWithFallback` dipanggil dari hook
+  `useBatch` di browser (`fetch` langsung + `localStorage`, tanpa API route
+  server di jalur ini) — `console.warn` muncul di **browser Console**
+  (DevTools → Console, filter `[topup]`), tidak perlu pemindahan logging.
+- Tes: `topup.test.ts` meng-assert urutan & isi persis tiap skenario
+  (entry → fu-1 → fu-2 → mentok; entry + gagal; entry + tidak-perlu);
+  `fallback.test.ts` + `useBatch.test.ts` membisukan `console.warn`
+  (isi di-assert terpusat di `topup.test.ts`) supaya output suite bersih.
+
+Verifikasi: `npm run test` **392/392**, `npx tsc --noEmit` 0,
+`npm run lint` 0, `npm run build` sukses.

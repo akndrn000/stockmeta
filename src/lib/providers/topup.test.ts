@@ -1,7 +1,7 @@
 // Tes top-up keyword otomatis: prompt follow-up, merge+dedupe+cap, dan integrasi
 // generateWithFallback (mock 2 panggilan, tanpa jaringan). Skenario Dunia nyata:
 // hasil pertama 15/49 → follow-up ke provider YANG SAMA → total ~35-40.
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MAX_KEYWORDS, MAX_KEYWORDS_ADOBE, TARGET_KEYWORDS_MIN } from '../limits';
 import type { ParsedMetadata, SourcedKeyword } from '../prompt';
 import { generateWithFallback } from './fallback';
@@ -34,6 +34,19 @@ describe('buildTopupPrompt', () => {
     expect(p).toContain('{"keywords"');
     expect(p).toContain('visible|attribute|synonym|theme|usage');
     expect(p).toContain('bahasa Inggris');
+  });
+
+  it('mengarahkan ke sudut pandang spesifik yang belum tereksplorasi (bukan "tambah lagi" generik)', () => {
+    const p = buildTopupPrompt(['fox', 'fur']);
+    expect(p).toContain('TAMBAHAN kata kunci BARU');
+    expect(p).toContain('BELUM terwakili');
+    expect(p).toContain('Gaya/format visual');
+    expect(p).toContain('Jenis aset');
+    expect(p).toContain('Konteks penggunaan');
+    expect(p).toContain('Sinonim atau istilah alternatif');
+    expect(p).toContain('budaya/musiman');
+    expect(p).toContain('JANGAN memaksakan kategori');
+    expect(p).toContain('lewati kategori itu');
   });
 });
 
@@ -124,6 +137,12 @@ const ARGS = {
 };
 
 describe('generateWithFallback + top-up', () => {
+  // Logging topup SELALU via console.warn (produksi: browser Console) — dibisukan
+  // di sini supaya output tes bersih; tes yang meng-assert isi log memakai mock
+  // yang sama (vi.spyOn mengembalikan mock yang sudah ada).
+  beforeEach(() => { vi.spyOn(console, 'warn').mockImplementation(() => {}); });
+  afterEach(() => { vi.restoreAllMocks(); });
+
   it('15/49 → SATU follow-up ke provider sama (gambar sama, daftar lama di prompt) → total 35', async () => {
     const seen: GenerateArgs[] = [];
     const s = depsFor(async (args) => {
@@ -145,6 +164,10 @@ describe('generateWithFallback + top-up', () => {
     expect(out.topupAttempts).toBe(2);
     expect(out.topupCount).toBe(35);
     expect(infos).toEqual([{ attempt: 1, count: 15 }, { attempt: 2, count: 35 }]);
+    // logging SELALU muncul: entry + hasil follow-up-1
+    const logs = vi.mocked(console.warn).mock.calls.map((c) => String(c[0]));
+    expect(logs[0]).toBe('[topup] provider=groq awal=15 threshold=30 perlu_topup=true');
+    expect(logs[1]).toBe('[topup] follow-up-1 hasil=25 total_setelah_merge=35');
   });
 
   it('masih < 30 setelah follow-up 1 → follow-up 2 memakai daftar SEJAUH ITU (maks 3 panggilan)', async () => {
@@ -163,43 +186,53 @@ describe('generateWithFallback + top-up', () => {
     expect(out.meta.sourcedKeywords).toHaveLength(30);
     expect(out.topupAttempts).toBe(3);
     expect(out.topupCount).toBe(30);
+    // logging: entry + follow-up-1 + follow-up-2 (format konsisten, pasti muncul)
+    const logs2 = vi.mocked(console.warn).mock.calls.map((c) => String(c[0]));
+    expect(logs2[0]).toBe('[topup] provider=groq awal=10 threshold=30 perlu_topup=true');
+    expect(logs2[1]).toBe('[topup] follow-up-1 hasil=10 total_setelah_merge=20');
+    expect(logs2[2]).toBe('[topup] follow-up-2 hasil=10 total_final=30');
   });
 
   it('tetap < 30 setelah 3 panggilan → STOP, pakai yang ada + warn permanen', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    try {
-      const four = N(4).map(src);
-      const gen = vi.fn(async () => ({ sourcedKeywords: four.map((s) => ({ ...s })) }));
-      const s = depsFor(gen);
-      const out = await generateWithFallback(ARGS, s.deps);
-      expect(gen).toHaveBeenCalledTimes(3);   // TIDAK BOLEH lebih
-      expect(out.meta.sourcedKeywords).toHaveLength(4);
-      expect(out.topupAttempts).toBe(3);
-      expect(out.topupCount).toBe(4);
-      expect(warn).toHaveBeenCalledTimes(1);
-      expect(warn.mock.calls[0][0]).toBe(
-        '[topup] Frame gagal capai target keyword: 4/30 setelah 3 percobaan (provider: groq)'
-      );
-    } finally {
-      warn.mockRestore();
-    }
+    const four = N(4).map(src);
+    const gen = vi.fn(async () => ({ sourcedKeywords: four.map((s) => ({ ...s })) }));
+    const s = depsFor(gen);
+    const out = await generateWithFallback(ARGS, s.deps);
+    expect(gen).toHaveBeenCalledTimes(3);   // TIDAK BOLEH lebih
+    expect(out.meta.sourcedKeywords).toHaveLength(4);
+    expect(out.topupAttempts).toBe(3);
+    expect(out.topupCount).toBe(4);
+    // logging lengkap dan berurutan: entry → fu-1 → fu-2 → ringkasan mentok
+    const warn = vi.mocked(console.warn);
+    expect(warn).toHaveBeenCalledTimes(4);
+    expect(warn.mock.calls[0][0]).toBe(
+      '[topup] provider=groq awal=4 threshold=30 perlu_topup=true'
+    );
+    expect(warn.mock.calls[1][0]).toBe(
+      '[topup] follow-up-1 hasil=4 total_setelah_merge=4'
+    );
+    expect(warn.mock.calls[2][0]).toBe(
+      '[topup] follow-up-2 hasil=4 total_final=4'
+    );
+    expect(warn.mock.calls[3][0]).toBe(
+      '[topup] Frame gagal capai target keyword: 4/30 setelah 3 percobaan (provider: groq)'
+    );
   });
 
-  it('cukup setelah 2 panggilan → TIDAK ada warn', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    try {
-      const s = depsFor(async (args) => {
-        if (!args.promptOverride) return { sourcedKeywords: N(15).map(src) };
-        return { sourcedKeywords: N(20, 'n').map(src) };
-      });
-      await generateWithFallback(ARGS, s.deps);
-      expect(warn).not.toHaveBeenCalled();
-    } finally {
-      warn.mockRestore();
-    }
+  it('cukup setelah 2 panggilan → log entry + follow-up-1, TANPA warn mentok', async () => {
+    const s = depsFor(async (args) => {
+      if (!args.promptOverride) return { sourcedKeywords: N(15).map(src) };
+      return { sourcedKeywords: N(20, 'n').map(src) };
+    });
+    await generateWithFallback(ARGS, s.deps);
+    const warn = vi.mocked(console.warn);
+    const msgs = warn.mock.calls.map((c) => String(c[0]));
+    expect(msgs).toContain('[topup] provider=groq awal=15 threshold=30 perlu_topup=true');
+    expect(msgs).toContain('[topup] follow-up-1 hasil=20 total_setelah_merge=35');
+    expect(msgs.some((m) => m.includes('gagal capai target'))).toBe(false);
   });
 
-  it('follow-up GAGAL (limit) → hasil pertama dipakai apa adanya, tanpa throw', async () => {
+  it('follow-up GAGAL (limit) → hasil pertama dipakai apa adanya + log gagal, tanpa throw', async () => {
     const s = depsFor(async (args) => {
       if (!args.promptOverride) return { title: 'T', keywords: N(15) };
       throw new ProviderError('Batas kuota tercapai (429) — coba lagi nanti.', { status: 429 });
@@ -207,15 +240,26 @@ describe('generateWithFallback + top-up', () => {
     const out = await generateWithFallback(ARGS, s.deps);
     expect(out.meta).toEqual({ title: 'T', keywords: N(15) });
     expect(out.topupAttempts).toBe(1);
+    // entry + log kegagalan follow-up (pesan asli error + jumlah yang dipakai)
+    const msgs = vi.mocked(console.warn).mock.calls.map((c) => String(c[0]));
+    expect(msgs[0]).toBe('[topup] provider=groq awal=15 threshold=30 perlu_topup=true');
+    expect(msgs[1]).toBe(
+      '[topup] follow-up gagal: Batas kuota tercapai (429) — coba lagi nanti., pakai hasil yang ada: 15'
+    );
   });
 
-  it('30+ keyword → TANPA follow-up (satu panggilan saja)', async () => {
+  it('30+ keyword → TANPA follow-up (satu panggilan saja) + log tidak-perlu', async () => {
     const gen = vi.fn(async () => ({ keywords: N(30) }));
     const s = depsFor(gen);
     const out = await generateWithFallback(ARGS, s.deps);
     expect(gen).toHaveBeenCalledTimes(1);
     expect(out.meta.keywords).toHaveLength(30);
     expect(out.topupAttempts).toBe(1);
+    const msgs = vi.mocked(console.warn).mock.calls.map((c) => String(c[0]));
+    expect(msgs).toEqual([
+      '[topup] provider=groq awal=30 threshold=30 perlu_topup=false',
+      '[topup] tidak perlu top-up, hasil awal sudah cukup: 30'
+    ]);
   });
 
   it('panggilan verifikasi Tahap D (promptOverride) → TANPA top-up', async () => {

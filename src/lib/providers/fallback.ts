@@ -101,19 +101,39 @@ export async function generateWithFallback(
   // keyword SEJAUH ITU (bukan cuma panggilan pertama) agar tak mengulang. Jeda
   // singkat antar percobaan supaya tak memicu rate limit. Tetap satu frame di
   // progress batch; follow-up gagal → hasil sejauh itu (batal → tetap batal).
+  // Logging: SELALU console.warn (client-side — generateWithFallback dipanggil dari
+  // hook useBatch di browser, jadi muncul di browser Console; tidak ada API route
+  // server di jalur ini). Tiap baris berdiri sendiri di LUAR try/catch supaya tidak
+  // tertelan: entry → hasil tiap follow-up / gagal → ringkasan akhir bila mentok.
   const withTopup = async (
     adapter: ProviderAdapter,
     apiKey: string,
     meta: ParsedMetadata
   ): Promise<{ meta: ParsedMetadata; attempts: number }> => {
+    const initialCount = countKeywords(meta);
+    const need = needsTopup(meta);
+    console.warn(
+      `[topup] provider=${adapter.id} awal=${initialCount} threshold=${TARGET_KEYWORDS_MIN} perlu_topup=${need}`
+    );
     const once = { meta, attempts: 1 };
-    if (opts.promptOverride) return once;   // Tahap D verifikasi → bukan metadata
+    if (opts.promptOverride) {
+      console.warn(`[topup] dilewati (Tahap D promptOverride), awal=${initialCount}`);
+      return once;   // Tahap D verifikasi → bukan metadata
+    }
     // Retry (koreksi bahasa / perluasan useBatch) adalah jaring pengaman KEDUA —
     // jangan menumpuk top-up di atasnya (maksimal +1 panggilan per frame).
-    if (opts.languageFix || opts.retryNote) return once;
-    opts.onTopup?.({ attempt: 1, count: countKeywords(meta) });
+    if (opts.languageFix || opts.retryNote) {
+      console.warn(`[topup] dilewati (retry bahasa/perluasan), awal=${initialCount}`);
+      return once;
+    }
+    opts.onTopup?.({ attempt: 1, count: initialCount });
+    if (!need) {
+      console.warn(`[topup] tidak perlu top-up, hasil awal sudah cukup: ${initialCount}`);
+      return { meta, attempts: 1 };
+    }
     let current = meta;
     let attempts = 1;
+    let followup = 0;
     const delayMs = deps.topupDelayMs ?? TOPUP_ATTEMPT_DELAY_MS;
     while (attempts < TOPUP_MAX_CALLS && needsTopup(current)) {
       if (opts.signal?.aborted) throw new ProviderError('Dibatalkan', { retryable: false });
@@ -121,6 +141,8 @@ export async function generateWithFallback(
         await sleepAbortable(delayMs, opts.signal);
         if (opts.signal?.aborted) throw new ProviderError('Dibatalkan', { retryable: false });
       }
+      // Panggilan follow-up di try tersendiri: gagal → LOG DULU lalu break
+      // (batal → lempar ulang tanpa log gagal, itu pembatalan user bukan error).
       let extra: ParsedMetadata;
       try {
         extra = await adapter.generateForImage({
@@ -132,13 +154,24 @@ export async function generateWithFallback(
           onWait: opts.onWait,
           promptOverride: buildTopupPrompt(existingKeywordList(current))
         });
-        current = mergeTopupKeywords(current, extra, opts.platform);
       } catch (e) {
         if (opts.signal?.aborted) throw e;   // batal → batal beneran, jangan ditelan
+        const msg = e instanceof Error && e.message ? e.message : String(e);
+        console.warn(`[topup] follow-up gagal: ${msg}, pakai hasil yang ada: ${countKeywords(current)}`);
         break;   // follow-up gagal → hasil sejauh ini (lebih baik sedikit daripada gagal total)
       }
+      // Sukses: hitung + merge + LOG di luar try/catch di atas (tak bisa tertelan).
+      const extraCount = countKeywords(extra);
+      current = mergeTopupKeywords(current, extra, opts.platform);
+      const total = countKeywords(current);
+      followup++;
+      if (followup === 1) {
+        console.warn(`[topup] follow-up-1 hasil=${extraCount} total_setelah_merge=${total}`);
+      } else {
+        console.warn(`[topup] follow-up-2 hasil=${extraCount} total_final=${total}`);
+      }
       attempts++;
-      opts.onTopup?.({ attempt: attempts, count: countKeywords(current) });
+      opts.onTopup?.({ attempt: attempts, count: total });
     }
     const count = countKeywords(current);
     // PERMANEN (bukan debug): pemantauan batas kemampuan nyata provider/model.
