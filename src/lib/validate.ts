@@ -1,6 +1,7 @@
 // Saran validasi metadata + error pemblokir ekspor (blocking: true) — daftar { field, message }
 // untuk ditampilkan UI di dekat field / ringkasan bawah. Angka batas dari limits.ts/categories.ts.
 import {
+  GENERIC_BAN_WORDS,
   MAX_DESCRIPTION_SHUTTER,
   MAX_FILENAME,
   MAX_KEYWORDS,
@@ -39,6 +40,21 @@ export const KEYWORD_THIN_MSG = (_n: number): string => {
 // otomatis (cleanShutterstockDescription); bila masih ada koma → saran.
 export const SS_COMMA_MSG =
   'Deskripsi masih mengandung koma — hapus koma agar menjadi satu kalimat mengalir.';
+
+// Kata generik lolos ke daftar akhir (mis. ketikan manual) — saran non-pemblokir.
+export const GENERIC_KEYWORD_MSG = (words: string[]): string =>
+  `Kata kunci generik sebaiknya dibuang: ${words.join(', ')}.`;
+const GENERIC_BAN_SET = new Set(GENERIC_BAN_WORDS.map((w) => w.toLowerCase()));
+// Hanya kata tunggal yang persis generik yang ditandai (frasa multi-kata
+// sudah dinilai jalurnya sendiri di keywordGroups).
+function findGenericKeywords(kws: string[]): string[] {
+  const hit: string[] = [];
+  for (const k of kws) {
+    const words = k.toLowerCase().split(/[^a-z]+/).filter(Boolean);
+    if (words.length === 1 && GENERIC_BAN_SET.has(words[0]) && !hit.includes(k)) hit.push(k);
+  }
+  return hit;
+}
 
 const countWords = (s: string) => s.split(/\s+/).filter(Boolean).length;
 
@@ -79,6 +95,9 @@ export function validateMetadata(platform: Platform, metadata: Metadata | undefi
     if (n > MAX_KEYWORDS_ADOBE) notes.push({ field: 'keywords', message: `Kata kunci ${n} — maksimal ${MAX_KEYWORDS_ADOBE}.` });
     // Di bawah target kualitas 30 = saran (tidak digenapi kata karangan).
     if (n > 0 && n < TARGET_KEYWORDS_MIN) notes.push({ field: 'keywords', message: KEYWORD_THIN_MSG(n) });
+    // Kata generik yang lolos (mis. ketikan manual) = saran non-pemblokir.
+    const genericAdobe = findGenericKeywords(kws);
+    if (genericAdobe.length) notes.push({ field: 'keywords', message: GENERIC_KEYWORD_MSG(genericAdobe) });
     // Fase 3: keyword Indonesia >20% = peringatan (non-pemblokir).
     if (n > 0 && indonesianKeywordRatio(kws) > INDONESIAN_KEYWORD_RATIO_LIMIT) {
       notes.push({ field: 'keywords', message: `${ENGLISH_REQUIRED_MSG} (sebagian kata kunci terdeteksi bahasa Indonesia).` });
@@ -119,6 +138,8 @@ export function validateMetadata(platform: Platform, metadata: Metadata | undefi
   if (n > MAX_KEYWORDS) notes.push({ field: 'keywords', message: `Kata kunci ${n} — maksimal ${MAX_KEYWORDS}.` });
   // Di bawah target kualitas 30 = saran (tidak digenapi kata karangan).
   if (n > 0 && n < TARGET_KEYWORDS_MIN) notes.push({ field: 'keywords', message: KEYWORD_THIN_MSG(n) });
+  const genericShutter = findGenericKeywords(kws);
+  if (genericShutter.length) notes.push({ field: 'keywords', message: GENERIC_KEYWORD_MSG(genericShutter) });
   if (n > 0 && indonesianKeywordRatio(kws) > INDONESIAN_KEYWORD_RATIO_LIMIT) {
     notes.push({ field: 'keywords', message: `${ENGLISH_REQUIRED_MSG} (sebagian kata kunci terdeteksi bahasa Indonesia).` });
   }

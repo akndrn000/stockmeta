@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { GENERATION_MAX_TOKENS, GENERATION_TEMPERATURE } from '../limits';
 import { groq } from './groq';
 
 const fetchMock = vi.fn();
@@ -43,6 +44,9 @@ describe('groq.generateForImage', () => {
     const body = JSON.parse(String(init.body));
     expect(body.model).toBe('qwen/qwen3.8-27b');
     expect(body.response_format).toEqual({ type: 'json_object' });
+    // Deterministik + JSON panjang tidak terpotong: suhu rendah, pagu token longgar.
+    expect(body.temperature).toBe(GENERATION_TEMPERATURE);
+    expect(body.max_tokens).toBe(GENERATION_MAX_TOKENS);
     expect(body.messages[0].content).toEqual([
       { type: 'text', text: expect.stringContaining('Tema utama dari kontributor: "Halloween".') },
       { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,QUFBQQ==' } }

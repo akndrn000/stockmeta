@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { GENERATION_MAX_TOKENS, GENERATION_TEMPERATURE } from '../limits';
 import { gemini } from './gemini';
 import { GEMINI_MODEL } from './models';
 
@@ -91,6 +92,15 @@ describe('gemini.generateForImage', () => {
       { text: 'Hapus kata yang salah' },
       { inline_data: { mime_type: 'image/jpeg', data: 'QUFBQQ==' } }
     ]);
+  });
+
+  it('generationConfig: JSON + suhu rendah + pagu token longgar (seragam Groq/OpenRouter)', async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes({ candidates: [{ content: { parts: [{ text: '{"keywords":[]}' }] } }] }));
+    await gemini.generateForImage(genArgs);
+    const body = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
+    expect(body.generationConfig.responseMimeType).toBe('application/json');
+    expect(body.generationConfig.temperature).toBe(GENERATION_TEMPERATURE);
+    expect(body.generationConfig.maxOutputTokens).toBe(GENERATION_MAX_TOKENS);
   });
 
   it('body request TANPA parameter "tools" (tanpa grounding/code execution berbayar)', async () => {

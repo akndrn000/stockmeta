@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ADOBE_CATEGORIES, SHUTTERSTOCK_CATEGORIES } from './categories';
-import { MAX_DESCRIPTION_SHUTTER, MAX_KEYWORDS_ADOBE, MAX_TITLE_CSV, SS_DESCRIPTION_SUGGEST, TARGET_KEYWORDS_MAX, TARGET_KEYWORDS_MIN } from './limits';
+import { MAX_DESCRIPTION_SHUTTER, MAX_KEYWORDS, MAX_KEYWORDS_ADOBE, MAX_TITLE_CSV, PROMPT_TARGET_ADOBE_MIN, PROMPT_TARGET_SHUTTER_MIN, SS_DESCRIPTION_SUGGEST, TARGET_KEYWORDS_MAX } from './limits';
 import { buildMetadataPrompt, buildVerifyPrompt, parseMetadataResponse } from './prompt';
 import { STAGE_B_WITH_IMAGE } from './providers/models';
 
@@ -97,7 +97,11 @@ describe('buildMetadataPrompt', () => {
       expect(p).toContain('HANYA SATU KATA');
       expect(p).toContain('"usage"');
       expect(p).toContain('DILARANG MENGARANG');
-      expect(p).toContain(`${TARGET_KEYWORDS_MIN} SAMPAI ${TARGET_KEYWORDS_MAX}`);
+      // Target per platform: Adobe 35–49, Shutterstock 25–50
+      const want = platform === 'adobe'
+        ? `ANTARA ${PROMPT_TARGET_ADOBE_MIN} SAMPAI ${TARGET_KEYWORDS_MAX}`
+        : `ANTARA ${PROMPT_TARGET_SHUTTER_MIN} SAMPAI ${MAX_KEYWORDS}`;
+      expect(p).toContain(want);
       expect(p).toContain('boleh multikata');
       // tanpa contoh terikat tema
       expect(p.toLowerCase()).not.toContain('halloween');
@@ -301,10 +305,12 @@ describe('parseMetadataResponse', () => {
     }
   });
 
-  it('target keyword 30-49 tegas + akurat + sudut pengembangan', () => {
-    for (const platform of ['adobe', 'shutterstock'] as const) {
-      const p = buildMetadataPrompt({ platform });
-      expect(p).toContain(`ANTARA ${TARGET_KEYWORDS_MIN} SAMPAI ${TARGET_KEYWORDS_MAX}`);
+  it('target keyword per platform tegas + akurat + sudut pengembangan', () => {
+    const adobe = buildMetadataPrompt({ platform: 'adobe' });
+    expect(adobe).toContain(`ANTARA ${PROMPT_TARGET_ADOBE_MIN} SAMPAI ${TARGET_KEYWORDS_MAX}`);
+    const shutter = buildMetadataPrompt({ platform: 'shutterstock' });
+    expect(shutter).toContain(`ANTARA ${PROMPT_TARGET_SHUTTER_MIN} SAMPAI ${MAX_KEYWORDS}`);
+    for (const p of [adobe, shutter]) {
       expect(p).toContain('kecuali gambar benar-benar sangat sederhana');
       expect(p).toContain('HARUS akurat dan benar-benar relevan');
       expect(p).toContain('JANGAN mengarang kata kunci yang tidak berhubungan');
@@ -345,5 +351,81 @@ describe('parseMetadataResponse', () => {
     expect(p.visible_facts).toEqual(['orange cat', 'bat wings', '7']);
     const old = parseMetadataResponse(JSON.stringify({ keywords: ['cat'] }), 'adobe');
     expect(old.visible_facts).toBeUndefined();
+  });
+});
+
+describe('kata kunci spesifik: larangan generik, urutan, tema konteks, contoh', () => {
+  it('larangan generik eksplisit + dimensi analisis gambar', () => {
+    for (const platform of ['adobe', 'shutterstock'] as const) {
+      const p = buildMetadataPrompt({ platform });
+      for (const w of ['beautiful', 'nice', 'stock', 'concept', 'photo', 'design']) {
+        expect(p).toContain(w);
+      }
+      expect(p).toContain('DILARANG kata generik');
+      expect(p).toContain('bahan/tekstur');
+      expect(p).toContain('suasana');
+      expect(p).toContain('gaya visual');
+      expect(p).toContain('DILARANG menebak merek');
+      expect(p).toContain('tempat spesifik yang tidak terlihat');
+      expect(p).toContain('tanpa tanda baca');
+      expect(p).toContain('Dedup SECARA MAKNA');
+    }
+  });
+
+  it('urutan relevansi: 10 pertama frasa pencarian pembeli, keyword pertama dari subjek', () => {
+    for (const platform of ['adobe', 'shutterstock'] as const) {
+      const p = buildMetadataPrompt({ platform });
+      expect(p).toContain('10 kata pertama');
+      expect(p).toContain('Keyword pertama harus berasal dari subjek');
+    }
+  });
+
+  it('tema sebagai konteks: dipakai hanya bila relevan, bukan paksaan', () => {
+    const p = buildMetadataPrompt({ platform: 'adobe', theme: 'Harvest Festival' });
+    expect(p).toContain('hanya konteks tambahan untuk foto ini');
+    expect(p).toContain('HANYA bila relevan dengan foto ini');
+    expect(p).not.toMatch(/wajib.*semua foto/i);
+  });
+
+  it('contoh: 2 baik + 1 buruk beserta alasannya', () => {
+    for (const platform of ['adobe', 'shutterstock'] as const) {
+      const p = buildMetadataPrompt({ platform });
+      expect(p).toContain('BAIK 1');
+      expect(p).toContain('BAIK 2');
+      expect(p).toContain('BURUK');
+      expect(p).toContain('Alasan baik');
+      expect(p).toContain('Alasan buruk');
+    }
+  });
+
+  it('PERAN + TUGAS + ATURAN + FORMAT terstruktur', () => {
+    for (const platform of ['adobe', 'shutterstock'] as const) {
+      const p = buildMetadataPrompt({ platform });
+      expect(p).toContain('PERAN:');
+      expect(p).toContain('TUGAS:');
+      expect(p).toContain('ATURAN KATA KUNCI');
+      expect(p).toContain('ATURAN PENTING UNTUK TITLE/DESCRIPTION:');
+      expect(p).toContain('Format JSON untuk platform ini:');
+      expect(p).toContain('CONTOH');
+    }
+  });
+
+  it('JSON terpotong → Error kind json (di-retry pipeline, bukan hasil diam-diam)', () => {
+    const cut = '{"title": "Red bicycle", "keywords": ["bicycle", "red';
+    let kind = '';
+    try {
+      parseMetadataResponse(cut, 'adobe');
+    } catch (e) {
+      kind = (e as { kind?: string }).kind ?? '';
+    }
+    expect(kind).toBe('json');
+  });
+
+  it('tanda baca tepi keyword dibersihkan, isi tengah dipertahankan', () => {
+    const p = parseMetadataResponse(JSON.stringify({
+      keywords: ['"bicycle"', '(commute)', 't-shirt', 'vintage!'],
+      category: 'Animals'
+    }), 'adobe');
+    expect(p.keywords).toEqual(['bicycle', 'commute', 't-shirt', 'vintage']);
   });
 });

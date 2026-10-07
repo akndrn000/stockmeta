@@ -3,6 +3,7 @@
 import { getCategories, normCat, SS_CATEGORIES_REQUIRED } from './categories';
 import { cleanAdobeTitle, cleanShutterstockDescription } from './metadata';
 import {
+  GENERIC_BAN_WORDS,
   KEYWORD_PHRASE_MAX,
   KEYWORD_USAGE_MAX,
   MAX_DESCRIPTION_SHUTTER,
@@ -10,9 +11,10 @@ import {
   MAX_KEYWORDS_ADOBE,
   MAX_TITLE_CSV,
   PLATFORM_TOP_KEYWORDS,
+  PROMPT_TARGET_ADOBE_MIN,
+  PROMPT_TARGET_SHUTTER_MIN,
   SS_DESCRIPTION_SUGGEST,
-  TARGET_KEYWORDS_MAX,
-  TARGET_KEYWORDS_MIN
+  TARGET_KEYWORDS_MAX
 } from './limits';
 import { STAGE_B_WITH_IMAGE } from './providers/models';
 import type { Platform } from './types';
@@ -27,14 +29,27 @@ export const LANGUAGE_FIX_INSTRUCTION =
 
 export function buildMetadataPrompt({ platform, theme, languageFix, retryNote }: { platform: Platform; theme?: string; languageFix?: boolean; retryNote?: string }): string {
   const cats = getCategories(platform);
+  // Target jumlah per platform: Adobe 35–49 (maksimal 49), Shutterstock 25–50.
+  // Lantai validasi keras (5/7) dan saran kualitas (<30) tetap di validate.ts.
+  const targetMin = platform === 'adobe' ? PROMPT_TARGET_ADOBE_MIN : PROMPT_TARGET_SHUTTER_MIN;
+  const targetMax = platform === 'adobe' ? TARGET_KEYWORDS_MAX : MAX_KEYWORDS;
+  const platformMax = platform === 'adobe' ? MAX_KEYWORDS_ADOBE : MAX_KEYWORDS;
   // Urutan field: visible_facts DULU (menentukan keyword), baru title/description,
   // keywords, category. Tanpa field confidence/notes (tak ada konsumennya).
   const jsonFormat = platform === 'adobe'
-    ? `{"visible_facts": array string pendek fakta visual — SATU fakta per butir (objek utama, jumlah, bagian/kostum, warna SETIAP bagian menempel bagiannya, bentuk, motif, bahan, aksi/pose, latar singkat, ada/tidaknya teks, gaya aset), "title": string maks ${MAX_TITLE_CSV} karakter (Inggris, kapital di awal, tanpa koma, boleh multikata), "keywords": array ${TARGET_KEYWORDS_MIN}-${TARGET_KEYWORDS_MAX} objek {k, src, of?, rel?, kind?, standalone?} (maksimal ${MAX_KEYWORDS_ADOBE} kata, yang paling penting dulu), "category": string — salah satu persis dari daftar kategori di atas, "theme_canonical": string Inggris baku untuk tema, "theme_fit": boolean (tema didukung gambar?), "theme_evidence": string elemen gambar pendukung tema (wajib bila theme_fit true), "observation": {...lihat Tahap A...}}`
-    : `{"visible_facts": array string pendek fakta visual — SATU fakta per butir (objek utama, jumlah, bagian/kostum, warna SETIAP bagian menempel bagiannya, bentuk, motif, bahan, aksi/pose, latar singkat, ada/tidaknya teks, gaya aset), "description": string SATU kalimat Inggris natural TANPA koma sama sekali (diawali subjek utama, lalu elemen kunci, lalu tema bila cocok; minimal 5 kata, ideal ${SS_DESCRIPTION_SUGGEST.MIN}–${SS_DESCRIPTION_SUGGEST.MAX} karakter SATU kalimat, pagar ${MAX_DESCRIPTION_SHUTTER} karakter, BUKAN daftar kata, boleh multikata), "keywords": array ${TARGET_KEYWORDS_MIN}-${TARGET_KEYWORDS_MAX} objek {k, src, of?, rel?, kind?, standalone?}, "category": array TEPAT ${SS_CATEGORIES_REQUIRED} string BERBEDA persis dari daftar kategori di atas, "theme_canonical": string Inggris baku untuk tema, "theme_fit": boolean, "theme_evidence": string (wajib bila theme_fit true), "observation": {...lihat Tahap A...}}`;
+    ? `{"visible_facts": array string pendek fakta visual — SATU fakta per butir (objek utama, jumlah, bagian/kostum, warna SETIAP bagian menempel bagiannya, bentuk, motif, bahan, aksi/pose, latar singkat, ada/tidaknya teks, gaya aset), "title": string maks ${MAX_TITLE_CSV} karakter (Inggris, kapital di awal, tanpa koma, boleh multikata), "keywords": array ${targetMin}-${targetMax} objek {k, src, of?, rel?, kind?, standalone?} (maksimal ${platformMax} kata, yang paling penting dulu), "category": string — salah satu persis dari daftar kategori di atas, "theme_canonical": string Inggris baku untuk tema, "theme_fit": boolean (tema didukung gambar?), "theme_evidence": string elemen gambar pendukung tema (wajib bila theme_fit true), "observation": {...lihat Tahap A...}}`
+    : `{"visible_facts": array string pendek fakta visual — SATU fakta per butir (objek utama, jumlah, bagian/kostum, warna SETIAP bagian menempel bagiannya, bentuk, motif, bahan, aksi/pose, latar singkat, ada/tidaknya teks, gaya aset), "description": string SATU kalimat Inggris natural TANPA koma sama sekali (diawali subjek utama, lalu elemen kunci, lalu tema bila cocok; minimal 5 kata, ideal ${SS_DESCRIPTION_SUGGEST.MIN}–${SS_DESCRIPTION_SUGGEST.MAX} karakter SATU kalimat, pagar ${MAX_DESCRIPTION_SHUTTER} karakter, BUKAN daftar kata, boleh multikata), "keywords": array ${targetMin}-${targetMax} objek {k, src, of?, rel?, kind?, standalone?}, "category": array TEPAT ${SS_CATEGORIES_REQUIRED} string BERBEDA persis dari daftar kategori di atas, "theme_canonical": string Inggris baku untuk tema, "theme_fit": boolean, "theme_evidence": string (wajib bila theme_fit true), "observation": {...lihat Tahap A...}}`;
+
+  // Daftar kata generik yang dilarang — satu sumber (limits.ts GENERIC_BAN_WORDS).
+  const bannedGeneric = GENERIC_BAN_WORDS.join(', ');
 
   const lines = [
     ENGLISH_INSTRUCTION,
+    '',
+    'PERAN: Kamu kurator metadata microstock (Adobe Stock & Shutterstock) yang',
+    'MELIHAT gambar terlampir dan menulis metadata siap jual dalam bahasa Inggris.',
+    'TUGAS: amati gambar DULU (Tahap A), BARU tulis metadata valid (Tahap B).',
+    'Hanya tulis hal yang benar-benar TERLIHAT atau menjadi makna gambar yang jelas.',
     '',
     'TAHAP A — AMATI GAMBAR (tulis apa adanya, kata tunggal Inggris per butir):',
     'Tulis DULU "visible_facts", BARU "observation" dan metadata. Satu butir = satu',
@@ -56,13 +71,17 @@ export function buildMetadataPrompt({ platform, theme, languageFix, retryNote }:
     '(kemungkinan pemakaian gambar ini), "colors" (warna identitas subjek), "media_type"',
     '("photo" untuk foto, "illustration"/"vector" untuk ilustrasi/vektor).',
     'JANGAN mengarang isi yang tidak terlihat. Latar dan sudut pandang TIDAK dipakai',
-    'untuk keyword — cukup catat warnanya bila menjadi identitas subjek.'
+    'untuk keyword — cukup catat warnanya bila menjadi identitas subjek.',
+    'Pastikan tiap dimensi terisi bila terlihat: subjek utama, aksi/pose, objek',
+    'pendukung, warna dominan tiap bagian, bahan/tekstur, suasana, lokasi/latar,',
+    'gaya visual, dan konsep yang diwakili gambar.'
   ];
   if (theme) {
     lines.push(
       'Tema utama dari kontributor: "' + theme + '".',
       'Kalau elemen visual di gambar konsisten dengan tema ini, KEMBANGKAN keyword dan title/description dengan istilah-istilah Inggris yang relevan dengan tema tersebut — SESUAIKAN dengan yang benar-benar cocok dengan visual gambar, jangan asal comot semua istilah generik tema itu.',
-      'Kalau visual gambar TIDAK konsisten dengan tema yang disebutkan, ABAIKAN tema ini sepenuhnya dan deskripsikan apa adanya.'
+      'Kalau visual gambar TIDAK konsisten dengan tema yang disebutkan, ABAIKAN tema ini sepenuhnya dan deskripsikan apa adanya.',
+      'Tema dari kontributor hanya konteks tambahan untuk foto ini: pakai kata tema HANYA bila relevan dengan foto ini, jangan menyalin kata tema ke foto lain.'
     );
   }
   lines.push(
@@ -71,11 +90,14 @@ export function buildMetadataPrompt({ platform, theme, languageFix, retryNote }:
     STAGE_B_WITH_IMAGE
       ? 'Nilailah seperti manusia yang MELIHAT gambar terlampir (bukan dari teks saja): cocokkan setiap kata dengan gambar + pengamatan Tahap A.'
       : 'Gunakan teks pengamatan Tahap A sebagai acuan utama.',
-    '1. HANYA SATU KATA per keyword sebagai default: satu token tanpa spasi, huruf kecil',
+    'ATURAN KATA KUNCI (dilanggar = gagal — hanya tulis yang terlihat/jelas):',
+    '1. Campur kata tunggal dan frasa pendek yang wajar dicari pembeli. Default',
+    '   HANYA SATU KATA per keyword: satu token tanpa spasi, huruf kecil',
     '   (tanda hubung hanya untuk istilah baku satu kata, mis. t-shirt atau trick-or-treat).',
     `   Istilah DUA kata baku yang benar-benar dicari orang diizinkan maksimal ${KEYWORD_PHRASE_MAX}`,
     '   per generasi, TIDAK PERNAH tiga kata (mis. black cat atau red wine boleh; tiga kata',
-    '   seperti hot air balloon tidak pernah dipakai). Setiap kata penyusun frasa harus ada di',
+    '   seperti hot air balloon tidak pernah dipakai). Tulis frasa sesuai urutan pencarian',
+    '   yang wajar (mis. "bicycle basket", bukan "basket bicycle"). Setiap kata penyusun frasa harus ada di',
     '   pengamatan atau tema; frasa tak boleh memuat kata latar atau anatomi generik.',
     '   Tambahkan "standalone": true/false per keyword satu kata = apakah pembeli akan',
     '   mencari kata itu SENDIRIAN untuk gambar ini (mis. "kit" dari "first aid kit",',
@@ -85,6 +107,9 @@ export function buildMetadataPrompt({ platform, theme, languageFix, retryNote }:
     '   komponennya sebagai keyword terpisah.',
     '2. SEMUA YANG BERKAITAN DENGAN LATAR DILARANG: background, backdrop, isolated,',
     '   isolate, cutout, transparent, plain, blank, copyspace, studio, dan sejenisnya.',
+    '   DILARANG kata generik/tidak informatif: ' + bannedGeneric + ', photo, picture,',
+    '   image, design — KECUALI tepat satu kata media yang sesuai jenis file foto/',
+    '   ilustrasi (photo/illustration/vector), maksimal 1, dan TIDAK PERNAH di 10 teratas.',
     '   Anatomi generik (ears, eyes, mouth, nose, face, head, body, limbs, legs, arms,',
     '   hands, paws, fingers, teeth, hair, tail, dan sejenisnya) DILARANG kecuali kata',
     '   itu subjek utama di "objects". Juga dilarang deskriptor tanpa nilai cari:',
@@ -111,7 +136,7 @@ export function buildMetadataPrompt({ platform, theme, languageFix, retryNote }:
     '   (graphic, design, clipart, icon, dan sejenisnya) DILARANG kecuali tercatat',
     '   sebagai bagian media_type. DILARANG MENGARANG: bila tidak ada hubungan dengan',
     '   gambar dan tema, jangan dibuat.',
-    `4. JUMLAH: Hasilkan ANTARA ${TARGET_KEYWORDS_MIN} SAMPAI ${TARGET_KEYWORDS_MAX} kata kunci (bukan kurang dari ${TARGET_KEYWORDS_MIN} kecuali gambar benar-benar sangat sederhana/minim elemen). Instruksi kuat ini adalah permintaan AWAL — bila hasil tetap di bawah ${TARGET_KEYWORDS_MIN}, satu follow-up top-up otomatis (jaring pengaman, lihat providers/topup.ts) akan meminta tambahannya. Kata kunci HARUS akurat dan benar-benar relevan dengan apa yang TERLIHAT di gambar dan tema yang diberikan — JANGAN mengarang kata kunci yang tidak berhubungan hanya untuk mengejar jumlah. Urutan: paling relevan/spesifik dulu, baru variasi sinonim, kategori umum, mood/gaya, warna, komposisi, dan konteks tema. Kembangkan dari berbagai sudut: subjek utama, aksi/pose, latar/lingkungan, gaya visual (misal flat design, 3D, vector, dsb), warna dominan, mood/emosi, kategori penggunaan (misal untuk desain apa), istilah terkait tema musiman kalau ada tema yang diisi. Detail urutan: subjek`,
+    `4. JUMLAH: Hasilkan ANTARA ${targetMin} SAMPAI ${targetMax} kata kunci (bukan kurang dari ${targetMin} kecuali gambar benar-benar sangat sederhana/minim elemen). Instruksi kuat ini adalah permintaan AWAL — bila hasil tetap di bawah ${targetMin}, satu follow-up top-up otomatis (jaring pengaman, lihat providers/topup.ts) akan meminta tambahannya. Kata kunci HARUS akurat dan benar-benar relevan dengan apa yang TERLIHAT di gambar dan tema yang diberikan — JANGAN mengarang kata kunci yang tidak berhubungan hanya untuk mengejar jumlah. Urutan: paling relevan/spesifik dulu, baru variasi sinonim, kategori umum, mood/gaya, warna, komposisi, dan konteks tema. Kembangkan dari berbagai sudut: subjek utama, aksi/pose, latar/lingkungan, gaya visual (misal flat design, 3D, vector, dsb), warna dominan, mood/emosi, kategori penggunaan (misal untuk desain apa), istilah terkait tema musiman kalau ada tema yang diisi. Detail urutan: subjek`,
     '   utama dan varian terdekat, kata inti theme_canonical, elemen/kostum kunci, jenis',
     '   media, gaya/suasana, sinonim/induk, konsep tema abstrak, usage, warna identitas',
     '   (maksimal 2, paling akhir). Judul dan deskripsi tetap boleh multikata.',
@@ -131,14 +156,21 @@ export function buildMetadataPrompt({ platform, theme, languageFix, retryNote }:
     '   tumpukan kata acak. Hindari tumpang tindih: jangan menulis kata tunggal dan',
     '   beberapa frasa yang hanya menambah kata kecil padanya, berulang-ulang.',
     '   Singular dan plural dianggap sama.',
-    '10. DILARANG: merek, nama orang, nama seniman, "AI generated", kata promosi.',
+    '10. DILARANG: merek, nama orang, nama seniman, nama tempat spesifik yang tidak',
+    '    terlihat di gambar, "AI generated", kata promosi.',
     '11. Kata generik (vector, illustration, icon, cute, dan sejenisnya) BUKAN kata',
     '    utama — validator menaruhnya paling akhir.',
+    '12. Dedup SECARA MAKNA, bukan hanya ejaan: jangan menulis dua kata/frasa yang',
+    '    artinya sama untuk gambar ini. Singular dan plural dianggap sama.',
+    '13. Semua keyword bahasa Inggris, huruf kecil, tanpa tanda baca, tanpa duplikat.',
+    '    DILARANG menebak merek, nama orang, atau tempat spesifik yang tidak terlihat.',
     '',
     'URUTAN KEYWORD (menentukan peringkat pencarian): posisi 1-3 subjek utama paling',
     'spesifik (frasa benda yang paling pas); posisi 4-7 ciri visual pembeda (bagian,',
     'motif, warna per bagian, aksi); sisa slot teratas untuk tema/acara/konsep pembeli',
     `yang cocok gambar; setelahnya kata sekunder, generik dan gaya aset paling akhir. ${PLATFORM_TOP_KEYWORDS.adobe} teratas (Adobe) / ${PLATFORM_TOP_KEYWORDS.shutterstock} teratas (Shutterstock) bebas kata generik.`,
+    '10 kata pertama adalah frasa pencarian yang paling mungkin dipakai pembeli untuk',
+    'menemukan gambar ini — subjek utama dan frasa pencariannya ada di awal.',
     'Keyword pertama harus berasal dari subjek yang juga ada di judul/deskripsi.',
     '',
     'ATURAN PENTING UNTUK TITLE/DESCRIPTION:',
@@ -168,7 +200,25 @@ export function buildMetadataPrompt({ platform, theme, languageFix, retryNote }:
   }
   if (languageFix) lines.push('', LANGUAGE_FIX_INSTRUCTION);
   if (retryNote) lines.push('', retryNote);
-  lines.push('', ENGLISH_INSTRUCTION);
+  lines.push(
+    '',
+    'CONTOH (tema-netral — tiru kekhususan dan urutannya, bukan katanya):',
+    'BAIK 1 (foto): {"title": "Red bicycle with wicker basket on a quiet street",',
+    '  "keywords": ["bicycle", "red bicycle", "wicker basket", "cycling", "quiet street",',
+    '  "commute", "vintage", "leisure", ...]}',
+    '  Alasan baik: subjek utama + frasa pencariannya di awal, tiap kata terlihat di',
+    '  gambar, urut dari paling spesifik ke paling umum.',
+    'BAIK 2 (ilustrasi): {"description": "A tabby cat wearing a tiny yellow raincoat sits under a glowing moon lantern",',
+    '  "keywords": ["tabby cat", "raincoat", "moon lantern", "pet costume", "glowing", ...]}',
+    '  Alasan baik: campur kata tunggal dan frasa wajar, warna menempel pada bagiannya',
+    '  (yellow raincoat), konsep (pet costume) didukung visual.',
+    'BURUK: {"keywords": ["beautiful", "nice", "photo", "background", "concept", "design",',
+    '  "image", "stock", ...]}',
+    '  Alasan buruk: generik semua — tidak menyebut subjek, objek, warna, suasana, atau',
+    '  gaya apa pun; pembeli tidak akan menemukan gambar ini lewat kata-kata itu.',
+    '',
+    ENGLISH_INSTRUCTION
+  );
   return lines.join('\n');
 }
 
@@ -285,7 +335,8 @@ function cleanKeywords(list: unknown[], max: number): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
   for (const k of list) {
-    const v = String(k ?? '').trim().replace(/^,+|,+$/g, '');
+    // Trim + buang koma/tanda baca di TEPI kata (isi tengah seperti t-shirt dipertahankan).
+    const v = String(k ?? '').trim().replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
     if (!v) continue;
     const low = v.toLowerCase();
     if (seen.has(low)) continue;

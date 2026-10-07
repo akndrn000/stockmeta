@@ -278,5 +278,21 @@ describe('validateMetadata - kebijakan 30 (M32)', () => {
     expect(hit).toBeDefined();
     expect(hit!.blocking).toBeFalsy();
   });
+
+  it('kata generik lolos = saran non-pemblokir (kedua platform)', () => {
+    const a = validateMetadata('adobe', adobe({ title: 'A fox rests', keywords: [...kws(30), 'beautiful', 'nice'], category: 'Animals' }));
+    const hitA = a.find((x) => x.field === 'keywords' && x.message.includes('beautiful'));
+    expect(hitA).toBeDefined();
+    expect(hitA!.blocking).toBeFalsy();
+    const s = validateMetadata('shutterstock', shutter({ description: 'A calm lake at sunrise with soft light over hills.', keywords: [...kws(30), 'concept'], categories: ['Nature', 'Parks/Outdoor'] }));
+    const hitS = s.find((x) => x.field === 'keywords' && x.message.includes('concept'));
+    expect(hitS).toBeDefined();
+    expect(hitS!.blocking).toBeFalsy();
+  });
+
+  it('tanpa kata generik = tanpa saran generik', () => {
+    const notes = validateMetadata('adobe', adobe({ title: 'A fox rests', keywords: kws(30), category: 'Animals' }));
+    expect(notes).toEqual([]);
+  });
 });
 

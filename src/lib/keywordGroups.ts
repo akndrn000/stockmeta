@@ -13,6 +13,7 @@ import {
   ANATOMY_STOPLIST,
   BACKGROUND_STOPLIST,
   COLOR_WORDS,
+  GENERIC_BAN_WORDS,
   GENERIC_FILLER_WORDS,
   GENERIC_TAIL_MAX,
   GENERIC_TAIL_WORDS,
@@ -51,6 +52,8 @@ const ORPHAN_HEAD = new Set(ORPHAN_HEAD_STOPLIST.map((w) => w.toLowerCase()));
 const COLOR = new Set(COLOR_WORDS.map((w) => w.toLowerCase()));
 const CLAIM = new Set(SPECIFIC_CLAIM_WORDS.map((w) => w.toLowerCase()));
 const GENTAIL = new Set(GENERIC_TAIL_WORDS.map((w) => w.toLowerCase()));
+/** Kata generik yang DIBUANG (bukan dipindah ke ekor) — satu sumber limits.ts. */
+const GENBAN = new Set(GENERIC_BAN_WORDS.map((w) => w.toLowerCase()));
 
 const VALID_SRC: readonly string[] = ['visible', 'attribute', 'synonym', 'theme', 'usage'];
 const VALID_REL: readonly string[] = ['synonym', 'parent', 'specific'];
@@ -337,6 +340,15 @@ export function processSourcedKeywords(
     const k = words.join(' ');
     if (isIndonesianKeyword(k)) {
       removed.push(raw);
+      continue;
+    }
+    // Kata generik (beautiful, nice, stock, concept, ...) dibuang — kecuali kata
+    // itu subjek utama gambar (tercatat di objects). Berlaku untuk frasa juga:
+    // frasa yang memuat kata generik dibuang utuh.
+    const banHit = words.find((w) => inSet(GENBAN, w));
+    if (banHit && !(words.length === 1 && objects.has(squash(k)))) {
+      removed.push(raw);
+      warnings.push(`Kata kunci '${raw}' dibuang: kata generik ('${low(banHit)}').`);
       continue;
     }
     const isPhrase = words.length > 1;
@@ -689,24 +701,53 @@ export function processSourcedKeywords(
 
 /**
  * Normalisasi ringan untuk daftar flat lawas (data sesi lama / respons tanpa
- * src): trim + lowercase, buang yang berspasi/latar/anatomi/kepala-generik/
- * Indonesia, dedupe. Tanpa verifikasi grounding.
+ * src): trim + lowercase, buang kata latar/anatomi/kepala-generik/generik/
+ * Indonesia, dedupe. Frasa sah (2–3 kata, mis. "red fox") DIPERTAHANKAN —
+ * hanya frasa lebih panjang yang dibuang. Tanpa verifikasi grounding.
  */
 export function normalizeLegacyKeywords(list: string[], platform: Platform): { keywords: string[]; removed: string[] } {
   const out: string[] = [];
   const removed: string[] = [];
   const seen = new Set<string>();
+  const drop = (raw: unknown): void => {
+    if (String(raw ?? '').trim()) removed.push(String(raw));
+  };
   for (const raw of list ?? []) {
-    const k = normalizeSingle(raw);
-    if (!k || inSet(BG, k) || inSet(LOW, k) || inSet(ANATOMY, k) || inSet(ORPHAN_HEAD, k)) {
-      if (String(raw ?? '').trim()) removed.push(String(raw));
+    // Bersihkan tanda baca tepi (kutip/koma sisa tempel) sebelum dinilai.
+    const cleaned = String(raw ?? '').trim().replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
+    if (!cleaned) continue;
+    const words = cleaned.toLowerCase().split(/\s+/).filter(Boolean);
+    if (words.length === 1) {
+      const k = normalizeSingle(cleaned);
+      if (!k || inSet(BG, k) || inSet(LOW, k) || inSet(ANATOMY, k) || inSet(ORPHAN_HEAD, k) || inSet(GENBAN, k)) {
+        drop(raw);
+        continue;
+      }
+      if (seen.has(stemKeyword(k))) {
+        drop(raw);
+        continue;
+      }
+      seen.add(stemKeyword(k));
+      out.push(k);
       continue;
     }
-    if (seen.has(stemKeyword(k))) {
-      removed.push(String(raw));
+    // Frasa: pertahankan bila 2–3 kata dan semua kata bersih.
+    const k = words.join(' ');
+    if (
+      words.length > KEYWORD_PHRASE_WORDS_MAX ||
+      words.some((w) => inSet(BG, w) || inSet(LOW, w) || inSet(ANATOMY, w) || inSet(ORPHAN_HEAD, w) || inSet(GENBAN, w)) ||
+      isIndonesianKeyword(k) ||
+      words.some((w) => isIndonesianKeyword(w))
+    ) {
+      drop(raw);
       continue;
     }
-    seen.add(stemKeyword(k));
+    const key = words.map((w) => stemKeyword(w)).join(' ');
+    if (seen.has(key)) {
+      drop(raw);
+      continue;
+    }
+    seen.add(key);
     out.push(k);
   }
   return { keywords: out.slice(0, platformMax(platform)), removed };

@@ -30,7 +30,29 @@ export const MIN_DESCRIPTION_WORDS = 5;
 export const THEME_CONCEPT_MAX = 10;
 // Deteksi bahasa Fase 3: >20% keyword Indonesia → regenerasi sekali.
 export const INDONESIAN_KEYWORD_RATIO_LIMIT = 0.2;
-// Target kualitas keyword 30–49: didorong lewat prompt, BUKAN validasi keras.
+// Konfigurasi generasi API — SATU sumber (dipakai Groq, Gemini, OpenRouter
+// seragam). Suhu rendah agar kata kunci deterministik dan tidak mengarang;
+// pagu token longgar agar JSON panjang (visible_facts + ±49 keyword bersumber)
+// tidak terpotong di tengah.
+export const GENERATION_TEMPERATURE = 0.3;
+export const GENERATION_MAX_TOKENS = 4000;
+// Target jumlah keyword per platform untuk prompt (lantai validasi keras tetap
+// MIN_KEYWORDS_ADOBE/MIN_KEYWORDS_SHUTTER; saran kualitas TARGET_KEYWORDS_MIN).
+export const PROMPT_TARGET_ADOBE_MIN = 35;
+export const PROMPT_TARGET_SHUTTER_MIN = 25;
+// SATU-SATUNYA sumber kata generik yang DIBUANG (bukan dipindah ke ekor):
+// tidak informatif dan bukan istilah yang dicari pembeli. Jangan definisikan
+// ulang di modul lain — prompt mengimpor untuk larangan eksplisit,
+// keywordGroups memakai untuk pembuangan deterministik + peringatan.
+export const GENERIC_BAN_WORDS: readonly string[] = [
+  'beautiful', 'nice', 'lovely', 'pretty', 'amazing', 'awesome',
+  'wonderful', 'great', 'good', 'best', 'perfect', 'gorgeous',
+  'stunning', 'stock', 'stocks', 'concept', 'concepts'
+];
+// Catatan: 'photo'/'picture'/'image' TIDAK masuk daftar ban — keduanya kata
+// media yang sah bila sesuai media_type pengamatan (dibatasi KEYWORD_MEDIA_MAX
+// dan tidak boleh di 10 teratas); 'design'/'background' sudah dibuang lewat
+// GENERIC_FILLER_WORDS/BACKGROUND_STOPLIST.
 // Batas keras minimum validasi tetap MIN_KEYWORDS_ADOBE (5) / MIN_KEYWORDS_SHUTTER (7).
 // KEYWORD_MIN_TARGET dipertahankan sebagai alias lama agar impor lama tak rusak.
 export const TARGET_KEYWORDS_MIN = 30;
