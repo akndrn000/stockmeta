@@ -3,7 +3,7 @@ export function Footer() {
     // Latar chrome (bg-bg-secondary, sama seperti Header/ProviderPanel) — gelap di mode
     // gelap, terang di mode terang; tepi atas aksen fosfor 2px memisahkan tegas dari
     // konten di atasnya (tanpa warna baru, tanpa glow).
-    <footer className="border-t-2 border-accent bg-bg-secondary">
+    <footer className="motion-enter border-t-2 border-accent bg-bg-secondary [--motion-i:340] [--enter-y:4px]">
       {/* M23: mobile lebih rapat (sm: kembali ke desktop).
           M28: satu baris pendek per kolom di SEMUA ukuran + padding dipangkas. */}
       <div className="shell py-2 sm:py-3">

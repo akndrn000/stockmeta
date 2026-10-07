@@ -55,6 +55,12 @@
   --focus: var(--line);
   /* Glow HANYA untuk tombol utama — statis, bukan animasi (M17) */
   --glow: 0 0 16px rgba(32, 232, 117, 0.2);
+  /* Motion — token gerak (satu-satunya angka durasi/easing yang dipakai animasi) */
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
+  --ease-soft: cubic-bezier(.4, 0, .2, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-enter: 480ms;
 }
 
 :root[data-theme="light"] {
@@ -247,18 +253,16 @@
   border-top-color: var(--accent-contrast);
 }
 
-/* Hormati prefers-reduced-motion: semua animasi dimatikan (spinner statis tapi tetap
-   terbaca); transisi warna/lebar TIDAK dihapus — itu umpan balik state, bukan dekorasi. */
+/* Hormati prefers-reduced-motion: SEMUA gerak dimatikan — animasi dekoratif, loop,
+   entrance, DAN transisi (semua instan). Perubahan status tetap jelas karena nilainya
+   langsung final di DOM (badge berganti teks/warna, spinner diganti status). Dengan ini
+   document.getAnimations() kosong dan tidak ada gerak saat berinteraksi. */
 @media (prefers-reduced-motion: reduce) {
-  .spinner {
-    animation: none;
-  }
-
   *,
   ::before,
   ::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
+    animation: none !important;
+    transition: none !important;
   }
 
   html {
@@ -353,4 +357,424 @@ html {
 }
 ::-webkit-scrollbar-corner {
   background: var(--bg);
+}
+
+/* ============ Motion — lapisan gerak "layar fosfor" ============
+   Aturan: HANYA transform + opacity yang dianimasikan (tidak ada width/height/
+   top/left/margin/padding/border-width/box-shadow). Cahaya = pseudo-element yang
+   dianimasikan opacity-nya; sapuan/progres = translate pada pseudo-element.
+   Entrance memakai fill backwards (tidak mengunci transform akhir). Semua durasi
+   dan easing lewat token --dur dan --ease di :root. Kelas di sini murni presentasi —
+   komponen hanya menambah/menukar nama kelas, tanpa mengubah teks/layout/warna. */
+
+/* --- A. Entrance halaman (stagger lewat --motion-i dalam ms, arah via --enter-y) --- */
+@keyframes motion-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--enter-y, 8px));
+  }
+}
+.motion-enter {
+  animation: motion-in var(--dur-enter) var(--ease-out) backwards;
+  animation-delay: calc(var(--motion-i, 0) * 1ms);
+}
+/* Fade polos 160ms untuk elemen yang mount belakangan (Batalkan, empty state) */
+@keyframes motion-fade {
+  from {
+    opacity: 0;
+  }
+}
+.motion-fade {
+  animation: motion-fade 160ms var(--ease-out) backwards;
+}
+
+/* --- B. Titik merek fosfor: denyut pseudo cahaya + kursor blok berkedip --- */
+@keyframes brand-glow {
+  from {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0.9;
+    transform: scale(1.6);
+  }
+}
+.brand-mark {
+  position: relative;
+}
+.brand-mark::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 6px;
+  background: radial-gradient(circle, var(--accent-faint), transparent 70%);
+  opacity: 0.35;
+  pointer-events: none;
+  animation: brand-glow 3.2s var(--ease-soft) infinite alternate;
+}
+@keyframes cursor-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+/* Kursor blok tipis setelah wordmark (pseudo ::after = tak terbaca pembaca layar) */
+.wordmark {
+  position: relative;
+}
+.wordmark::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 4px;
+  vertical-align: -0.12em;
+  background: var(--accent);
+  animation: cursor-blink 1.1s steps(1) infinite;
+}
+
+/* --- C. Tombol tema: putar ikon 180deg + transisi warna sementara di <html> --- */
+@keyframes theme-spin {
+  to {
+    transform: rotate(180deg);
+  }
+}
+.theme-spin {
+  animation: theme-spin 260ms var(--ease-out);
+}
+/* .theme-fade dipasang di <html> hanya saat klik manual (±250ms lalu dilepas):
+   transisi warna elemen utama SAJA, tidak permanen, tidak saat load/sistem. */
+html.theme-fade body,
+html.theme-fade header,
+html.theme-fade section,
+html.theme-fade footer,
+html.theme-fade main,
+html.theme-fade div,
+html.theme-fade button,
+html.theme-fade input,
+html.theme-fade select,
+html.theme-fade textarea,
+html.theme-fade span,
+html.theme-fade p {
+  transition-property: background-color, border-color, color, outline-color;
+  transition-duration: 250ms;
+  transition-timing-function: var(--ease-out);
+}
+
+/* --- D. Semua tombol: hover angkat 1px, active kembali, nonaktif tanpa gerak ---
+   Hanya transform yang dianimasikan; penebalan garis hover = outline instan
+   (state, bukan dekorasi) dan ring fokus native tetap instan demi aksesibilitas. */
+button:not(:disabled):not([aria-disabled="true"]) {
+  transition-property: transform, background-color, border-color, color;
+  transition-duration: var(--dur-base);
+  transition-timing-function: var(--ease-out);
+}
+button:not(:disabled):not([aria-disabled="true"]):hover {
+  transform: translateY(-1px);
+  outline: 1px solid var(--accent-faint);
+  outline-offset: 2px;
+}
+button:not(:disabled):not([aria-disabled="true"]):active {
+  transform: translateY(0) scale(0.98);
+  outline-color: transparent;
+}
+
+/* --- E. Badge status koneksi: ketuk sekali saat berubah + dot denyut saat AKTIF --- */
+@keyframes badge-tap {
+  0% {
+    transform: scale(0.92);
+  }
+  55% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.badge-tap {
+  animation: badge-tap 260ms var(--ease-out);
+}
+@keyframes badge-dot {
+  0%,
+  100% {
+    opacity: 0.65;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.25);
+  }
+}
+.badge-dot-live {
+  animation: badge-dot 3s var(--ease-soft) infinite;
+}
+
+/* --- G. Area unggah: ikon mengambang (hanya saat kosong), march saat dragover --- */
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(-3px);
+  }
+  50% {
+    transform: translateY(3px);
+  }
+}
+.upload-float {
+  animation: float-y 4s var(--ease-soft) infinite;
+}
+/* Bilah march di tepi atas dropzone: pseudo bergaris yang bergeser via translateX
+   (periode 16px = kelipatan pergeseran, jadi loop-nya mulus). */
+.dz-march {
+  position: relative;
+  overflow: clip;
+  transform: scale(1.005);
+}
+.dz-march::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -16px;
+  right: -16px;
+  height: 2px;
+  background: repeating-linear-gradient(90deg, var(--accent) 0 8px, transparent 8px 16px);
+  opacity: 0.8;
+  pointer-events: none;
+  animation: march-x 0.8s linear infinite;
+}
+@keyframes march-x {
+  from {
+    transform: translateX(-16px);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes drop-pulse {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.01);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.drop-pulse {
+  animation: drop-pulse var(--dur-base) var(--ease-out);
+}
+
+/* --- H. Thumbnail frame: masuk stagger (12 pertama, 40ms) + sapuan + tap/shake --- */
+@keyframes thumb-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+.thumb-enter {
+  animation: thumb-in 220ms var(--ease-out) backwards;
+  animation-delay: calc(var(--thumb-i, 0) * 40ms);
+}
+/* Sapuan pindai: garis hijau transparan bergerak vertikal (translateY), hanya memproses */
+.thumb-scan {
+  overflow: clip;
+}
+.thumb-scan::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 33%;
+  background: linear-gradient(to bottom, transparent, var(--accent-faint), transparent);
+  pointer-events: none;
+  animation: scan-y 1.4s var(--ease-soft) infinite;
+}
+@keyframes scan-y {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(300%);
+  }
+}
+@keyframes tile-tap {
+  0% {
+    transform: scale(0.96);
+  }
+  55% {
+    transform: scale(1.01);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.tile-tap {
+  animation: tile-tap 260ms var(--ease-out);
+}
+@keyframes badge-flash {
+  0% {
+    opacity: 0.35;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+.badge-flash {
+  animation: badge-flash var(--dur-base) var(--ease-out);
+}
+@keyframes shake-x {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-3px);
+  }
+  50% {
+    transform: translateX(3px);
+  }
+  75% {
+    transform: translateX(-3px);
+  }
+}
+.tile-shake {
+  animation: shake-x 220ms var(--ease-out);
+}
+@keyframes tile-leave {
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+.tile-leave {
+  animation: tile-leave 160ms var(--ease-out) forwards;
+}
+
+/* --- I. Pil penghitung: garis hijau menyala via pseudo opacity 160ms --- */
+@keyframes meta-glow {
+  0% {
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.meta-pulse {
+  position: relative;
+}
+.meta-pulse::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  border: 1px solid var(--accent);
+  opacity: 0;
+  pointer-events: none;
+  animation: meta-glow 160ms var(--ease-out);
+}
+
+/* --- J. Tombol Buat metadata: kilau progres (translateX, hanya saat sibuk) --- */
+.btn-shine {
+  position: relative;
+  overflow: clip;
+}
+.btn-shine::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  background: linear-gradient(100deg, transparent, var(--accent-faint), transparent);
+  pointer-events: none;
+  animation: shine-x 1.6s linear infinite;
+}
+@keyframes shine-x {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(320%);
+  }
+}
+
+/* --- K. Lembar caption: cross-fade isi hanya saat ganti frame --- */
+@keyframes caption-swap {
+  from {
+    opacity: 0.4;
+    transform: translateY(6px);
+  }
+}
+.caption-swap {
+  animation: caption-swap 180ms var(--ease-out);
+}
+
+/* --- L. Chip kata kunci: masuk pop, keluar fade (bulk load tanpa animasi) --- */
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+.chip-enter {
+  animation: chip-in 160ms var(--ease-out) backwards;
+}
+@keyframes chip-out {
+  to {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+.chip-exit {
+  animation: chip-out var(--dur-fast) var(--ease-out) forwards;
+}
+
+/* --- M. Salin: pop ikon 0.6→1.1→1 (teks tombol tetap "Salin") --- */
+@keyframes copy-pop {
+  0% {
+    transform: scale(0.6);
+  }
+  55% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.copy-pop {
+  display: inline-flex;
+  animation: copy-pop 260ms var(--ease-out);
+}
+
+/* --- N. Saran perbaikan: fade + turun 6px saat mount --- */
+@keyframes suggest-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.suggest-enter {
+  animation: suggest-in var(--dur-base) var(--ease-out) backwards;
+}
+
+/* --- O. Export CSV: ikon turun-lalu-kembali sekali --- */
+@keyframes export-dip {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(3px);
+  }
+}
+.export-dip {
+  animation: export-dip 300ms var(--ease-out);
 }

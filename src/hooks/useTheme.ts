@@ -44,6 +44,15 @@ export function useTheme() {
 
   const toggle = useCallback(() => {
     const next: Theme = theme === 'dark' ? 'light' : 'dark';
+    // Motion C: transisi warna 250ms HANYA saat klik manual — class dilepas lagi,
+    // tidak saat load awal / pergantian sistem, dan dilewati bila reduced motion.
+    try {
+      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+      if (!reduce) {
+        document.documentElement.classList.add('theme-fade');
+        setTimeout(() => document.documentElement.classList.remove('theme-fade'), 300);
+      }
+    } catch { /* abaikan — tema tetap berganti */ }
     setTheme(next);
     writeTheme(next);
   }, [theme]);

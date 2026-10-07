@@ -6,6 +6,8 @@
 // M15: radius 6px + border hairline hijau, TANPA bayangan lembut gaya SaaS — glow hanya di
 // elemen aktif (bukan di wadah panel).
 // Dipakai Worksheet (M6) dan CaptionSheet (M7).
+'use client';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
 export function Panel({
@@ -25,6 +27,16 @@ export function Panel({
   children: ReactNode;
   className?: string;
 }) {
+  // Motion I: pil meta berdenyut sekali tiap angkanya berubah (bukan tiap render).
+  const [metaPulse, setMetaPulse] = useState(false);
+  const prevMeta = useRef(meta);
+  useEffect(() => {
+    if (prevMeta.current === meta) return;
+    prevMeta.current = meta;
+    setMetaPulse(true);
+    const t = setTimeout(() => setMetaPulse(false), 200);
+    return () => clearTimeout(t);
+  }, [meta]);
   return (
     <section
       id={id}
@@ -48,7 +60,7 @@ export function Panel({
             {title}
           </h2>
           {/* meta = readout berbentuk pil (bukan teks telanjang) — angka tabular */}
-          <span className="shrink-0 rounded-full border border-line bg-bg-secondary px-2 py-0.5 font-mono text-meta font-bold uppercase tracking-[0.06em] text-accent-text tabular-nums">
+          <span className={`shrink-0 rounded-full border border-line bg-bg-secondary px-2 py-0.5 font-mono text-meta font-bold uppercase tracking-[0.06em] text-accent-text tabular-nums${metaPulse ? ' meta-pulse' : ''}`}>
             {meta}
           </span>
         </div>

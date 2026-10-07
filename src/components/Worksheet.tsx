@@ -5,6 +5,7 @@
 // M13: tiap tile punya ikon "buat ulang metadata" (frame gagal & siap) + konfirmasi popover
 // "Timpa hasil yang ada?" yang menempel pada tile — menggantikan tombolnya di CaptionSheet.
 import { useEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import type { useBatch } from '../hooks/useBatch';
 import type { useProvider } from '../hooks/useProvider';
 import type { useSession } from '../hooks/useSession';
@@ -100,7 +101,7 @@ function GenerateButton({
           // glow-nya none, teks memakai --accent-contrast supaya kontras AA di kedua mode)
           className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border-2 border-accent bg-accent px-3 text-small font-semibold text-accent-contrast transition-colors duration-150 hover:border-accent-hover hover:bg-accent-hover active:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-45 sm:h-11 sm:px-4 sm:text-body ${
             disabled || busy ? '' : 'glow'
-          }`}
+          }${busy ? ' btn-shine' : ''}`}
         >
           {busy && <span className="spinner spinner-on-accent" aria-hidden="true" />}
           {busy ? busyLabel : 'Buat metadata'}
@@ -109,7 +110,7 @@ function GenerateButton({
           <button
             type="button"
             onClick={onCancel}
-            className="shrink-0 rounded-md border border-error px-3 py-1.5 text-small font-semibold text-error transition-colors duration-150 hover:bg-error-tint sm:px-4 sm:py-2 sm:text-body"
+            className="motion-fade shrink-0 rounded-md border border-error px-3 py-1.5 text-small font-semibold text-error transition-colors duration-150 hover:bg-error-tint sm:px-4 sm:py-2 sm:text-body"
           >
             Batalkan
           </button>
@@ -204,10 +205,44 @@ function FrameTile({
   const st = frame.status[platform];              // status & error SELALU platform aktif
   const err = frame.error[platform];
 
+  // Motion H: ketuk+kilat saat menunggu→siap, getar saat gagal — hanya untuk
+  // perubahan status, bukan mount pertama / tiap render.
+  const [fx, setFx] = useState<'ready' | 'fail' | null>(null);
+  const firstSt = useRef(true);
+  const prevSt = useRef(st);
+  useEffect(() => {
+    if (firstSt.current) {
+      firstSt.current = false;
+      prevSt.current = st;
+      return;
+    }
+    const from = prevSt.current;
+    prevSt.current = st;
+    if (st === 'siap' && (from === 'menunggu' || from === 'memproses')) {
+      setFx('ready');
+      const t = setTimeout(() => setFx(null), 400);
+      return () => clearTimeout(t);
+    }
+    if (st === 'gagal' && from !== 'gagal') {
+      setFx('fail');
+      const t = setTimeout(() => setFx(null), 300);
+      return () => clearTimeout(t);
+    }
+  }, [st]);
+  // Motion H: hapus = fade+skala 160ms dulu, baru cabut dari DOM (logika hapus tetap sama).
+  const [leaving, setLeaving] = useState(false);
+  function handleRemove() {
+    if (removeDisabled || leaving) return;
+    setLeaving(true);
+    setTimeout(onRemove, 160);
+  }
+
   return (
     <div
       data-testid={`tile-${frame.name}`}
-      className={`relative flex h-full flex-col overflow-hidden rounded-md bg-surface transition-colors duration-150 ${
+      className={`relative flex h-full flex-col overflow-hidden rounded-md bg-surface transition-colors duration-150${
+        fx === 'ready' ? ' tile-tap' : fx === 'fail' ? ' tile-shake' : ''
+      }${leaving ? ' tile-leave' : ''} ${
         active ? 'border-2 border-accent bg-accent-tint' : 'border border-line'
       }`}
     >
@@ -217,7 +252,7 @@ function FrameTile({
         onClick={onSelect}
         className="flex w-full flex-1 flex-col text-left"
       >
-        <div className="relative aspect-square bg-surface-elevated">
+        <div className={`relative aspect-square bg-surface-elevated${processing ? ' thumb-scan' : ''}`}>
           {frame.thumb ? (
             // eslint-disable-next-line @next/next/no-img-element -- thumbnail JPEG data-URL inline; next/image tidak mendukung data:
             <img src={frame.thumb} alt="" className="h-full w-full object-cover" />
@@ -246,7 +281,7 @@ function FrameTile({
           {(st === 'siap' || st === 'gagal') && (
             <span
               title={st === 'gagal' && err ? err : undefined}
-              className={`badge-bracket absolute bottom-1.5 right-1.5 inline-flex items-center rounded-md border-2 px-1.5 py-0.5 font-mono text-meta font-bold uppercase tracking-[0.08em] transition-colors duration-150 ${
+              className={`badge-bracket absolute bottom-1.5 right-1.5 inline-flex items-center rounded-md border-2 px-1.5 py-0.5 font-mono text-meta font-bold uppercase tracking-[0.08em] transition-colors duration-150${fx === 'ready' && st === 'siap' ? ' badge-flash' : ''} ${
                 st === 'siap'
                   ? 'border-success bg-surface text-success'
                   : 'border-error bg-surface text-error'
@@ -344,7 +379,7 @@ function FrameTile({
 
       <button
         type="button"
-        onClick={onRemove}
+        onClick={handleRemove}
         disabled={removeDisabled}
         aria-label={`Hapus frame ${frame.name}`}
         title={removeDisabled ? 'Tunggu batch selesai' : 'Hapus frame'}
@@ -367,6 +402,7 @@ export function Worksheet({ session, provider, batch }: {
     session;
   const busy = batch.busy;
   const [dragOver, setDragOver] = useState(false);
+  const [dropped, setDropped] = useState(false);
   const [limitMsg, setLimitMsg] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -452,6 +488,7 @@ export function Worksheet({ session, provider, batch }: {
       actions={
         <NewSessionButton hasFrames={frames.length > 0} disabled={busy} onConfirm={resetSession} />
       }
+      className="motion-enter [--motion-i:180] [--enter-y:12px]"
     >
       <div
         className="flex flex-col gap-3 sm:gap-4"
@@ -466,6 +503,9 @@ export function Worksheet({ session, provider, batch }: {
           e.preventDefault();
           setDragOver(false);
           if (busy) return;
+          // Motion G: satu denyut cepat saat file dilepas.
+          setDropped(true);
+          setTimeout(() => setDropped(false), 240);
           if (e.dataTransfer.files.length) void ingest(e.dataTransfer.files);
         }}
       >
@@ -492,12 +532,12 @@ export function Worksheet({ session, provider, batch }: {
               // M23: disiplin mobile — dropzone jauh lebih ramping di <640px (ikon 16,
               // teks small, padding 16); sm: mengembalikan proporsi desktop.
               className={`flex min-h-28 flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed px-4 py-4 text-center transition-colors duration-150 sm:min-h-44 sm:gap-3 sm:px-6 sm:py-6 ${
-                dragOver ? 'border-accent bg-accent-tint' : 'border-line bg-bg-secondary hover:border-accent/70'
+                dragOver ? 'dz-march border-accent bg-accent-tint' : dropped ? 'drop-pulse border-line bg-bg-secondary' : 'border-line bg-bg-secondary hover:border-accent/70'
               }`}
             >
               <span
                 aria-hidden="true"
-                className="grid h-8 w-8 place-items-center rounded-md border border-line bg-surface text-accent-text sm:h-11 sm:w-11"
+                className="upload-float grid h-8 w-8 place-items-center rounded-md border border-line bg-surface text-accent-text sm:h-11 sm:w-11"
               >
                 <svg
                   width="22"
@@ -565,7 +605,13 @@ export function Worksheet({ session, provider, batch }: {
             {frames.map((frame, i) => {
               const hasFile = fileStore.has(frame.id);
               return (
-                <li key={frame.id} className="min-w-0">
+                <li
+                  key={frame.id}
+                  className="thumb-enter min-w-0"
+                  style={{ '--thumb-i': Math.min(i, 11) } as CSSProperties}
+                >
+                  {/* Motion H: stagger hanya 12 pertama (≤40ms/item), sisanya bareng;
+                      key stabil per frame.id → tile lama tidak beranimasi ulang. */}
                   <FrameTile
                     frame={frame}
                     index={i}

@@ -4,7 +4,7 @@
 // "Kata kunci (siap tempel)" dihapus. M13: daftar chip dibatasi 200px + scroll.
 // M18: penghitung `n/50` + badge `min N`/`penuh` keluar dari dalam kotak input (posisi M13,
 // ruang cadangan `pr-24`) → sebaris dengan label, di kiri tombol salin. Input kembali px-3.
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { addKeywords, keywordsToPlain, parseKeywordInput, removeKeyword } from '../lib/keywords';
 import { MAX_KEYWORDS } from '../lib/limits';
 import { CopyButton } from './CopyButton';
@@ -31,6 +31,36 @@ export function KeywordEditor({ keywords, min, max = MAX_KEYWORDS, onChange, dis
   const plain = keywordsToPlain(keywords);
   const n = keywords.length;
   const full = n >= max;
+  // Motion L: chip yang BARU ditambah pop sekali; ganti frame (bulk) = tanpa animasi.
+  const [fresh, setFresh] = useState<{ v: string; i: number } | null>(null);
+  const [leaving, setLeaving] = useState<{ v: string; i: number } | null>(null);
+  const prevWords = useRef<string[]>(keywords);
+  useEffect(() => {
+    const prev = prevWords.current;
+    prevWords.current = keywords;
+    if (prev.join('\n') === keywords.join('\n')) return;
+    if (keywords.length === prev.length + 1) {
+      const prevSet = new Set(prev.map((k) => k.toLowerCase()));
+      const idx = keywords.findIndex((k) => !prevSet.has(k.toLowerCase()));
+      if (idx >= 0) {
+        setFresh({ v: keywords[idx].toLowerCase(), i: idx });
+        const t = setTimeout(() => setFresh(null), 240);
+        return () => clearTimeout(t);
+      }
+    }
+    setFresh(null);
+  }, [keywords]);
+
+  // Hapus chip = keluar 120ms dulu, baru cabut (logika hapus tetap removeKeyword).
+  function removeAt(i: number) {
+    if (leaving) return;
+    const snapshot = keywords;
+    setLeaving({ v: snapshot[i].toLowerCase(), i });
+    setTimeout(() => {
+      onChange(removeKeyword(snapshot, i));
+      setLeaving(null);
+    }, 120);
+  }
 
   function commit(text: string) {
     const incoming = parseKeywordInput(text);
@@ -82,12 +112,14 @@ export function KeywordEditor({ keywords, min, max = MAX_KEYWORDS, onChange, dis
           {keywords.map((k, i) => (
             <li
               key={`${k.toLowerCase()}-${i}`}
-              className="inline-flex max-w-full items-center gap-1 rounded-full border border-line bg-surface-elevated py-1 pl-3 pr-1.5 text-small text-text transition-colors duration-150 hover:border-line hover:bg-accent-tint"
+              className={`inline-flex max-w-full items-center gap-1 rounded-full border border-line bg-surface-elevated py-1 pl-3 pr-1.5 text-small text-text transition-colors duration-150 hover:border-line hover:bg-accent-tint${
+                fresh && fresh.i === i && k.toLowerCase() === fresh.v ? ' chip-enter' : ''
+              }${leaving && leaving.i === i ? ' chip-exit' : ''}`}
             >
               <span className="min-w-0 truncate" title={k}>{k}</span>
               <button
                 type="button"
-                onClick={() => onChange(removeKeyword(keywords, i))}
+                onClick={() => removeAt(i)}
                 aria-label={`Hapus kata kunci ${k}`}
                 title={`Hapus kata kunci ${k}`}
                 className="btn-compact relative grid h-5 w-5 place-items-center rounded-full text-text-muted transition-colors duration-150 hover:bg-error-tint hover:text-error before:absolute before:-inset-3 before:content-['']"

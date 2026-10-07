@@ -12,7 +12,7 @@
 // kotak isian. Baris label: label di kiri, keterangan + tombol salin di kanan (flex-wrap,
 // turun ke baris kedua yang tetap rata kanan bila layar sempit). Ruang cadangan dalam kotak
 // (pb-6) ikut dihapus karena tidak ada lagi teks yang menumpang di atas kolom isian.
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { useSession } from '../hooks/useSession';
 import { ADOBE_CATEGORIES, SHUTTERSTOCK_CATEGORIES } from '../lib/categories';
@@ -110,6 +110,20 @@ export function CaptionSheet({ session }: {
 }) {
   const { frames, sel, platform, tema, updateMetadata, setFrameTema } = session;
   const [open, setOpen] = useState(true);
+  // Motion K: cross-fade isi HANYA saat pindah frame — mengetik/menyunting tidak memicu.
+  const [swap, setSwap] = useState(false);
+  const prevSel = useRef(sel);
+  useEffect(() => {
+    if (prevSel.current === sel) return;
+    prevSel.current = sel;
+    if (sel == null) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- pemicu animasi cross-fade saat pindah frame
+    setSwap(true);
+    const t = setTimeout(() => setSwap(false), 220);
+    return () => clearTimeout(t);
+  }, [sel]);
+  // Motion O: ikon unduh turun-lalu-kembali sekali setelah klik berhasil.
+  const [dipped, setDipped] = useState(false);
 
   const index = frames.findIndex((f) => f.id === sel);
   const frame: Frame | null = index >= 0 ? frames[index] : null;
@@ -178,10 +192,18 @@ export function CaptionSheet({ session }: {
     </Field>
   );
 
+  function handleExport() {
+    if (!canExport || dipped) return;
+    downloadCsv(frames, platform);
+    setDipped(true);
+    setTimeout(() => setDipped(false), 340);
+  }
+
   return (
     <Panel
       id="lembar-caption"
       title="Lembar caption"
+      className="motion-enter [--motion-i:260] [--enter-y:12px]"
       // M14: placeholder header tetap terbaca walau belum ada frame — 0 frame → "Frame -- / --",
       // ada frame tapi belum terpilih → "Frame -- / total sesi" (bukan angka 0 yang membingungkan)
       meta={
@@ -200,16 +222,14 @@ export function CaptionSheet({ session }: {
               tidak bisa diklik. onClick tetap di-guard. */}
           <button
             type="button"
-            onClick={() => {
-              if (canExport) downloadCsv(frames, platform);
-            }}
+            onClick={handleExport}
             aria-disabled={canExport ? undefined : true}
             title={exportTitle}
             className={`inline-flex items-center gap-2 rounded-md border border-accent/40 bg-accent-tint/60 px-3 py-1 text-small font-semibold text-accent-text transition-colors duration-150 hover:border-accent hover:bg-accent-tint sm:px-3.5 sm:py-1.5 sm:text-body ${
               canExport ? '' : 'cursor-not-allowed opacity-45 hover:border-accent/40 hover:bg-accent-tint/60'
             }`}
           >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true" className={dipped ? 'export-dip' : undefined}>
               <path
                 d="M7 1.8v6.6m0 0L4.4 5.9M7 8.4l2.6-2.5"
                 stroke="currentColor"
@@ -266,13 +286,13 @@ export function CaptionSheet({ session }: {
         </span>
       </button>
 
-      <div id="caption-body" className={`flex flex-col gap-3 @container sm:gap-4 ${open ? '' : 'max-lg:hidden'}`}>
+      <div id="caption-body" className={`flex flex-col gap-3 @container sm:gap-4${open ? '' : ' max-lg:hidden'}${swap ? ' caption-swap' : ''}`}>
         {/* Empty state ramah: ikon + teks yang sudah ada ("belum ada frame") + ruang lega —
             hanya saat sesi benar-benar kosong; seluruh field tetap dirender di bawahnya.
             M23: di <640px jauh lebih ramping (ikon 14, padding 16 vertikal); sm:
             mengembalikan proporsi desktop. */}
         {frames.length === 0 && (
-          <div className="flex flex-col items-center gap-1.5 rounded-md border border-dashed border-line bg-bg-secondary px-3 py-4 text-center sm:gap-2 sm:px-4 sm:py-8">
+          <div className="motion-fade flex flex-col items-center gap-1.5 rounded-md border border-dashed border-line bg-bg-secondary px-3 py-4 text-center sm:gap-2 sm:px-4 sm:py-8">
             <span aria-hidden="true" className="grid h-8 w-8 place-items-center rounded-md border border-line bg-surface text-text-muted sm:h-10 sm:w-10">
               <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5 sm:h-[18px] sm:w-[18px]">
                 <rect x="2.5" y="4" width="15" height="12" rx="2" />
@@ -488,7 +508,7 @@ export function CaptionSheet({ session }: {
           </div>
         )}
         {suggestions.length > 0 && (
-          <div className="rounded-md border border-warning/45 bg-warning-tint p-2 sm:p-3">
+          <div className="suggest-enter rounded-md border border-warning/45 bg-warning-tint p-2 sm:p-3">
             <p className="mb-1.5 flex items-center gap-1.5 font-mono text-meta font-bold uppercase tracking-[0.08em] text-warning">
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                 <path d="M6 1.6l4.6 8H1.4l4.6-8z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />

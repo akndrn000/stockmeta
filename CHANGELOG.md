@@ -6,6 +6,10 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/).
 ## [Belum dirilis]
 
 ### Ditambahkan
+- Lapisan gerak "layar fosfor" (CSS + toggle class, tanpa dependensi): entrance
+  stagger, denyut merek, mikro-interaksi tombol/badge/chip/salin/export, sapuan
+  pindai, kilau progres; semua nonaktif instan di `prefers-reduced-motion`
+  (lihat bagian "Motion" di `docs/DESIGN.md`).
 - Ikon StockMeta baru (bingkai foto + batang label): `icon.svg`, `favicon.ico`
   (16/32/48), `apple-icon.png`, ikon PWA 192/512 + maskable, `manifest.ts`,
   `opengraph-image.png`, dan penanda merek yang sama di header.

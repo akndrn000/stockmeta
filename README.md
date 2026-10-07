@@ -49,7 +49,7 @@ Ada tiga hal yang menjadi pegangan alat ini:
   </tr>
 </table>
 
-<sub>Pratinjau antarmuka dengan contoh batch bertema Halloween. Isi gambar dan metadata hanya contoh.</sub>
+<sub>Pratinjau antarmuka dengan contoh batch bertema Halloween. Isi gambar dan metadata hanya contoh. Antarmukanya memakai gerak halus (fade dan denyut fosfor) yang nonaktif otomatis bila Anda mengaktifkan pengurangan gerak di sistem.</sub>
 
 ## Fitur
 

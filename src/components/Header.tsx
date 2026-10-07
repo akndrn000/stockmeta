@@ -26,14 +26,14 @@ export function Header({
     // <1120px: baris 1 = logo + toggle tema (kanan); baris 2 = segmented platform
     // selebar penuh, 2 kolom sama lebar, tinggi minimum 44px. Susunan baris diatur lewat
     // `order` + `w-full` responsif — satu DOM, tanpa duplikasi markup.
-    <header className="z-40 border-b border-line bg-bg-secondary/85 backdrop-blur-md min-[1120px]:sticky min-[1120px]:top-0">
+    <header className="motion-enter z-40 border-b border-line bg-bg-secondary/85 backdrop-blur-md [--motion-i:0] [--enter-y:-8px] min-[1120px]:sticky min-[1120px]:top-0">
       {/* M23: disiplin mobile — baris atas lebih rapat di <640px (sm: mengembalikan
           nilai desktop); target sentuh tetap ≥44px lewat blok CSS globals. */}
       <div className="shell flex flex-wrap items-center gap-x-3 gap-y-1.5 pb-2 pt-2 sm:gap-x-4 sm:gap-y-2 sm:pb-3 sm:pt-3">
         {/* Brand: penanda ikon (geometri sama dengan favicon icon.svg) + wordmark
             hijau — satu-satunya aksen utama. Ukuran ikon 20px: setinggi wordmark
             sehingga tinggi baris header tidak berubah. */}
-        <div className="order-1 flex items-center gap-2">
+        <div className="brand-mark motion-enter order-1 flex items-center gap-2 [--motion-i:80] [--enter-y:-4px]">
           <svg
             aria-hidden="true"
             width="20"
@@ -53,7 +53,7 @@ export function Header({
             />
             <rect x="14" y="36" width="37" height="11" rx="2" fill="#04120a" />
           </svg>
-          <h1 className="text-title font-extrabold tracking-[-0.03em] text-accent-text sm:text-brand">
+          <h1 className="wordmark text-title font-extrabold tracking-[-0.03em] text-accent-text sm:text-brand">
             StockMeta
           </h1>
         </div>

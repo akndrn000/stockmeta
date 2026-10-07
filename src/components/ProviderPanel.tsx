@@ -27,6 +27,16 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
   // toggle fallback antar provider (default aktif); direstore setelah mount hindari mismatch SSR
   const [fallback, setFallback] = useState(true);
   const testing = api.status === 'testing';
+  // Motion E: badge "mengetuk" sekali tiap status berubah (bukan tiap render).
+  const [badgeTap, setBadgeTap] = useState(false);
+  const prevStatus = useRef(api.status);
+  useEffect(() => {
+    if (prevStatus.current === api.status) return;
+    prevStatus.current = api.status;
+    setBadgeTap(true);
+    const t = setTimeout(() => setBadgeTap(false), 300);
+    return () => clearTimeout(t);
+  }, [api.status]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- restore sekali dari localStorage
@@ -56,7 +66,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
   return (
     <section
       aria-label="Koneksi provider"
-      className="border-b border-line bg-bg-secondary"
+      className="motion-enter border-b border-line bg-bg-secondary [--motion-i:120]"
     >
       <div className="shell flex flex-col gap-2 py-2 sm:gap-3 sm:py-3">
         {/* M19: mobile disusun vertikal selebar penuh (provider → input → tombol → status);
@@ -164,7 +174,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
                 role="status"
                 aria-live="polite"
                 title={api.note}
-                className={`provider-status inline-flex h-auto! shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-meta font-medium uppercase tracking-[0.06em] leading-none transition-colors duration-150 ${
+                className={`provider-status inline-flex h-auto! shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-meta font-medium uppercase tracking-[0.06em] leading-none transition-colors duration-150${badgeTap ? ' badge-tap' : ''} ${
                   api.status === 'ok'
                     ? 'border-success/40 bg-success-tint text-success'
                     : api.status === 'fail'
@@ -176,7 +186,7 @@ export function ProviderPanel({ api, busy }: { api: ProviderApi; busy?: boolean 
               >
                 <span
                   aria-hidden="true"
-                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                  className={`${api.status === 'ok' ? 'badge-dot-live' : ''} h-1.5 w-1.5 shrink-0 rounded-full ${
                     api.status === 'ok'
                       ? 'bg-success'
                       : api.status === 'fail'

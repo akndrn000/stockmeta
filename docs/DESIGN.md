@@ -376,6 +376,84 @@ tidak tersedia di env ini dan tidak dibutuhkan):
 python scripts/export-icons.py
 ```
 
+## Motion — lapisan gerak "layar fosfor"
+
+Gerak adalah lapisan presentasi murni: seluruh keyframes + kelas tinggal di
+`src/app/globals.css` (modul dalam: antarmuka kecil = nama kelas, implementasi
+besar = keyframes), komponen hanya menambah/menukar nama kelas. Tanpa library,
+tanpa `src/lib/` tersentuh, tanpa teks/layout/warna/ukuran font/logika berubah.
+
+### Token gerak (di `:root`, satu-satunya angka yang dipakai animasi)
+
+| Token | Nilai | Pakai untuk |
+| --- | --- | --- |
+| `--ease-out` | `cubic-bezier(.22,1,.36,1)` | Entrance & mikro-interaksi |
+| `--ease-soft` | `cubic-bezier(.4,0,.2,1)` | Loop denyut/mengambang |
+| `--dur-fast` | `120ms` | Keluar chip, mikro tercepat |
+| `--dur-base` | `200ms` | Hover/active, kilat, saran |
+| `--dur-enter` | `480ms` | Entrance halaman |
+
+### Daftar animasi (semua HANYA `transform` + `opacity`)
+
+| Kelas | Gerak | Kapan aktif |
+| --- | --- | --- |
+| `.motion-enter` (`--motion-i` ms, `--enter-y`) | fade + geser 4–12px, `backwards` | Load: header 0ms, brand 80ms, provider 120ms, worksheet 180ms, caption 260ms, footer 340ms |
+| `.motion-fade` | fade 160ms | Mount belakangan: Batalkan, empty state caption |
+| `.brand-mark::before` | denyut cahaya 0.35→0.9 + skala 1→1.6, 3.2s alternate | Selalu (salah satu dari maks 2 loop idle) |
+| `.wordmark::after` | kursor blok kedip 1.1s | Selalu; pseudo (tak terbaca AT); mati di reduced motion |
+| `.theme-spin` | putar ikon 180deg, 260ms | Klik tombol tema |
+| `html.theme-fade` | transisi warna elemen utama 250ms, lalu dilepas | HANYA klik manual (bukan load/sistem); baca "Tema" di bawah |
+| `button:hover/active` | angkat 1px / kembali + skala 0.98 | Semua tombol non-nonaktif; garis hover via outline instan; nonaktif tanpa gerak |
+| `.badge-tap` | ketuk 0.92→1.04→1, 260ms | Tiap status koneksi berubah |
+| `.badge-dot-live` | denyut dot 3s | Selama badge AKTIF |
+| `.spinner` | putar 0.7s | Selama tes koneksi / tombol sibuk (statis di reduced motion) |
+| `.upload-float` | melayang ±3px, 4s | Ikon dropzone, hanya saat belum ada frame |
+| `.dz-march` | bilah garis berjalan (translateX, periode 16px) + skala 1.005 | Selama dragover |
+| `.drop-pulse` | denyut 200ms sekali | Saat file dilepas |
+| `.thumb-enter` (`--thumb-i` = min(index,11)) | fade + skala 0.96→1, 220ms, jeda 40ms/item | Tile baru mount (key stabil → tile lama tak mengulang) |
+| `.thumb-scan::after` | sapuan vertikal 1.4s | Selama tile MEMPROSES |
+| `.tile-tap` + `.badge-flash` | ketuk 260ms + kilat opacity | Transisi menunggu→siap |
+| `.tile-shake` | getar ±3px 2 ayunan, 220ms | Transisi →gagal |
+| `.tile-leave` | fade + skala 0.96, 160ms lalu unmount | Hapus frame (pencabutan ditunda timeout; logika hapus sama) |
+| `.meta-pulse::after` | garis hijau menyala 160ms | Pil counter berubah (`00/20`, `Frame 01/09`) |
+| `.btn-shine::after` | kilau translateX 1.6s | Tombol Buat metadata selama memproses |
+| `.caption-swap` | cross-fade 0.4→1 + naik 6px, 180ms | HANYA ganti frame (mengetik tak memicu) |
+| `.chip-enter` / `.chip-exit` | pop 0.9→1 160ms / keluar 0.9 120ms lalu cabut | Tambah/hapus SATU chip; bulk (ganti frame) tanpa animasi |
+| `.copy-pop` | pop ikon 0.6→1.1→1, 260ms | Setelah salin; teks tombol tetap "Salin", "Disalin" via aria-live |
+| `.suggest-enter` | fade + turun 6px, 200ms | Kotak saran baru muncul |
+| `.export-dip` | ikon turun 3px lalu kembali, 300ms | Setelah Export CSV berhasil |
+
+### Aturan reduced motion (menggantikan klausa lama "transisi warna/lebar tetap")
+
+Blok `@media (prefers-reduced-motion: reduce)` mematikan SEMUA animasi dan
+transisi (`animation: none; transition: none`), sehingga
+`document.getAnimations()` kosong dan tidak ada gerak saat berinteraksi. Status
+tetap jelas karena nilai final langsung ada di DOM (badge berganti teks/warna,
+hasil tes via `role="status"`). Spinner menjadi statis. Pengecualian: tidak
+ada — semua umpan balik state bersifat instan.
+
+### Batas yang dijaga
+
+- Loop idle bersamaan maks 2 (denyut merek + ikon unggah saat kosong); loop lain
+  hanya selama proses (spinner, progres, pindai) dan berhenti saat selesai.
+- Entrance `backwards` (bukan `forwards`/`both`) — `forwards` hanya di dua
+  animasi keluar yang elemennya langsung dicabut. SSR merender keadaan akhir.
+- Pembungkus dekorasi ber-transform memakai `overflow: clip`; tidak ada scroll
+  horizontal, CLS ≈ 0, pseudo dekoratif `pointer-events: none`.
+- Deviasi tercatat: kursor wordmark 1.1s adalah loop idle ke-3 saat dropzone
+  kosong (area 2px, opacity saja); durasi "masuk total ≤700ms" dibaca sebagai
+  durasi animasi (480ms) — elemen terakhir selesai ±820ms karena stagger 340ms
+  yang dimandatkan; ring fokus tampil instan (aksesibilitas) sementara angkat/
+  tekan tombol yang bertransisi; teks tombol salin kini konstan "Salin".
+
+### Tema (disimpan & diterapkan — tidak dirusak lapisan gerak)
+
+Pilihan di `localStorage` (`stockmeta_theme`, via `src/lib/storage.ts`);
+skrip inline di `layout.tsx` menerapkan `data-theme` sebelum paint pertama
+(anti-flash); `useTheme` menerapkan ulang via effect + mengikuti sistem hanya
+bila belum ada override. Lapisan gerak tidak menyentuh alur ini — hanya
+menambah `.theme-fade` 250ms di `toggle()` manual.
+
 ## Keputusan sadar M29
 
 - **Semua garis/border halaman = hijau di kedua mode** — audit `border-*`/`ring-*` di
