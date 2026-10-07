@@ -224,9 +224,48 @@ describe('observationGroundingText', () => {
 });
 
 describe('normalizeLegacyKeywords', () => {
-  it('flat lawas: buang spasi/latar/anatomi, dedupe', () => {
-    const r = normalizeLegacyKeywords(['Fox', 'red fox', 'background', 'ears', 'fox', 'dengan'], 'adobe');
-    expect(r.keywords).toEqual(['fox']);
+  it('flat lawas: frasa sah dipertahankan; latar/anatomi/generik/Indonesia dibuang; dedupe', () => {
+    const r = normalizeLegacyKeywords(['Fox', 'red fox', 'background', 'ears', 'fox', 'dengan', 'beautiful', 'hot air balloon extra word'], 'adobe');
+    expect(r.keywords).toEqual(['fox', 'red fox']);
+    expect(r.removed).toContain('beautiful');
+  });
+
+  it('tanda baca tepi dibersihkan', () => {
+    const r = normalizeLegacyKeywords(['"bicycle"', '(commute)'], 'adobe');
+    expect(r.keywords).toEqual(['bicycle', 'commute']);
+  });
+});
+
+describe('kata generik dibuang (bukan dipindah ke ekor)', () => {
+  it('sourced: beautiful/nice/stock/concept dibuang + peringatan; subjek utama dikecualikan', () => {
+    const r = run([
+      src('cat', 'visible'),
+      src('beautiful', 'attribute'),
+      src('nice', 'attribute'),
+      src('stock', 'usage'),
+      src('concept', 'theme', { kind: 'event' })
+    ]);
+    for (const bad of ['beautiful', 'nice', 'stock', 'concept']) {
+      expect(r.keywords).not.toContain(bad);
+    }
+    expect(r.removed.length).toBeGreaterThanOrEqual(4);
+    expect(r.warnings.some((w) => w.includes('generik'))).toBe(true);
+  });
+
+  it('frasa yang memuat kata generik dibuang utuh', () => {
+    const r = run([src('cat', 'visible'), src('beautiful cat', 'visible')]);
+    expect(r.keywords).toContain('cat');
+    expect(r.keywords).not.toContain('beautiful cat');
+  });
+
+  it('urutan model dipertahankan dalam peringkat yang sama (stabil)', () => {
+    const r = run([
+      src('cat', 'visible'),
+      src('wings', 'visible'),
+      src('collar', 'visible')
+    ]);
+    // ketiganya elemen terlihat peringkat sama → urutan model menang
+    expect(r.keywords.slice(0, 3)).toEqual(['cat', 'wings', 'collar']);
   });
 });
 

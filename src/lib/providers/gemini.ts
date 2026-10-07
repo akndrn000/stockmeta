@@ -6,6 +6,7 @@
 // Key hanya dikirim sebagai query param ke API resmi Google dan TIDAK PERNAH dicetak ke log.
 import { buildMetadataPrompt, parseMetadataResponse } from '../prompt';
 import type { ParsedMetadata } from '../prompt';
+import { GENERATION_MAX_TOKENS, GENERATION_TEMPERATURE } from '../limits';
 import { readBody } from './http';
 import { GEMINI_MODEL } from './models';
 import { MODEL_RETRY_MAX, ProviderError, dailyQuotaError, isDailyQuota, parseRetryAfter, withRetry } from './retry';
@@ -87,7 +88,11 @@ async function generateForImage(args: GenerateArgs): Promise<ParsedMetadata> {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: image.mimeType, data: image.base64 } }] }],
-          generationConfig: { responseMimeType: 'application/json' }
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: GENERATION_TEMPERATURE,
+            maxOutputTokens: GENERATION_MAX_TOKENS
+          }
         }),
         signal
       });

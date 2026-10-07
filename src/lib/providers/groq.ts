@@ -6,6 +6,7 @@
 // Key dikirim lewat header Authorization dan TIDAK PERNAH dicetak ke log.
 import { buildMetadataPrompt, parseMetadataResponse } from '../prompt';
 import type { ParsedMetadata } from '../prompt';
+import { GENERATION_MAX_TOKENS, GENERATION_TEMPERATURE } from '../limits';
 import { readBody } from './http';
 import { GROQ_MODEL } from './models';
 import { MODEL_RETRY_MAX, ProviderError, dailyQuotaError, isDailyQuota, parseRetryAfter, withRetry } from './retry';
@@ -73,6 +74,8 @@ async function generateForImage(args: GenerateArgs): Promise<ParsedMetadata> {
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
         body: JSON.stringify({
           model: GROQ_MODEL,
+          temperature: GENERATION_TEMPERATURE,
+          max_tokens: GENERATION_MAX_TOKENS,
           messages: [{ role: 'user', content: [
             { type: 'text', text: prompt },
             { type: 'image_url', image_url: { url: 'data:' + image.mimeType + ';base64,' + image.base64 } }
