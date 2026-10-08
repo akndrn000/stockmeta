@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 300" width="1280" height="300" role="img" aria-labelledby="t d">
+  <title id="t">StockMeta data flow</title>
+  <desc id="d">The API key and images are sent directly from the browser to the AI provider over HTTPS. The StockMeta server is not in the path.</desc>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M1 1L9 5L1 9" fill="none" stroke="#22e27a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <style>
+    text { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .ink { fill: #e6f5ec; }
+    .mute { fill: #7fa08b; }
+    .green { fill: #22e27a; }
+  </style>
+
+  <rect width="1280" height="300" rx="20" fill="#08100c"/>
+  <rect x="0.5" y="0.5" width="1279" height="299" rx="19.5" fill="none" stroke="#22e27a" stroke-opacity="0.35"/>
+
+  <!-- Browser -->
+  <rect x="60" y="40" width="400" height="140" rx="14" fill="#0d1a13" stroke="#22e27a" stroke-opacity="0.55"/>
+  <text x="84" y="76" font-size="19" font-weight="700" class="ink">Your browser</text>
+  <path d="M60 92H460" stroke="#22e27a" stroke-opacity="0.25"/>
+  <text x="84" y="122" font-size="14" class="mute">API key in localStorage</text>
+  <text x="84" y="146" font-size="14" class="mute">Session and thumbnails stay local</text>
+  <text x="84" y="170" font-size="14" class="mute">CSV file is built in the browser</text>
+
+  <!-- Provider -->
+  <rect x="820" y="40" width="400" height="140" rx="14" fill="#0d1a13" stroke="#22e27a" stroke-opacity="0.55"/>
+  <text x="844" y="76" font-size="19" font-weight="700" class="ink">AI provider</text>
+  <path d="M820 92H1220" stroke="#22e27a" stroke-opacity="0.25"/>
+  <text x="844" y="122" font-size="14" class="mute">Groq</text>
+  <text x="844" y="146" font-size="14" class="mute">Gemini</text>
+  <text x="844" y="170" font-size="14" class="mute">OpenRouter</text>
+
+  <!-- Direct arrow -->
+  <path d="M464 110H814" stroke="#22e27a" stroke-width="2" fill="none" marker-end="url(#arr)"/>
+  <text x="639" y="98" font-size="14" text-anchor="middle" class="green">Direct HTTPS</text>
+
+  <!-- Server not used -->
+  <rect x="519" y="196" width="240" height="72" rx="12" fill="none" stroke="#7fa08b" stroke-opacity="0.7" stroke-dasharray="6 6"/>
+  <text x="639" y="226" font-size="15" text-anchor="middle" class="mute">StockMeta server</text>
+  <text x="639" y="250" font-size="13" text-anchor="middle" class="mute">not in the path</text>
+</svg>

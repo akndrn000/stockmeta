@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 360" width="1280" height="360" role="img" aria-labelledby="t d">
+  <title id="t">StockMeta</title>
+  <desc id="d">AI metadata for Adobe Stock and Shutterstock, with a sample metadata card.</desc>
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#22e27a" stroke-opacity="0.06" stroke-width="1"/>
+    </pattern>
+    <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#08100c" stop-opacity="0"/>
+      <stop offset="1" stop-color="#08100c" stop-opacity="0.85"/>
+    </linearGradient>
+  </defs>
+  <style>
+    text { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .ink { fill: #e6f5ec; }
+    .mute { fill: #7fa08b; }
+    .green { fill: #22e27a; }
+  </style>
+
+  <rect width="1280" height="360" rx="20" fill="#08100c"/>
+  <rect width="1280" height="360" rx="20" fill="url(#grid)"/>
+  <rect x="0.5" y="0.5" width="1279" height="359" rx="19.5" fill="none" stroke="#22e27a" stroke-opacity="0.35"/>
+
+  <!-- Brand -->
+  <!-- Brand: ikon yang sama dengan favicon (bingkai foto + batang label).
+       Palet banner (#22e27a/#08100c) dipertahankan agar serasi dengan pil/grid. -->
+  <g transform="translate(72 86) scale(0.71875)">
+    <rect width="64" height="64" rx="14" fill="#22e27a"/>
+    <rect x="14" y="13" width="28" height="27" fill="none" stroke="#08100c" stroke-width="6"/>
+    <rect x="14" y="36" width="37" height="11" rx="2" fill="#08100c"/>
+  </g>
+  <text x="138" y="124" font-size="58" font-weight="700" class="ink">StockMeta</text>
+
+  <text x="72" y="190" font-size="22" class="ink">AI metadata for Adobe Stock &amp; Shutterstock</text>
+  <text x="72" y="222" font-size="17" class="mute">Title, keywords, and category in one pass.</text>
+  <text x="72" y="246" font-size="17" class="mute">Runs in the browser, no middleman server.</text>
+
+  <!-- Pills -->
+  <g font-size="15">
+    <rect x="72" y="278" width="146" height="34" rx="17" fill="none" stroke="#22e27a" stroke-opacity="0.7"/>
+    <text x="145" y="300" text-anchor="middle" class="green">Adobe Stock</text>
+    <rect x="230" y="278" width="156" height="34" rx="17" fill="none" stroke="#22e27a" stroke-opacity="0.7"/>
+    <text x="308" y="300" text-anchor="middle" class="green">Shutterstock</text>
+    <rect x="398" y="278" width="292" height="34" rx="17" fill="none" stroke="#22e27a" stroke-opacity="0.7"/>
+    <text x="544" y="300" text-anchor="middle" class="green">Groq / Gemini / OpenRouter</text>
+  </g>
+
+  <!-- Sample metadata card -->
+  <g>
+    <rect x="740" y="44" width="468" height="272" rx="14" fill="#0d1a13" stroke="#22e27a" stroke-opacity="0.55"/>
+    <text x="764" y="78" font-size="13" class="mute">Bone_pet_ID_tag_vector.jpeg</text>
+    <rect x="1118" y="62" width="66" height="22" rx="11" fill="none" stroke="#22e27a"/>
+    <text x="1151" y="78" font-size="12" text-anchor="middle" class="green">SIAP</text>
+    <path d="M740 96H1208" stroke="#22e27a" stroke-opacity="0.25"/>
+
+    <text x="764" y="124" font-size="12" class="mute" letter-spacing="1.5">JUDUL</text>
+    <text x="1184" y="124" font-size="12" text-anchor="end" class="mute">39/200</text>
+    <text x="764" y="150" font-size="16" class="ink">Halloween bone shaped pet ID tag vector</text>
+
+    <text x="764" y="190" font-size="12" class="mute" letter-spacing="1.5">KATA KUNCI</text>
+    <text x="1184" y="190" font-size="12" text-anchor="end" class="mute">6/49</text>
+    <g font-size="14">
+      <rect x="764" y="202" width="100" height="28" rx="14" fill="none" stroke="#22e27a" stroke-opacity="0.6"/>
+      <text x="814" y="221" text-anchor="middle" class="ink">halloween</text>
+      <rect x="876" y="202" width="108" height="28" rx="14" fill="none" stroke="#22e27a" stroke-opacity="0.6"/>
+      <text x="930" y="221" text-anchor="middle" class="ink">pet id tag</text>
+      <rect x="996" y="202" width="83" height="28" rx="14" fill="none" stroke="#22e27a" stroke-opacity="0.6"/>
+      <text x="1037.500" y="221" text-anchor="middle" class="ink">dog tag</text>
+
+      <rect x="764" y="238" width="108" height="28" rx="14" fill="none" stroke="#22e27a" stroke-opacity="0.6"/>
+      <text x="818" y="257" text-anchor="middle" class="ink">collar tag</text>
+      <rect x="884" y="238" width="74" height="28" rx="14" fill="none" stroke="#22e27a" stroke-opacity="0.6"/>
+      <text x="921" y="257" text-anchor="middle" class="ink">spooky</text>
+      <rect x="970" y="238" width="133" height="28" rx="14" fill="none" stroke="#22e27a" stroke-opacity="0.6"/>
+      <text x="1036.500" y="257" text-anchor="middle" class="ink">trick or treat</text>
+    </g>
+
+    <path d="M740 280H1208" stroke="#22e27a" stroke-opacity="0.25"/>
+    <text x="764" y="304" font-size="12" class="mute" letter-spacing="1.5">KATEGORI</text>
+    <text x="864" y="304" font-size="14" class="ink">Graphic Resources</text>
+    <text x="1184" y="304" font-size="11" text-anchor="end" class="mute">example view</text>
+  </g>
+</svg>

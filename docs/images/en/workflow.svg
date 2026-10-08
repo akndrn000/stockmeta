@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 280" width="1280" height="280" role="img" aria-labelledby="t d">
+  <title id="t">StockMeta workflow</title>
+  <desc id="d">Four steps: upload images, pick a platform and provider, enter a theme and generate metadata, then review and export a CSV.</desc>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M1 1L9 5L1 9" fill="none" stroke="#22e27a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <style>
+    text { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .ink { fill: #e6f5ec; }
+    .mute { fill: #7fa08b; }
+    .green { fill: #22e27a; }
+  </style>
+
+  <rect width="1280" height="280" rx="20" fill="#08100c"/>
+  <rect x="0.5" y="0.5" width="1279" height="279" rx="19.5" fill="none" stroke="#22e27a" stroke-opacity="0.35"/>
+
+  <!-- Cards -->
+  <g>
+    <rect x="48" y="50" width="262" height="180" rx="14" fill="#0d1a13" stroke="#22e27a" stroke-opacity="0.5"/>
+    <rect x="362" y="50" width="262" height="180" rx="14" fill="#0d1a13" stroke="#22e27a" stroke-opacity="0.5"/>
+    <rect x="676" y="50" width="262" height="180" rx="14" fill="#0d1a13" stroke="#22e27a" stroke-opacity="0.5"/>
+    <rect x="990" y="50" width="262" height="180" rx="14" fill="#0d1a13" stroke="#22e27a" stroke-opacity="0.5"/>
+  </g>
+
+  <!-- Arrows -->
+  <g stroke="#22e27a" stroke-width="1.8" fill="none" marker-end="url(#arr)">
+    <path d="M314 140H356"/>
+    <path d="M628 140H670"/>
+    <path d="M942 140H984"/>
+  </g>
+
+  <!-- Step numbers -->
+  <g font-size="14" font-weight="700" text-anchor="middle">
+    <circle cx="82" cy="86" r="16" fill="#22e27a"/><text x="82" y="91" fill="#08100c">1</text>
+    <circle cx="396" cy="86" r="16" fill="#22e27a"/><text x="396" y="91" fill="#08100c">2</text>
+    <circle cx="710" cy="86" r="16" fill="#22e27a"/><text x="710" y="91" fill="#08100c">3</text>
+    <circle cx="1024" cy="86" r="16" fill="#22e27a"/><text x="1024" y="91" fill="#08100c">4</text>
+  </g>
+
+  <!-- Step 1 -->
+  <text x="108" y="92" font-size="19" font-weight="700" class="ink">Upload</text>
+  <text x="72" y="134" font-size="14" class="mute">Drag in JPG, PNG, or</text>
+  <text x="72" y="156" font-size="14" class="mute">WEBP images. Up to 20</text>
+  <text x="72" y="178" font-size="14" class="mute">frames per batch.</text>
+
+  <!-- Step 2 -->
+  <text x="422" y="92" font-size="19" font-weight="700" class="ink">Set up</text>
+  <text x="386" y="134" font-size="14" class="mute">Pick Adobe Stock or</text>
+  <text x="386" y="156" font-size="14" class="mute">Shutterstock, then paste</text>
+  <text x="386" y="178" font-size="14" class="mute">the API key and test it.</text>
+
+  <!-- Step 3 -->
+  <text x="736" y="92" font-size="19" font-weight="700" class="ink">Generate</text>
+  <text x="700" y="134" font-size="14" class="mute">Fill in the main theme</text>
+  <text x="700" y="156" font-size="14" class="mute">(required), then click</text>
+  <text x="700" y="178" font-size="14" class="mute">Buat metadata. You can</text>
+  <text x="700" y="200" font-size="14" class="mute">cancel at any time.</text>
+
+  <!-- Step 4 -->
+  <text x="1050" y="92" font-size="19" font-weight="700" class="ink">Review &amp; export</text>
+  <text x="1014" y="134" font-size="14" class="mute">Edit the results, copy</text>
+  <text x="1014" y="156" font-size="14" class="mute">each field, or download</text>
+  <text x="1014" y="178" font-size="14" class="mute">a CSV in portal format.</text>
+</svg>
